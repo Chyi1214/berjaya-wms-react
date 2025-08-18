@@ -117,6 +117,9 @@ export function RoleSelection({ user, onRoleSelect, onLogout }: RoleSelectionPro
         {/* Footer */}
         <div className="text-center mt-8 text-gray-500 text-sm">
           <p>&copy; 2025 Berjaya Autotech - Warehouse Management System</p>
+          <p className="mt-1 text-xs">
+            📊 v1.6.0 - Enhanced Manager Dashboard
+          </p>
         </div>
       </div>
     </div>

@@ -5,45 +5,86 @@ interface InventoryTableProps {
   counts: InventoryCountEntry[];
 }
 
-// Aggregate counts by SKU
+// Current inventory by SKU and location (latest count only)
+interface LocationQuantity {
+  logistics: number;
+  production: number; // Sum of all production zones
+}
+
 interface InventorySummary {
   sku: string;
   itemName: string;
-  totalCounted: number;
+  quantities: LocationQuantity;
   lastCountedBy: string;
   lastCountedAt: Date;
-  countEntries: number;
 }
 
 export function InventoryTable({ counts }: InventoryTableProps) {
-  // Aggregate counts by SKU
+  // Get latest count per SKU per location (physical stocktake logic)
   const inventorySummary: InventorySummary[] = Object.values(
     counts.reduce((acc, count) => {
-      const existing = acc[count.sku];
+      const key = count.sku;
       
-      if (existing) {
-        existing.totalCounted += count.amount;
-        existing.countEntries += 1;
-        if (count.timestamp > existing.lastCountedAt) {
-          existing.lastCountedBy = count.countedBy;
-          existing.lastCountedAt = count.timestamp;
-        }
-      } else {
-        acc[count.sku] = {
+      if (!acc[key]) {
+        acc[key] = {
           sku: count.sku,
           itemName: count.itemName,
-          totalCounted: count.amount,
+          quantities: { logistics: 0, production: 0 },
           lastCountedBy: count.countedBy,
-          lastCountedAt: count.timestamp,
-          countEntries: 1
+          lastCountedAt: count.timestamp
         };
+      }
+      
+      // Update if this count is more recent
+      if (count.timestamp >= acc[key].lastCountedAt) {
+        acc[key].lastCountedBy = count.countedBy;
+        acc[key].lastCountedAt = count.timestamp;
       }
       
       return acc;
     }, {} as Record<string, InventorySummary>)
-  ).sort((a, b) => a.sku.localeCompare(b.sku));
+  );
+  
+  // Now get the latest count per SKU per location
+  counts.forEach(count => {
+    const summary = inventorySummary.find(s => s.sku === count.sku);
+    if (!summary) return;
+    
+    // Get all counts for this SKU and location, take the latest
+    const sameSKULocationCounts = counts.filter(c => 
+      c.sku === count.sku && c.location === count.location
+    ).sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+    
+    const latestCount = sameSKULocationCounts[0];
+    
+    if (latestCount.location === 'logistics') {
+      summary.quantities.logistics = latestCount.amount;
+    } else if (latestCount.location.startsWith('production_zone_')) {
+      // Sum all production zones for this SKU (latest count per zone)
+      const allZoneCounts = counts.filter(c => 
+        c.sku === count.sku && c.location.startsWith('production_zone_')
+      );
+      
+      // Group by zone and get latest per zone
+      const zoneLatest = allZoneCounts.reduce((zones, c) => {
+        if (!zones[c.location] || c.timestamp > zones[c.location].timestamp) {
+          zones[c.location] = c;
+        }
+        return zones;
+      }, {} as Record<string, InventoryCountEntry>);
+      
+      // Sum latest counts from all zones
+      summary.quantities.production = Object.values(zoneLatest)
+        .reduce((sum, c) => sum + c.amount, 0);
+    }
+  });
+  
+  // Filter out items with no quantities and sort
+  const filteredSummary = inventorySummary
+    .filter(item => item.quantities.logistics > 0 || item.quantities.production > 0)
+    .sort((a, b) => a.sku.localeCompare(b.sku));
 
-  if (counts.length === 0) {
+  if (filteredSummary.length === 0) {
     return (
       <div className="card">
         <h3 className="text-xl font-semibold text-gray-900 mb-4">
@@ -67,7 +108,7 @@ export function InventoryTable({ counts }: InventoryTableProps) {
         </h3>
         <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-1">
           <span className="text-blue-800 text-sm font-medium">
-            {inventorySummary.length} SKUs • {counts.length} Total Counts
+            {filteredSummary.length} SKUs • {counts.length} Count Records
           </span>
         </div>
       </div>
@@ -81,47 +122,41 @@ export function InventoryTable({ counts }: InventoryTableProps) {
                 SKU
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Item Name
+                Part Name
               </th>
               <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Total Counted
+                Logistics
               </th>
               <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Count Entries
+                Production
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Last Count By
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Last Count Time
+                Last Updated
               </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {inventorySummary.map((item) => (
+            {filteredSummary.map((item) => (
               <tr key={item.sku} className="hover:bg-gray-50">
-                <td className="px-4 py-4 whitespace-nowrap">
+                <td className="px-4 py-3 whitespace-nowrap">
                   <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded-full">
                     {item.sku}
                   </span>
                 </td>
-                <td className="px-4 py-4 text-sm text-gray-900">
+                <td className="px-4 py-3 text-sm text-gray-900">
                   {item.itemName}
                 </td>
-                <td className="px-4 py-4 text-center">
+                <td className="px-4 py-3 text-center">
                   <span className="text-lg font-semibold text-gray-900">
-                    {item.totalCounted}
+                    {item.quantities.logistics || '-'}
                   </span>
                 </td>
-                <td className="px-4 py-4 text-center">
-                  <span className="bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded-full">
-                    {item.countEntries} counts
+                <td className="px-4 py-3 text-center">
+                  <span className="text-lg font-semibold text-gray-900">
+                    {item.quantities.production || '-'}
                   </span>
                 </td>
-                <td className="px-4 py-4 text-sm text-gray-600">
-                  {item.lastCountedBy.split('@')[0]}
-                </td>
-                <td className="px-4 py-4 text-sm text-gray-600">
+                <td className="px-4 py-3 text-sm text-gray-600">
                   {item.lastCountedAt.toLocaleString()}
                 </td>
               </tr>
@@ -132,7 +167,7 @@ export function InventoryTable({ counts }: InventoryTableProps) {
 
       {/* Mobile Cards */}
       <div className="md:hidden space-y-4">
-        {inventorySummary.map((item) => (
+        {filteredSummary.map((item) => (
           <div key={item.sku} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
             <div className="flex justify-between items-start mb-3">
               <div>
@@ -141,14 +176,19 @@ export function InventoryTable({ counts }: InventoryTableProps) {
                 </span>
                 <h4 className="font-medium text-gray-900 mt-1">{item.itemName}</h4>
               </div>
-              <div className="text-right">
-                <div className="text-2xl font-bold text-gray-900">{item.totalCounted}</div>
-                <div className="text-xs text-gray-500">{item.countEntries} counts</div>
+            </div>
+            <div className="grid grid-cols-2 gap-4 mb-2">
+              <div className="text-center">
+                <div className="text-xl font-bold text-blue-600">{item.quantities.logistics || '-'}</div>
+                <div className="text-xs text-gray-500">Logistics</div>
+              </div>
+              <div className="text-center">
+                <div className="text-xl font-bold text-green-600">{item.quantities.production || '-'}</div>
+                <div className="text-xs text-gray-500">Production</div>
               </div>
             </div>
-            <div className="text-sm text-gray-600 space-y-1">
-              <p>👤 Last counted by: {item.lastCountedBy.split('@')[0]}</p>
-              <p>🕒 {item.lastCountedAt.toLocaleString()}</p>
+            <div className="text-xs text-gray-500 text-center">
+              🕒 {item.lastCountedAt.toLocaleString()}
             </div>
           </div>
         ))}
@@ -158,21 +198,21 @@ export function InventoryTable({ counts }: InventoryTableProps) {
       <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
           <div className="text-2xl font-bold text-blue-900">
-            {inventorySummary.length}
+            {filteredSummary.length}
           </div>
-          <div className="text-blue-700 text-sm">Unique SKUs</div>
+          <div className="text-blue-700 text-sm">Active SKUs</div>
         </div>
         <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
           <div className="text-2xl font-bold text-green-900">
-            {counts.length}
+            {filteredSummary.reduce((sum, item) => sum + item.quantities.logistics, 0)}
           </div>
-          <div className="text-green-700 text-sm">Total Counts</div>
+          <div className="text-green-700 text-sm">Logistics Total</div>
         </div>
         <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 text-center">
           <div className="text-2xl font-bold text-purple-900">
-            {inventorySummary.reduce((sum, item) => sum + item.totalCounted, 0)}
+            {filteredSummary.reduce((sum, item) => sum + item.quantities.production, 0)}
           </div>
-          <div className="text-purple-700 text-sm">Total Items</div>
+          <div className="text-purple-700 text-sm">Production Total</div>
         </div>
       </div>
     </div>

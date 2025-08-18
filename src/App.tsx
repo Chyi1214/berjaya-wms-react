@@ -1,5 +1,5 @@
 // Main App Component
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './components/Login';
 import RoleSelection from './components/RoleSelection';
@@ -7,6 +7,7 @@ import LogisticsView from './components/LogisticsView';
 import ProductionView from './components/ProductionView';
 import ManagerView from './components/ManagerView';
 import { UserRole, AppSection, InventoryCountEntry } from './types';
+import { inventoryService } from './services/inventory';
 
 // Main app content (wrapped inside AuthProvider)
 function AppContent() {
@@ -16,8 +17,31 @@ function AppContent() {
   const [currentSection, setCurrentSection] = useState<AppSection>(AppSection.LOGIN);
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
   
-  // Shared inventory state (lifted up from LogisticsView)
+  // Firebase inventory state (real-time sync)
   const [inventoryCounts, setInventoryCounts] = useState<InventoryCountEntry[]>([]);
+
+  // Load inventory data from Firebase on mount
+  useEffect(() => {
+    const loadInventory = async () => {
+      try {
+        const counts = await inventoryService.getAllInventoryCounts();
+        setInventoryCounts(counts);
+      } catch (error) {
+        console.error('Failed to load inventory:', error);
+      }
+    };
+
+    loadInventory();
+  }, []);
+
+  // Real-time listener for inventory changes
+  useEffect(() => {
+    const unsubscribe = inventoryService.onInventoryCountsChange((counts) => {
+      setInventoryCounts(counts);
+    });
+
+    return unsubscribe;
+  }, []);
 
   // Handle role selection
   const handleRoleSelect = (role: UserRole) => {
@@ -50,16 +74,27 @@ function AppContent() {
     setSelectedRole(null);
   };
 
-  // Handle new inventory count (shared between roles)
-  const handleInventoryCount = (entry: InventoryCountEntry) => {
-    setInventoryCounts(prev => [entry, ...prev]);
-    console.log('New inventory count added:', entry);
+  // Handle new inventory count (save to Firebase)
+  const handleInventoryCount = async (entry: InventoryCountEntry) => {
+    try {
+      await inventoryService.saveInventoryCount(entry);
+      console.log('✅ Inventory count saved to Firebase:', entry);
+    } catch (error) {
+      console.error('❌ Failed to save inventory count:', error);
+      alert('Failed to save count. Please try again.');
+    }
   };
 
   // Handle clearing all counts
-  const handleClearCounts = () => {
+  const handleClearCounts = async () => {
     if (window.confirm('Clear all inventory counts? This cannot be undone.')) {
-      setInventoryCounts([]);
+      try {
+        await inventoryService.clearAllInventory();
+        console.log('✅ All inventory data cleared from Firebase');
+      } catch (error) {
+        console.error('❌ Failed to clear inventory:', error);
+        alert('Failed to clear data. Please try again.');
+      }
     }
   };
 
@@ -111,7 +146,10 @@ function AppContent() {
       return user ? (
         <ProductionView 
           user={user} 
-          onBack={handleBackToRoles} 
+          onBack={handleBackToRoles}
+          onCountSubmit={handleInventoryCount}
+          counts={inventoryCounts}
+          onClearCounts={handleClearCounts}
         />
       ) : <Login />;
       

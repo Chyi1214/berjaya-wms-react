@@ -1,6 +1,6 @@
 // Manager View Component - Dashboard and reporting
 import { User, InventoryCountEntry } from '../types';
-import InventoryTable from './InventoryTable';
+import EnhancedInventoryTable from './EnhancedInventoryTable';
 
 interface ManagerViewProps {
   user: User;
@@ -63,8 +63,8 @@ export function ManagerView({ user, onBack, inventoryCounts, onClearCounts }: Ma
             </p>
           </div>
 
-          {/* Inventory Table */}
-          <InventoryTable counts={inventoryCounts} />
+          {/* Enhanced Inventory Table */}
+          <EnhancedInventoryTable counts={inventoryCounts} />
 
           {/* Action Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -93,14 +93,14 @@ export function ManagerView({ user, onBack, inventoryCounts, onClearCounts }: Ma
 
           {/* Development Status */}
           <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-            <h3 className="text-green-800 font-medium mb-2">🎉 v1.3.0 Features:</h3>
+            <h3 className="text-green-800 font-medium mb-2">🚀 v1.6.0 Features:</h3>
             <ul className="text-green-700 text-sm space-y-1">
-              <li>✅ Real-time inventory overview table</li>
-              <li>✅ Aggregated count data by SKU</li>
-              <li>✅ Count statistics and summaries</li>
-              <li>✅ Mobile-responsive table design</li>
-              <li>✅ Data flows: Logistics → Manager dashboard</li>
-              <li>🚧 Next: Production zones, Firebase sync</li>
+              <li>✅ Enhanced inventory dashboard with zone breakdown</li>
+              <li>✅ Expandable production zone details</li>
+              <li>✅ Real-time search and filtering</li>
+              <li>✅ Zone statistics and activity tracking</li>
+              <li>✅ Mobile-optimized expandable interface</li>
+              <li>🚧 Next: CSV export, advanced filters</li>
             </ul>
           </div>
         </div>
