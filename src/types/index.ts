@@ -46,13 +46,35 @@ export enum AppSection {
   MANAGER = 'manager'
 }
 
-// Inventory Types (prepared for future use)
+// Inventory Types
 export interface InventoryItem {
   sku: string;
   name: string;
   total_amount: number;
   amount_logistics: number;
   [key: `amount_production_zone_${number}`]: number;
+}
+
+// Item Catalog (master list of all items)
+export interface CatalogItem {
+  sku: string;
+  name: string;
+}
+
+// Inventory Count Entry
+export interface InventoryCountEntry {
+  sku: string;
+  itemName: string;
+  amount: number;
+  location: string;
+  countedBy: string;
+  timestamp: Date;
+}
+
+// Simple count form data
+export interface CountFormData {
+  selectedSku: string;
+  amount: number;
 }
 
 // Transaction Types (prepared for future use)
