@@ -21,11 +21,29 @@ export enum UserRole {
   MANAGER = 'manager'
 }
 
+// Role Information
+export interface RoleInfo {
+  id: UserRole;
+  name: string;
+  description: string;
+  icon: string;
+  color: string;
+}
+
 // Navigation Types
 export interface NavigationState {
   currentRole: UserRole | null;
   selectedZone: number | null;
   currentSection: string;
+}
+
+// Application Sections
+export enum AppSection {
+  LOGIN = 'login',
+  ROLE_SELECTION = 'role_selection',
+  LOGISTICS = 'logistics',
+  PRODUCTION = 'production',
+  MANAGER = 'manager'
 }
 
 // Inventory Types (prepared for future use)
@@ -52,6 +70,12 @@ export interface Transaction {
 export interface LoginProps {
   onLoginSuccess?: (user: User) => void;
   onLoginError?: (error: string) => void;
+}
+
+export interface RoleSelectionProps {
+  user: User;
+  onRoleSelect: (role: UserRole) => void;
+  onLogout: () => void;
 }
 
 // API Response Types

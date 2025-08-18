@@ -1,10 +1,58 @@
 // Main App Component
+import { useState } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './components/Login';
+import RoleSelection from './components/RoleSelection';
+import LogisticsView from './components/LogisticsView';
+import ProductionView from './components/ProductionView';
+import ManagerView from './components/ManagerView';
+import { UserRole, AppSection } from './types';
 
 // Main app content (wrapped inside AuthProvider)
 function AppContent() {
-  const { user, loading } = useAuth();
+  const { user, loading, logout } = useAuth();
+  
+  // Navigation state
+  const [currentSection, setCurrentSection] = useState<AppSection>(AppSection.LOGIN);
+  const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
+
+  // Handle role selection
+  const handleRoleSelect = (role: UserRole) => {
+    console.log('Role selected:', role);
+    setSelectedRole(role);
+    switch (role) {
+      case UserRole.LOGISTICS:
+        setCurrentSection(AppSection.LOGISTICS);
+        break;
+      case UserRole.PRODUCTION:
+        setCurrentSection(AppSection.PRODUCTION);
+        break;
+      case UserRole.MANAGER:
+        setCurrentSection(AppSection.MANAGER);
+        break;
+    }
+  };
+
+  // Handle back to role selection
+  const handleBackToRoles = () => {
+    console.log('Returning to role selection from:', selectedRole);
+    setCurrentSection(AppSection.ROLE_SELECTION);
+    setSelectedRole(null);
+  };
+
+  // Handle logout
+  const handleLogout = async () => {
+    await logout();
+    setCurrentSection(AppSection.LOGIN);
+    setSelectedRole(null);
+  };
+
+  // Update section when authentication state changes
+  if (user && currentSection === AppSection.LOGIN) {
+    setCurrentSection(AppSection.ROLE_SELECTION);
+  } else if (!user && currentSection !== AppSection.LOGIN) {
+    setCurrentSection(AppSection.LOGIN);
+  }
 
   // Show loading spinner while checking authentication
   if (loading) {
@@ -18,117 +66,47 @@ function AppContent() {
     );
   }
 
-  // Show login screen if user is not authenticated
-  if (!user) {
-    return <Login />;
+  // Render based on current section
+  switch (currentSection) {
+    case AppSection.LOGIN:
+      return <Login />;
+      
+    case AppSection.ROLE_SELECTION:
+      return user ? (
+        <RoleSelection 
+          user={user} 
+          onRoleSelect={handleRoleSelect} 
+          onLogout={handleLogout} 
+        />
+      ) : <Login />;
+      
+    case AppSection.LOGISTICS:
+      return user ? (
+        <LogisticsView 
+          user={user} 
+          onBack={handleBackToRoles} 
+        />
+      ) : <Login />;
+      
+    case AppSection.PRODUCTION:
+      return user ? (
+        <ProductionView 
+          user={user} 
+          onBack={handleBackToRoles} 
+        />
+      ) : <Login />;
+      
+    case AppSection.MANAGER:
+      return user ? (
+        <ManagerView 
+          user={user} 
+          onBack={handleBackToRoles} 
+        />
+      ) : <Login />;
+      
+    default:
+      return <Login />;
   }
-
-  // User is authenticated - show the main app
-  // For now, just show a simple welcome screen
-  return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-primary-500 rounded-full flex items-center justify-center">
-                <span className="text-white font-bold text-sm">B</span>
-              </div>
-              <h1 className="text-xl font-semibold text-gray-900">
-                Berjaya WMS
-              </h1>
-            </div>
-            
-            <div className="flex items-center space-x-4">
-              {/* User info */}
-              <div className="text-right">
-                <p className="text-sm font-medium text-gray-900">
-                  {user.displayName || user.email}
-                </p>
-                <p className="text-xs text-gray-500">
-                  Logged in
-                </p>
-              </div>
-              
-              {/* User avatar */}
-              {user.photoURL ? (
-                <img
-                  src={user.photoURL}
-                  alt="User avatar"
-                  className="w-8 h-8 rounded-full"
-                />
-              ) : (
-                <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
-                  <span className="text-gray-600 text-sm font-medium">
-                    {(user.displayName || user.email).charAt(0).toUpperCase()}
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="card max-w-2xl mx-auto text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">
-            🎉 Login Successful!
-          </h2>
-          
-          <p className="text-gray-600 mb-6">
-            Welcome to the new React-based Berjaya WMS! 
-            This is just the beginning - more features will be added step by step.
-          </p>
-          
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-            <h3 className="text-green-800 font-medium mb-2">✅ What's Working Now:</h3>
-            <ul className="text-green-700 text-sm space-y-1">
-              <li>• Google OAuth Authentication</li>
-              <li>• React + TypeScript + Tailwind CSS setup</li>
-              <li>• Firebase integration</li>
-              <li>• Responsive mobile-first design</li>
-              <li>• Error handling and loading states</li>
-            </ul>
-          </div>
-          
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-            <h3 className="text-blue-800 font-medium mb-2">🚧 Coming Next:</h3>
-            <ul className="text-blue-700 text-sm space-y-1">
-              <li>• Role selection (Logistics, Production, Manager)</li>
-              <li>• Inventory counting interface</li>
-              <li>• Transaction management</li>
-              <li>• Manager dashboard</li>
-              <li>• BOM operations</li>
-            </ul>
-          </div>
-          
-          <div className="flex flex-col sm:flex-row gap-3">
-            <button
-              onClick={async () => {
-                const { logout } = useAuth();
-                await logout();
-              }}
-              className="btn-secondary"
-            >
-              Logout
-            </button>
-            
-            <button
-              onClick={() => {
-                console.log('Current user:', user);
-                alert('Check the browser console for user details!');
-              }}
-              className="btn-primary"
-            >
-              View User Details
-            </button>
-          </div>
-        </div>
-      </main>
-    </div>
-  );
 }
 
 // Main App component with AuthProvider wrapper
