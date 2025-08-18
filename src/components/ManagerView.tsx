@@ -1,12 +1,15 @@
 // Manager View Component - Dashboard and reporting
-import { User } from '../types';
+import { User, InventoryCountEntry } from '../types';
+import InventoryTable from './InventoryTable';
 
 interface ManagerViewProps {
   user: User;
   onBack: () => void;
+  inventoryCounts: InventoryCountEntry[];
+  onClearCounts: () => void;
 }
 
-export function ManagerView({ user, onBack }: ManagerViewProps) {
+export function ManagerView({ user, onBack, inventoryCounts, onClearCounts }: ManagerViewProps) {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -47,37 +50,59 @@ export function ManagerView({ user, onBack }: ManagerViewProps) {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="card max-w-2xl mx-auto text-center">
-          <div className="text-6xl mb-4">📊</div>
+        <div className="space-y-8">
           
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">
-            Manager Dashboard
-          </h2>
-          
-          <p className="text-gray-600 mb-6">
-            Welcome to the manager dashboard! Here you'll access reports, analytics, and administrative functions.
-          </p>
-          
-          <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-6">
-            <h3 className="text-purple-800 font-medium mb-2">🚧 Coming Soon:</h3>
-            <ul className="text-purple-700 text-sm space-y-1">
-              <li>• Inventory overview tables</li>
-              <li>• Transaction reports and analytics</li>
-              <li>• BOM management interface</li>
-              <li>• Data import/export tools</li>
-              <li>• System administration</li>
+          {/* Welcome Section */}
+          <div className="text-center">
+            <div className="text-4xl mb-2">📊</div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">
+              Manager Dashboard
+            </h2>
+            <p className="text-gray-600">
+              Real-time inventory overview and analytics
+            </p>
+          </div>
+
+          {/* Inventory Table */}
+          <InventoryTable counts={inventoryCounts} />
+
+          {/* Action Buttons */}
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <button
+              onClick={onBack}
+              className="btn-secondary"
+            >
+              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              Back to Role Selection
+            </button>
+            
+            {inventoryCounts.length > 0 && (
+              <button
+                onClick={onClearCounts}
+                className="bg-red-500 hover:bg-red-600 text-white font-medium py-3 px-6 rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+              >
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                Clear All Data
+              </button>
+            )}
+          </div>
+
+          {/* Development Status */}
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+            <h3 className="text-green-800 font-medium mb-2">🎉 v1.3.0 Features:</h3>
+            <ul className="text-green-700 text-sm space-y-1">
+              <li>✅ Real-time inventory overview table</li>
+              <li>✅ Aggregated count data by SKU</li>
+              <li>✅ Count statistics and summaries</li>
+              <li>✅ Mobile-responsive table design</li>
+              <li>✅ Data flows: Logistics → Manager dashboard</li>
+              <li>🚧 Next: Production zones, Firebase sync</li>
             </ul>
           </div>
-          
-          <button
-            onClick={onBack}
-            className="btn-primary"
-          >
-            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            Back to Role Selection
-          </button>
         </div>
       </main>
     </div>

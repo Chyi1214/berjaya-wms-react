@@ -1,5 +1,4 @@
 // Logistics View Component - Inventory counting for logistics team
-import { useState } from 'react';
 import { User, InventoryCountEntry } from '../types';
 import InventoryCountForm from './InventoryCountForm';
 import RecentCounts from './RecentCounts';
@@ -7,28 +6,16 @@ import RecentCounts from './RecentCounts';
 interface LogisticsViewProps {
   user: User;
   onBack: () => void;
+  onCountSubmit: (entry: InventoryCountEntry) => void;
+  counts: InventoryCountEntry[];
+  onClearCounts: () => void;
 }
 
-export function LogisticsView({ user, onBack }: LogisticsViewProps) {
-  // State for inventory counts
-  const [counts, setCounts] = useState<InventoryCountEntry[]>([]);
-
-  // Handle new count submission
+export function LogisticsView({ user, onBack, onCountSubmit, counts, onClearCounts }: LogisticsViewProps) {
+  // Handle new count submission (now just passes up to App)
   const handleCountSubmit = async (entry: InventoryCountEntry) => {
-    // Add to local state (in production, this would save to Firebase)
-    setCounts(prev => [entry, ...prev]);
-    
-    console.log('New count submitted:', entry);
-    
-    // Show success feedback
-    // In production, this would handle Firebase errors
-  };
-
-  // Handle clearing all counts
-  const handleClearCounts = () => {
-    if (window.confirm('Clear all counts? This cannot be undone.')) {
-      setCounts([]);
-    }
+    await onCountSubmit(entry);
+    console.log('Count submitted and passed to App:', entry);
   };
   return (
     <div className="min-h-screen bg-gray-50">
@@ -99,7 +86,7 @@ export function LogisticsView({ user, onBack }: LogisticsViewProps) {
             <div>
               <RecentCounts
                 counts={counts}
-                onClear={handleClearCounts}
+                onClear={onClearCounts}
               />
             </div>
           </div>

@@ -6,7 +6,7 @@ import RoleSelection from './components/RoleSelection';
 import LogisticsView from './components/LogisticsView';
 import ProductionView from './components/ProductionView';
 import ManagerView from './components/ManagerView';
-import { UserRole, AppSection } from './types';
+import { UserRole, AppSection, InventoryCountEntry } from './types';
 
 // Main app content (wrapped inside AuthProvider)
 function AppContent() {
@@ -15,6 +15,9 @@ function AppContent() {
   // Navigation state
   const [currentSection, setCurrentSection] = useState<AppSection>(AppSection.LOGIN);
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
+  
+  // Shared inventory state (lifted up from LogisticsView)
+  const [inventoryCounts, setInventoryCounts] = useState<InventoryCountEntry[]>([]);
 
   // Handle role selection
   const handleRoleSelect = (role: UserRole) => {
@@ -45,6 +48,19 @@ function AppContent() {
     await logout();
     setCurrentSection(AppSection.LOGIN);
     setSelectedRole(null);
+  };
+
+  // Handle new inventory count (shared between roles)
+  const handleInventoryCount = (entry: InventoryCountEntry) => {
+    setInventoryCounts(prev => [entry, ...prev]);
+    console.log('New inventory count added:', entry);
+  };
+
+  // Handle clearing all counts
+  const handleClearCounts = () => {
+    if (window.confirm('Clear all inventory counts? This cannot be undone.')) {
+      setInventoryCounts([]);
+    }
   };
 
   // Update section when authentication state changes
@@ -84,7 +100,10 @@ function AppContent() {
       return user ? (
         <LogisticsView 
           user={user} 
-          onBack={handleBackToRoles} 
+          onBack={handleBackToRoles}
+          onCountSubmit={handleInventoryCount}
+          counts={inventoryCounts}
+          onClearCounts={handleClearCounts}
         />
       ) : <Login />;
       
@@ -100,7 +119,9 @@ function AppContent() {
       return user ? (
         <ManagerView 
           user={user} 
-          onBack={handleBackToRoles} 
+          onBack={handleBackToRoles}
+          inventoryCounts={inventoryCounts}
+          onClearCounts={handleClearCounts}
         />
       ) : <Login />;
       
