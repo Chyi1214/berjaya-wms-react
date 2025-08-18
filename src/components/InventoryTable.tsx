@@ -1,5 +1,6 @@
 // Inventory Table Component - Shows aggregated inventory data for Manager
 import { InventoryCountEntry } from '../types';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface InventoryTableProps {
   counts: InventoryCountEntry[];
@@ -20,6 +21,7 @@ interface InventorySummary {
 }
 
 export function InventoryTable({ counts }: InventoryTableProps) {
+  const { t } = useLanguage();
   // Get latest count per SKU per location (physical stocktake logic)
   const inventorySummary: InventorySummary[] = Object.values(
     counts.reduce((acc, count) => {
@@ -88,13 +90,13 @@ export function InventoryTable({ counts }: InventoryTableProps) {
     return (
       <div className="card">
         <h3 className="text-xl font-semibold text-gray-900 mb-4">
-          📊 Inventory Summary
+          📊 {t('manager.inventoryDashboard')}
         </h3>
         <div className="text-center text-gray-500 py-12">
           <div className="text-4xl mb-4">📭</div>
-          <h4 className="text-lg font-medium text-gray-900 mb-2">No Inventory Data</h4>
-          <p>No items have been counted yet.</p>
-          <p className="text-sm mt-2">Switch to Logistics role to start counting inventory.</p>
+          <h4 className="text-lg font-medium text-gray-900 mb-2">{t('manager.noData')}</h4>
+          <p>{t('inventory.noItems')}</p>
+          <p className="text-sm mt-2">{t('inventory.startCounting')}</p>
         </div>
       </div>
     );
@@ -104,11 +106,11 @@ export function InventoryTable({ counts }: InventoryTableProps) {
     <div className="card">
       <div className="flex justify-between items-center mb-6">
         <h3 className="text-xl font-semibold text-gray-900">
-          📊 Inventory Summary
+          📊 {t('manager.inventoryDashboard')}
         </h3>
         <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-1">
           <span className="text-blue-800 text-sm font-medium">
-            {filteredSummary.length} SKUs • {counts.length} Count Records
+            {t('stats.items', { count: filteredSummary.length })} • {t('stats.countRecords', { count: counts.length })}
           </span>
         </div>
       </div>
@@ -119,19 +121,19 @@ export function InventoryTable({ counts }: InventoryTableProps) {
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200">
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                SKU
+                {t('inventory.sku')}
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Part Name
+                {t('inventory.partName')}
               </th>
               <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Logistics
+                {t('roles.logistics')}
               </th>
               <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Production
+                {t('roles.production')}
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Last Updated
+                {t('manager.lastUpdated')}
               </th>
             </tr>
           </thead>
@@ -180,11 +182,11 @@ export function InventoryTable({ counts }: InventoryTableProps) {
             <div className="grid grid-cols-2 gap-4 mb-2">
               <div className="text-center">
                 <div className="text-xl font-bold text-blue-600">{item.quantities.logistics || '-'}</div>
-                <div className="text-xs text-gray-500">Logistics</div>
+                <div className="text-xs text-gray-500">{t('roles.logistics')}</div>
               </div>
               <div className="text-center">
                 <div className="text-xl font-bold text-green-600">{item.quantities.production || '-'}</div>
-                <div className="text-xs text-gray-500">Production</div>
+                <div className="text-xs text-gray-500">{t('roles.production')}</div>
               </div>
             </div>
             <div className="text-xs text-gray-500 text-center">
@@ -200,19 +202,19 @@ export function InventoryTable({ counts }: InventoryTableProps) {
           <div className="text-2xl font-bold text-blue-900">
             {filteredSummary.length}
           </div>
-          <div className="text-blue-700 text-sm">Active SKUs</div>
+          <div className="text-blue-700 text-sm">{t('manager.activeSKUs')}</div>
         </div>
         <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
           <div className="text-2xl font-bold text-green-900">
             {filteredSummary.reduce((sum, item) => sum + item.quantities.logistics, 0)}
           </div>
-          <div className="text-green-700 text-sm">Logistics Total</div>
+          <div className="text-green-700 text-sm">{t('manager.logisticsTotal')}</div>
         </div>
         <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 text-center">
           <div className="text-2xl font-bold text-purple-900">
             {filteredSummary.reduce((sum, item) => sum + item.quantities.production, 0)}
           </div>
-          <div className="text-purple-700 text-sm">Production Total</div>
+          <div className="text-purple-700 text-sm">{t('manager.productionTotal')}</div>
         </div>
       </div>
     </div>

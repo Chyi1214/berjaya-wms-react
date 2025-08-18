@@ -1,6 +1,7 @@
 // Login Component - Google OAuth authentication
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import VersionFooter from './VersionFooter';
 
 // Login Component
 export function Login() {
@@ -113,10 +114,7 @@ export function Login() {
           )}
         </div>
 
-        {/* Footer */}
-        <div className="text-center mt-8 text-gray-500 text-sm">
-          <p>&copy; 2025 Berjaya Autotech - Warehouse Management System</p>
-        </div>
+        <VersionFooter className="mt-8" />
       </div>
     </div>
   );

@@ -1,13 +1,15 @@
 // Main App Component
 import { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { LanguageProvider } from './contexts/LanguageContext';
 import Login from './components/Login';
 import RoleSelection from './components/RoleSelection';
 import LogisticsView from './components/LogisticsView';
 import ProductionView from './components/ProductionView';
 import ManagerView from './components/ManagerView';
-import { UserRole, AppSection, InventoryCountEntry } from './types';
+import { UserRole, AppSection, InventoryCountEntry, Transaction, TransactionStatus, TransactionFormData } from './types';
 import { inventoryService } from './services/inventory';
+import { transactionService } from './services/transactions';
 
 // Main app content (wrapped inside AuthProvider)
 function AppContent() {
@@ -19,6 +21,9 @@ function AppContent() {
   
   // Firebase inventory state (real-time sync)
   const [inventoryCounts, setInventoryCounts] = useState<InventoryCountEntry[]>([]);
+  
+  // Transaction state (Firebase real-time sync)
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
 
   // Load inventory data from Firebase on mount
   useEffect(() => {
@@ -38,6 +43,19 @@ function AppContent() {
   useEffect(() => {
     const unsubscribe = inventoryService.onInventoryCountsChange((counts) => {
       setInventoryCounts(counts);
+    });
+
+    return unsubscribe;
+  }, []);
+
+  // Real-time listener for transactions
+  useEffect(() => {
+    // Clear old localStorage data to avoid conflicts
+    localStorage.removeItem('wms-transactions');
+    localStorage.removeItem('wms-transaction-otps');
+    
+    const unsubscribe = transactionService.onTransactionsChange((transactions) => {
+      setTransactions(transactions);
     });
 
     return unsubscribe;
@@ -98,6 +116,84 @@ function AppContent() {
     }
   };
 
+  // Handle transaction creation with OTP
+  const handleTransactionCreate = async (transactionData: TransactionFormData & { otp: string }): Promise<{ transaction: Transaction, otp: string }> => {
+    const { otp, ...txnData } = transactionData;
+    
+    const newTransaction: Transaction = {
+      ...txnData,
+      id: `txn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      timestamp: new Date(),
+      status: TransactionStatus.PENDING,
+      performedBy: user?.email || 'unknown',
+      // Calculate previous and new amounts based on current inventory
+      previousAmount: 0, // In real app, get from current inventory
+      newAmount: txnData.amount, // In real app, calculate based on transaction type
+      itemName: getItemNameBySku(txnData.sku)
+    };
+    
+    // Save to Firebase
+    await transactionService.saveTransaction(newTransaction);
+    await transactionService.saveOTP(newTransaction.id, otp);
+    
+    console.log('✅ Transaction created in Firebase:', newTransaction, 'OTP:', otp);
+    return { transaction: newTransaction, otp };
+  };
+
+  // Handle transaction confirmation with OTP
+  const handleTransactionConfirm = async (transactionId: string, inputOTP: string) => {
+    const storedOTP = await transactionService.getOTP(transactionId);
+    if (!storedOTP || storedOTP !== inputOTP) {
+      throw new Error('Invalid OTP');
+    }
+
+    // Update transaction status in Firebase
+    await transactionService.updateTransaction(transactionId, {
+      status: TransactionStatus.COMPLETED,
+      approvedBy: user?.email || 'unknown'
+    });
+
+    // Remove OTP after successful confirmation
+    await transactionService.deleteOTP(transactionId);
+
+    console.log('✅ Transaction confirmed in Firebase:', transactionId);
+  };
+
+  // Handle transaction rejection
+  const handleTransactionReject = async (transactionId: string, reason: string) => {
+    // Find the current transaction to get existing notes
+    const currentTransaction = transactions.find(t => t.id === transactionId);
+    const existingNotes = currentTransaction?.notes || '';
+    
+    // Update transaction status in Firebase
+    await transactionService.updateTransaction(transactionId, {
+      status: TransactionStatus.CANCELLED,
+      notes: existingNotes + ` | Rejected: ${reason}`
+    });
+
+    // Remove OTP after rejection
+    await transactionService.deleteOTP(transactionId);
+
+    console.log('❌ Transaction rejected in Firebase:', transactionId, 'Reason:', reason);
+  };
+
+  // Helper to get item name by SKU
+  const getItemNameBySku = (sku: string): string => {
+    const items = [
+      { sku: 'A001', name: 'Engine Oil Filter' },
+      { sku: 'A002', name: 'Air Filter' },
+      { sku: 'B003', name: 'Brake Pad Set' },
+      { sku: 'B004', name: 'Brake Disc' },
+      { sku: 'C005', name: 'Spark Plug Set' },
+      { sku: 'C006', name: 'Timing Belt' },
+      { sku: 'D007', name: 'Water Pump' },
+      { sku: 'D008', name: 'Alternator' },
+      { sku: 'E009', name: 'Battery' },
+      { sku: 'E010', name: 'Starter Motor' },
+    ];
+    return items.find(item => item.sku === sku)?.name || sku;
+  };
+
   // Update section when authentication state changes
   if (user && currentSection === AppSection.LOGIN) {
     setCurrentSection(AppSection.ROLE_SELECTION);
@@ -139,6 +235,7 @@ function AppContent() {
           onCountSubmit={handleInventoryCount}
           counts={inventoryCounts}
           onClearCounts={handleClearCounts}
+          onTransactionCreate={handleTransactionCreate}
         />
       ) : <Login />;
       
@@ -150,6 +247,9 @@ function AppContent() {
           onCountSubmit={handleInventoryCount}
           counts={inventoryCounts}
           onClearCounts={handleClearCounts}
+          transactions={transactions}
+          onTransactionConfirm={handleTransactionConfirm}
+          onTransactionReject={handleTransactionReject}
         />
       ) : <Login />;
       
@@ -160,6 +260,7 @@ function AppContent() {
           onBack={handleBackToRoles}
           inventoryCounts={inventoryCounts}
           onClearCounts={handleClearCounts}
+          transactions={transactions}
         />
       ) : <Login />;
       
@@ -168,12 +269,14 @@ function AppContent() {
   }
 }
 
-// Main App component with AuthProvider wrapper
+// Main App component with providers
 function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <LanguageProvider>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </LanguageProvider>
   );
 }
 

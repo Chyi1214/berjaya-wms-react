@@ -1,7 +1,11 @@
 // Logistics View Component - Inventory counting for logistics team
-import { User, InventoryCountEntry } from '../types';
+import { useState } from 'react';
+import { User, InventoryCountEntry, Transaction, TransactionFormData } from '../types';
+import { useLanguage } from '../contexts/LanguageContext';
 import InventoryCountForm from './InventoryCountForm';
 import RecentCounts from './RecentCounts';
+import TransactionSendForm from './TransactionSendForm';
+import TransactionOTPDisplay from './TransactionOTPDisplay';
 
 interface LogisticsViewProps {
   user: User;
@@ -9,13 +13,35 @@ interface LogisticsViewProps {
   onCountSubmit: (entry: InventoryCountEntry) => void;
   counts: InventoryCountEntry[];
   onClearCounts: () => void;
+  onTransactionCreate: (transactionData: TransactionFormData & { otp: string }) => Promise<{ transaction: Transaction, otp: string }>;
 }
 
-export function LogisticsView({ user, onBack, onCountSubmit, counts, onClearCounts }: LogisticsViewProps) {
+export function LogisticsView({ user, onBack, onCountSubmit, counts, onClearCounts, onTransactionCreate }: LogisticsViewProps) {
+  const { t } = useLanguage();
+  const [selectedAction, setSelectedAction] = useState<'menu' | 'check' | 'transaction'>('menu');
+  const [transactionResult, setTransactionResult] = useState<{ transaction: Transaction, otp: string } | null>(null);
+  
   // Handle new count submission (now just passes up to App)
   const handleCountSubmit = async (entry: InventoryCountEntry) => {
     await onCountSubmit(entry);
     console.log('Count submitted and passed to App:', entry);
+  };
+
+  // Handle back to menu
+  const handleBackToMenu = () => {
+    setSelectedAction('menu');
+    setTransactionResult(null);
+  };
+
+  // Handle transaction submission
+  const handleTransactionSubmit = async (transactionData: TransactionFormData & { otp: string }) => {
+    try {
+      const result = await onTransactionCreate(transactionData);
+      setTransactionResult(result);
+    } catch (error) {
+      console.error('Failed to create transaction:', error);
+      throw error;
+    }
   };
   return (
     <div className="min-h-screen bg-gray-50">
@@ -37,7 +63,7 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onClearCoun
                 <span className="text-white font-bold text-sm">B</span>
               </div>
               <h1 className="text-xl font-semibold text-gray-900">
-                Logistics - Inventory Count
+                {t('logistics.title')}
               </h1>
             </div>
             
@@ -47,7 +73,7 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onClearCoun
                   {user.displayName || user.email}
                 </p>
                 <p className="text-xs text-gray-500">
-                  Logistics Role
+                  {t('logistics.role')}
                 </p>
               </div>
             </div>
@@ -59,62 +85,172 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onClearCoun
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="max-w-4xl mx-auto space-y-8">
           
-          {/* Welcome Section */}
-          <div className="text-center">
-            <div className="text-4xl mb-2">📦</div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">
-              Logistics Inventory Counting
-            </h2>
-            <p className="text-gray-600">
-              Count and track inventory items in the logistics area
-            </p>
-          </div>
+          {selectedAction === 'menu' && (
+            <>
+              {/* Welcome Section */}
+              <div className="text-center">
+                <div className="text-4xl mb-2">📦</div>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                  {t('roles.logistics')}
+                </h2>
+                <p className="text-gray-600">
+                  {t('logistics.description')}
+                </p>
+              </div>
 
-          {/* Two Column Layout */}
-          <div className="grid md:grid-cols-2 gap-8">
-            
-            {/* Left Column: Count Form */}
-            <div>
-              <InventoryCountForm
-                onSubmit={handleCountSubmit}
-                userEmail={user.email}
-                location="logistics"
-              />
-            </div>
+              {/* Action Menu */}
+              <div className="grid md:grid-cols-2 gap-6 max-w-2xl mx-auto">
+                
+                {/* Check Inventory Button */}
+                <button
+                  onClick={() => setSelectedAction('check')}
+                  className="p-6 bg-white rounded-xl border-2 border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-all duration-200 text-center group"
+                >
+                  <div className="text-4xl mb-3">📋</div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    {t('inventory.checkInventory')}
+                  </h3>
+                  <p className="text-gray-600 text-sm">
+                    {t('logistics.checkDescription')}
+                  </p>
+                  <div className="mt-4 text-blue-500 group-hover:text-blue-600">
+                    <svg className="w-6 h-6 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                </button>
 
-            {/* Right Column: Recent Counts */}
-            <div>
-              <RecentCounts
-                counts={counts}
-                onClear={onClearCounts}
-              />
-            </div>
-          </div>
+                {/* Transaction Button */}
+                <button
+                  onClick={() => setSelectedAction('transaction')}
+                  className="p-6 bg-white rounded-xl border-2 border-gray-200 hover:border-purple-500 hover:bg-purple-50 transition-all duration-200 text-center group"
+                >
+                  <div className="text-4xl mb-3">🔄</div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    {t('transactions.title')}
+                  </h3>
+                  <p className="text-gray-600 text-sm">
+                    {t('transactions.logisticsDescription')}
+                  </p>
+                  <div className="mt-4 text-purple-500 group-hover:text-purple-600">
+                    <svg className="w-6 h-6 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                </button>
+              </div>
 
-          {/* Back Button */}
-          <div className="text-center">
-            <button
-              onClick={onBack}
-              className="btn-secondary"
-            >
-              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-              Back to Role Selection
-            </button>
-          </div>
+              {/* Back to Roles Button */}
+              <div className="text-center">
+                <button
+                  onClick={onBack}
+                  className="btn-secondary"
+                >
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                  {t('nav.backToRoles')}
+                </button>
+              </div>
+            </>
+          )}
 
-          {/* Development Note */}
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-            <h3 className="text-yellow-800 font-medium mb-2">🚀 v1.2.0 Features:</h3>
-            <ul className="text-yellow-700 text-sm space-y-1">
-              <li>✅ SKU dropdown with 15 sample items</li>
-              <li>✅ Amount input and validation</li>
-              <li>✅ Real-time count display</li>
-              <li>✅ Local storage (Firebase integration ready)</li>
-              <li>🚧 Next: Production zone counting, Manager dashboard</li>
-            </ul>
-          </div>
+          {selectedAction === 'check' && (
+            <>
+              {/* Check Inventory View */}
+              <div className="text-center">
+                <div className="text-4xl mb-2">📋</div>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                  {t('inventory.inventoryCount')} - {t('roles.logistics')}
+                </h2>
+                <p className="text-gray-600">
+                  {t('logistics.description')}
+                </p>
+              </div>
+
+              {/* Two Column Layout */}
+              <div className="grid md:grid-cols-2 gap-8">
+                
+                {/* Left Column: Count Form */}
+                <div>
+                  <InventoryCountForm
+                    onSubmit={handleCountSubmit}
+                    userEmail={user.email}
+                    location="logistics"
+                  />
+                </div>
+
+                {/* Right Column: Recent Counts */}
+                <div>
+                  <RecentCounts
+                    counts={counts}
+                    onClear={onClearCounts}
+                  />
+                </div>
+              </div>
+
+              {/* Back to Menu Button */}
+              <div className="text-center">
+                <button
+                  onClick={handleBackToMenu}
+                  className="btn-secondary mr-4"
+                >
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                  {t('common.back')}
+                </button>
+                <button
+                  onClick={onBack}
+                  className="btn-secondary"
+                >
+                  {t('nav.backToRoles')}
+                </button>
+              </div>
+            </>
+          )}
+
+          {selectedAction === 'transaction' && (
+            <>
+              {transactionResult ? (
+                <>
+                  {/* Show OTP Display */}
+                  <div className="text-center">
+                    <div className="text-4xl mb-2">🔄</div>
+                    <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                      Transaction Created - {t('roles.logistics')}
+                    </h2>
+                  </div>
+
+                  <TransactionOTPDisplay
+                    transaction={transactionResult.transaction}
+                    otp={transactionResult.otp}
+                    onClose={handleBackToMenu}
+                  />
+                </>
+              ) : (
+                <>
+                  {/* Transaction Send Form */}
+                  <div className="text-center">
+                    <div className="text-4xl mb-2">📤</div>
+                    <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                      Send Items - {t('roles.logistics')}
+                    </h2>
+                    <p className="text-gray-600">
+                      Send inventory to production zones with OTP confirmation
+                    </p>
+                  </div>
+
+                  <TransactionSendForm
+                    onSubmit={handleTransactionSubmit}
+                    onCancel={handleBackToMenu}
+                    senderEmail={user.email}
+                  />
+                </>
+              )}
+            </>
+          )}
+
         </div>
       </main>
     </div>

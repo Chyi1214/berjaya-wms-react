@@ -1,5 +1,6 @@
 // Recent Counts Component - Shows recent inventory count entries
 import { InventoryCountEntry } from '../types';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface RecentCountsProps {
   counts: InventoryCountEntry[];
@@ -7,16 +8,17 @@ interface RecentCountsProps {
 }
 
 export function RecentCounts({ counts, onClear }: RecentCountsProps) {
+  const { t } = useLanguage();
   if (counts.length === 0) {
     return (
       <div className="card">
         <h3 className="text-xl font-semibold text-gray-900 mb-4">
-          📋 Recent Counts
+          📋 {t('inventory.recentCounts')}
         </h3>
         <div className="text-center text-gray-500 py-8">
           <div className="text-4xl mb-2">📭</div>
-          <p>No counts recorded yet</p>
-          <p className="text-sm">Use the form above to start counting inventory</p>
+          <p>{t('inventory.noItems')}</p>
+          <p className="text-sm">{t('inventory.startCounting')}</p>
         </div>
       </div>
     );
@@ -26,14 +28,14 @@ export function RecentCounts({ counts, onClear }: RecentCountsProps) {
     <div className="card">
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-xl font-semibold text-gray-900">
-          📋 Recent Counts ({counts.length})
+          📋 {t('inventory.recentCounts')} ({counts.length})
         </h3>
         {onClear && counts.length > 0 && (
           <button
             onClick={onClear}
             className="text-sm text-red-600 hover:text-red-800 px-3 py-1 rounded-lg hover:bg-red-50 transition-colors"
           >
-            Clear All
+            {t('common.clear')}
           </button>
         )}
       </div>
@@ -53,7 +55,7 @@ export function RecentCounts({ counts, onClear }: RecentCountsProps) {
                   <span className="text-lg font-semibold text-gray-900">
                     {count.amount}
                   </span>
-                  <span className="text-gray-500">pcs</span>
+                  <span className="text-gray-500">{t('inventory.pieces')}</span>
                 </div>
                 
                 <p className="text-gray-700 font-medium mb-1">
@@ -80,7 +82,7 @@ export function RecentCounts({ counts, onClear }: RecentCountsProps) {
       {counts.length > 5 && (
         <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
           <p className="text-blue-800 text-sm">
-            💡 <span className="font-medium">Tip:</span> In production, these counts would sync to Firebase automatically
+            💡 <span className="font-medium">{t('common.tip')}:</span> {t('messages.productionTip')}
           </p>
         </div>
       )}

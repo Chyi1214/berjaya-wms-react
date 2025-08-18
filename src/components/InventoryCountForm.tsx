@@ -1,6 +1,7 @@
 // Inventory Count Form Component - Simple SKU and amount entry
 import { useState } from 'react';
 import { CatalogItem, CountFormData, InventoryCountEntry } from '../types';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface InventoryCountFormProps {
   onSubmit: (entry: InventoryCountEntry) => void;
@@ -28,6 +29,7 @@ const SAMPLE_CATALOG: CatalogItem[] = [
 ];
 
 export function InventoryCountForm({ onSubmit, userEmail, location }: InventoryCountFormProps) {
+  const { t } = useLanguage();
   // Form state
   const [formData, setFormData] = useState<CountFormData>({
     selectedSku: '',
@@ -45,17 +47,17 @@ export function InventoryCountForm({ onSubmit, userEmail, location }: InventoryC
     e.preventDefault();
     
     if (!formData.selectedSku) {
-      setError('Please select a SKU');
+      setError(t('messages.pleaseSelectSKU'));
       return;
     }
     
     if (formData.amount <= 0) {
-      setError('Please enter a valid amount');
+      setError(t('messages.pleaseEnterValidAmount'));
       return;
     }
 
     if (!selectedItem) {
-      setError('Selected item not found');
+      setError(t('messages.selectedItemNotFound'));
       return;
     }
 
@@ -78,7 +80,7 @@ export function InventoryCountForm({ onSubmit, userEmail, location }: InventoryC
       setFormData({ selectedSku: '', amount: 0 });
       
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Submission failed');
+      setError(error instanceof Error ? error.message : t('messages.countFailed'));
     } finally {
       setIsSubmitting(false);
     }
@@ -87,14 +89,14 @@ export function InventoryCountForm({ onSubmit, userEmail, location }: InventoryC
   return (
     <div className="card">
       <h3 className="text-xl font-semibold text-gray-900 mb-6">
-        📦 Count Inventory
+        📦 {t('inventory.countInventory')}
       </h3>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* SKU Selection */}
         <div>
           <label htmlFor="sku-select" className="block text-sm font-medium text-gray-700 mb-2">
-            Select Item (SKU):
+            {t('inventory.selectSKU')}:
           </label>
           <select
             id="sku-select"
@@ -102,7 +104,7 @@ export function InventoryCountForm({ onSubmit, userEmail, location }: InventoryC
             onChange={(e) => setFormData(prev => ({ ...prev, selectedSku: e.target.value }))}
             className="input-primary"
           >
-            <option value="">Select SKU...</option>
+            <option value="">{t('inventory.selectSKU')}...</option>
             {SAMPLE_CATALOG.map(item => (
               <option key={item.sku} value={item.sku}>
                 {item.sku} - {item.name}
@@ -114,7 +116,7 @@ export function InventoryCountForm({ onSubmit, userEmail, location }: InventoryC
         {/* Selected Item Display */}
         {selectedItem && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h4 className="font-medium text-blue-900">Selected Item:</h4>
+            <h4 className="font-medium text-blue-900">{t('inventory.itemName')}:</h4>
             <p className="text-blue-800">
               <span className="font-medium">{selectedItem.sku}</span> - {selectedItem.name}
             </p>
@@ -124,7 +126,7 @@ export function InventoryCountForm({ onSubmit, userEmail, location }: InventoryC
         {/* Amount Input */}
         <div>
           <label htmlFor="amount-input" className="block text-sm font-medium text-gray-700 mb-2">
-            Amount Counted:
+            {t('inventory.amount')}:
           </label>
           <input
             id="amount-input"
@@ -133,19 +135,19 @@ export function InventoryCountForm({ onSubmit, userEmail, location }: InventoryC
             step="1"
             value={formData.amount || ''}
             onChange={(e) => setFormData(prev => ({ ...prev, amount: parseInt(e.target.value) || 0 }))}
-            placeholder="Enter amount..."
+            placeholder={t('inventory.enterAmount')}
             className="input-primary"
           />
         </div>
 
         {/* Location Display */}
         <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-          <h4 className="font-medium text-gray-900">Count Details:</h4>
+          <h4 className="font-medium text-gray-900">{t('inventory.countDetails')}:</h4>
           <p className="text-gray-700">
-            <span className="font-medium">Location:</span> {location}
+            <span className="font-medium">{t('inventory.location')}:</span> {location}
           </p>
           <p className="text-gray-700">
-            <span className="font-medium">Counted by:</span> {userEmail}
+            <span className="font-medium">{t('inventory.countedBy')}:</span> {userEmail}
           </p>
         </div>
 
@@ -165,11 +167,11 @@ export function InventoryCountForm({ onSubmit, userEmail, location }: InventoryC
           {isSubmitting ? (
             <div className="flex items-center justify-center space-x-2">
               <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-              <span>Submitting...</span>
+              <span>{t('common.loading')}...</span>
             </div>
           ) : (
             <>
-              <span>📝 Submit Count</span>
+              <span>📝 {t('common.submit')}</span>
             </>
           )}
         </button>

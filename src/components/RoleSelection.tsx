@@ -1,32 +1,38 @@
 // Role Selection Component - Choose user role after login
 import { UserRole, RoleInfo, type RoleSelectionProps } from '../types';
+import { useLanguage } from '../contexts/LanguageContext';
+import LanguageSwitcher from './LanguageSwitcher';
+import VersionFooter from './VersionFooter';
 
-// Role definitions with icons and colors
-const ROLES: RoleInfo[] = [
+// Role definitions with icons and colors (will be translated)
+const getRoles = (t: (key: string) => string): RoleInfo[] => [
   {
     id: UserRole.LOGISTICS,
-    name: 'Logistics',
-    description: 'Inventory counting and management',
+    name: t('roles.logistics'),
+    description: t('roles.logisticsDesc'),
     icon: '📦',
     color: 'bg-blue-500 hover:bg-blue-600'
   },
   {
     id: UserRole.PRODUCTION,
-    name: 'Production',
-    description: 'Zone-based production management',
+    name: t('roles.production'),
+    description: t('roles.productionDesc'),
     icon: '🏭',
     color: 'bg-green-500 hover:bg-green-600'
   },
   {
     id: UserRole.MANAGER,
-    name: 'Manager',
-    description: 'Dashboard and reporting',
+    name: t('roles.manager'),
+    description: t('roles.managerDesc'),
     icon: '📊',
     color: 'bg-purple-500 hover:bg-purple-600'
   }
 ];
 
 export function RoleSelection({ user, onRoleSelect, onLogout }: RoleSelectionProps) {
+  const { t } = useLanguage();
+  const roles = getRoles(t);
+
   // Handle role button click
   const handleRoleClick = (role: UserRole) => {
     console.log(`Role selected: ${role}`);
@@ -38,9 +44,13 @@ export function RoleSelection({ user, onRoleSelect, onLogout }: RoleSelectionPro
       <div className="max-w-2xl w-full">
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="mb-4">
+          <div className="mb-4 relative">
             <div className="w-16 h-16 bg-primary-500 rounded-full flex items-center justify-center mx-auto mb-4">
               <span className="text-white text-2xl font-bold">B</span>
+            </div>
+            {/* Language Switcher */}
+            <div className="absolute top-0 right-0">
+              <LanguageSwitcher size="sm" />
             </div>
           </div>
           
@@ -48,7 +58,7 @@ export function RoleSelection({ user, onRoleSelect, onLogout }: RoleSelectionPro
             Berjaya WMS
           </h1>
           <h2 className="text-2xl font-semibold text-gray-800 mb-4">
-            Select Your Role
+            {t('roles.selectRole')}
           </h2>
           
           {/* User Info */}
@@ -68,7 +78,7 @@ export function RoleSelection({ user, onRoleSelect, onLogout }: RoleSelectionPro
                 </div>
               )}
               <div className="text-left">
-                <p className="text-sm text-gray-600">Logged in as:</p>
+                <p className="text-sm text-gray-600">{t('auth.loggedInAs')}:</p>
                 <p className="font-medium text-gray-900">
                   {user.displayName || user.email}
                 </p>
@@ -79,7 +89,7 @@ export function RoleSelection({ user, onRoleSelect, onLogout }: RoleSelectionPro
 
         {/* Role Buttons */}
         <div className="space-y-4 mb-8">
-          {ROLES.map((role) => (
+          {roles.map((role) => (
             <button
               key={role.id}
               onClick={() => handleRoleClick(role.id)}
@@ -110,17 +120,11 @@ export function RoleSelection({ user, onRoleSelect, onLogout }: RoleSelectionPro
             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
             </svg>
-            Logout
+            {t('common.logout')}
           </button>
         </div>
 
-        {/* Footer */}
-        <div className="text-center mt-8 text-gray-500 text-sm">
-          <p>&copy; 2025 Berjaya Autotech - Warehouse Management System</p>
-          <p className="mt-1 text-xs">
-            📊 v1.6.0 - Enhanced Manager Dashboard
-          </p>
-        </div>
+        <VersionFooter className="mt-8" />
       </div>
     </div>
   );

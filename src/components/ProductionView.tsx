@@ -1,8 +1,10 @@
 // Production View Component - Zone-based production management
 import { useState } from 'react';
-import { User, InventoryCountEntry } from '../types';
+import { User, InventoryCountEntry, Transaction } from '../types';
+import { useLanguage } from '../contexts/LanguageContext';
 import InventoryCountForm from './InventoryCountForm';
 import RecentCounts from './RecentCounts';
+import TransactionReceiveView from './TransactionReceiveView';
 
 interface ProductionViewProps {
   user: User;
@@ -10,6 +12,9 @@ interface ProductionViewProps {
   onCountSubmit: (entry: InventoryCountEntry) => void;
   counts: InventoryCountEntry[];
   onClearCounts: () => void;
+  transactions: Transaction[];
+  onTransactionConfirm: (transactionId: string, otp: string) => void;
+  onTransactionReject: (transactionId: string, reason: string) => void;
 }
 
 // Generate zones 1-23
@@ -19,17 +24,26 @@ const PRODUCTION_ZONES = Array.from({ length: 23 }, (_, i) => ({
   description: `Production Zone ${i + 1}`
 }));
 
-export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCounts }: ProductionViewProps) {
+export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCounts, transactions, onTransactionConfirm, onTransactionReject }: ProductionViewProps) {
+  const { t } = useLanguage();
   const [selectedZone, setSelectedZone] = useState<number | null>(null);
+  const [selectedAction, setSelectedAction] = useState<'menu' | 'check' | 'transaction'>('menu');
   
   // Handle zone selection
   const handleZoneSelect = (zoneId: number) => {
     setSelectedZone(zoneId);
+    setSelectedAction('menu'); // Reset to menu when selecting zone
   };
   
   // Handle back to zone selection
   const handleBackToZones = () => {
     setSelectedZone(null);
+    setSelectedAction('menu');
+  };
+
+  // Handle back to action menu
+  const handleBackToMenu = () => {
+    setSelectedAction('menu');
   };
   
   // Handle inventory count submission
@@ -71,7 +85,7 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
                   <span className="text-white font-bold text-sm">B</span>
                 </div>
                 <h1 className="text-xl font-semibold text-gray-900">
-                  Production - Select Zone
+                  {t('production.title')}
                 </h1>
               </div>
               
@@ -81,7 +95,7 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
                     {user.displayName || user.email}
                   </p>
                   <p className="text-xs text-gray-500">
-                    Production Role
+                    {t('production.role')}
                   </p>
                 </div>
               </div>
@@ -97,10 +111,10 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
             <div className="text-center mb-8">
               <div className="text-4xl mb-2">🏭</div>
               <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                Production Zone Selection
+                {t('production.selectZone')}
               </h2>
               <p className="text-gray-600">
-                Select a production zone to start inventory counting
+                {t('production.selectZoneDesc')}
               </p>
             </div>
 
@@ -117,7 +131,7 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
                       {zone.id}
                     </div>
                     <div className="text-sm text-gray-600">
-                      Zone {zone.id}
+                      {t('production.zone')} {zone.id}
                     </div>
                   </div>
                 </button>
@@ -133,7 +147,7 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
                 <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
-                Back to Role Selection
+                {t('nav.backToRoles')}
               </button>
             </div>
 
@@ -175,14 +189,14 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
                 <span className="text-white font-bold text-sm">{selectedZone}</span>
               </div>
               <h1 className="text-xl font-semibold text-gray-900">
-                Production Zone {selectedZone} - Inventory Count
+                {t('production.zoneTitle', { zone: selectedZone })}
               </h1>
             </div>
             
             <div className="flex items-center space-x-4">
               <div className="bg-green-100 border border-green-200 rounded-lg px-3 py-1">
                 <span className="text-green-800 text-sm font-medium">
-                  Zone {selectedZone}
+                  {t('production.zone')} {selectedZone}
                 </span>
               </div>
               <div className="text-right">
@@ -190,7 +204,7 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
                   {user.displayName || user.email}
                 </p>
                 <p className="text-xs text-gray-500">
-                  Production Role
+                  {t('production.role')}
                 </p>
               </div>
             </div>
@@ -198,64 +212,202 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
         </div>
       </header>
 
-      {/* Main Content - Inventory Counting */}
+      {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="max-w-4xl mx-auto space-y-8">
           
-          {/* Welcome Section */}
-          <div className="text-center">
-            <div className="text-4xl mb-2">📦</div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">
-              Production Zone {selectedZone} Inventory
-            </h2>
-            <p className="text-gray-600">
-              Count and track inventory items in production zone {selectedZone}
-            </p>
-          </div>
+          {selectedAction === 'menu' && (
+            <>
+              {/* Welcome Section */}
+              <div className="text-center">
+                <div className="text-4xl mb-2">🏭</div>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                  {t('production.zoneTitle', { zone: selectedZone })}
+                </h2>
+                <p className="text-gray-600">
+                  {t('production.zoneDesc', { zone: selectedZone })}
+                </p>
+              </div>
 
-          {/* Two Column Layout */}
-          <div className="grid md:grid-cols-2 gap-8">
-            
-            {/* Left Column: Count Form */}
-            <div>
-              <InventoryCountForm
-                onSubmit={handleCountSubmit}
-                userEmail={user.email}
-                location={`production_zone_${selectedZone}`}
+              {/* Action Menu */}
+              <div className="grid md:grid-cols-2 gap-6 max-w-2xl mx-auto">
+                
+                {/* Check Inventory Button */}
+                <button
+                  onClick={() => setSelectedAction('check')}
+                  className="p-6 bg-white rounded-xl border-2 border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-all duration-200 text-center group"
+                >
+                  <div className="text-4xl mb-3">📋</div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    {t('inventory.checkInventory')}
+                  </h3>
+                  <p className="text-gray-600 text-sm">
+                    {t('production.checkDescription')}
+                  </p>
+                  <div className="mt-4 text-blue-500 group-hover:text-blue-600">
+                    <svg className="w-6 h-6 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                </button>
+
+                {/* Transaction Button */}
+                <button
+                  onClick={() => setSelectedAction('transaction')}
+                  className="p-6 bg-white rounded-xl border-2 border-gray-200 hover:border-purple-500 hover:bg-purple-50 transition-all duration-200 text-center group"
+                >
+                  <div className="text-4xl mb-3">🔄</div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    {t('transactions.title')}
+                  </h3>
+                  <p className="text-gray-600 text-sm">
+                    {t('transactions.productionDescription')}
+                  </p>
+                  <div className="mt-4 text-purple-500 group-hover:text-purple-600">
+                    <svg className="w-6 h-6 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                </button>
+              </div>
+
+              {/* Navigation Buttons */}
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <button
+                  onClick={handleBackToZones}
+                  className="btn-secondary"
+                >
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                  {t('production.backToZones')}
+                </button>
+                
+                <button
+                  onClick={onBack}
+                  className="btn-secondary"
+                >
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                  </svg>
+                  {t('nav.backToRoles')}
+                </button>
+              </div>
+            </>
+          )}
+
+          {selectedAction === 'check' && (
+            <>
+              {/* Check Inventory View */}
+              <div className="text-center">
+                <div className="text-4xl mb-2">📦</div>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                  {t('inventory.inventoryCount')} - {t('production.zoneTitle', { zone: selectedZone })}
+                </h2>
+                <p className="text-gray-600">
+                  {t('production.zoneDesc', { zone: selectedZone })}
+                </p>
+              </div>
+
+              {/* Two Column Layout */}
+              <div className="grid md:grid-cols-2 gap-8">
+                
+                {/* Left Column: Count Form */}
+                <div>
+                  <InventoryCountForm
+                    onSubmit={handleCountSubmit}
+                    userEmail={user.email}
+                    location={`production_zone_${selectedZone}`}
+                  />
+                </div>
+
+                {/* Right Column: Recent Counts */}
+                <div>
+                  <RecentCounts
+                    counts={zoneCounts}
+                    onClear={onClearCounts}
+                  />
+                </div>
+              </div>
+
+              {/* Back to Menu Button */}
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <button
+                  onClick={handleBackToMenu}
+                  className="btn-secondary"
+                >
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                  {t('common.back')}
+                </button>
+                
+                <button
+                  onClick={handleBackToZones}
+                  className="btn-secondary"
+                >
+                  {t('production.backToZones')}
+                </button>
+                
+                <button
+                  onClick={onBack}
+                  className="btn-secondary"
+                >
+                  {t('nav.backToRoles')}
+                </button>
+              </div>
+            </>
+          )}
+
+          {selectedAction === 'transaction' && (
+            <>
+              {/* Transaction Receive View */}
+              <div className="text-center">
+                <div className="text-4xl mb-2">📥</div>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                  Confirm Transactions - {t('production.zoneTitle', { zone: selectedZone })}
+                </h2>
+                <p className="text-gray-600">
+                  Confirm incoming items from logistics with OTP
+                </p>
+              </div>
+
+              <TransactionReceiveView
+                pendingTransactions={transactions}
+                currentZone={selectedZone!}
+                onConfirmTransaction={onTransactionConfirm}
+                onRejectTransaction={onTransactionReject}
               />
-            </div>
 
-            {/* Right Column: Recent Counts */}
-            <div>
-              <RecentCounts
-                counts={zoneCounts}
-                onClear={onClearCounts}
-              />
-            </div>
-          </div>
+              {/* Back to Menu Button */}
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <button
+                  onClick={handleBackToMenu}
+                  className="btn-secondary"
+                >
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                  {t('common.back')}
+                </button>
+                
+                <button
+                  onClick={handleBackToZones}
+                  className="btn-secondary"
+                >
+                  {t('production.backToZones')}
+                </button>
+                
+                <button
+                  onClick={onBack}
+                  className="btn-secondary"
+                >
+                  {t('nav.backToRoles')}
+                </button>
+              </div>
+            </>
+          )}
 
-          {/* Navigation Buttons */}
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <button
-              onClick={handleBackToZones}
-              className="btn-secondary"
-            >
-              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-              Back to Zone Selection
-            </button>
-            
-            <button
-              onClick={onBack}
-              className="btn-secondary"
-            >
-              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-              </svg>
-              Back to Role Selection
-            </button>
-          </div>
         </div>
       </main>
     </div>

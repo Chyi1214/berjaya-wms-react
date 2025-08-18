@@ -1,6 +1,7 @@
 // Enhanced Inventory Table Component - Manager dashboard with zone breakdown
 import { useState } from 'react';
 import { InventoryCountEntry } from '../types';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface EnhancedInventoryTableProps {
   counts: InventoryCountEntry[];
@@ -28,6 +29,7 @@ interface EnhancedInventorySummary {
 }
 
 export function EnhancedInventoryTable({ counts }: EnhancedInventoryTableProps) {
+  const { t } = useLanguage();
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
@@ -138,13 +140,13 @@ export function EnhancedInventoryTable({ counts }: EnhancedInventoryTableProps) 
     return (
       <div className="card">
         <h3 className="text-xl font-semibold text-gray-900 mb-4">
-          📊 Enhanced Inventory Dashboard
+          📊 {t('manager.inventoryDashboard')}
         </h3>
         <div className="text-center text-gray-500 py-12">
           <div className="text-4xl mb-4">📭</div>
-          <h4 className="text-lg font-medium text-gray-900 mb-2">No Inventory Data</h4>
-          <p>No items have been counted yet.</p>
-          <p className="text-sm mt-2">Switch to Logistics or Production role to start counting.</p>
+          <h4 className="text-lg font-medium text-gray-900 mb-2">{t('manager.noData')}</h4>
+          <p>{t('inventory.noItems')}</p>
+          <p className="text-sm mt-2">{t('nav.backToRoles')}</p>
         </div>
       </div>
     );
@@ -154,7 +156,7 @@ export function EnhancedInventoryTable({ counts }: EnhancedInventoryTableProps) 
     <div className="card">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
         <h3 className="text-xl font-semibold text-gray-900">
-          📊 Enhanced Inventory Dashboard
+          📊 {t('manager.inventoryDashboard')}
         </h3>
         
         {/* Search Bar */}
@@ -166,7 +168,7 @@ export function EnhancedInventoryTable({ counts }: EnhancedInventoryTableProps) 
           </div>
           <input
             type="text"
-            placeholder="Search SKU or part name..."
+            placeholder={t('inventory.searchSKU')}
             className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -180,19 +182,19 @@ export function EnhancedInventoryTable({ counts }: EnhancedInventoryTableProps) 
           <div className="text-2xl font-bold text-blue-900">
             {filteredSummary.length}
           </div>
-          <div className="text-blue-700 text-sm">Active SKUs</div>
+          <div className="text-blue-700 text-sm">{t('manager.activeSKUs')}</div>
         </div>
         <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
           <div className="text-2xl font-bold text-green-900">
             {filteredSummary.reduce((sum, item) => sum + item.logistics, 0)}
           </div>
-          <div className="text-green-700 text-sm">Logistics Total</div>
+          <div className="text-green-700 text-sm">{t('manager.logisticsTotal')}</div>
         </div>
         <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 text-center">
           <div className="text-2xl font-bold text-purple-900">
             {filteredSummary.reduce((sum, item) => sum + item.productionTotal, 0)}
           </div>
-          <div className="text-purple-700 text-sm">Production Total</div>
+          <div className="text-purple-700 text-sm">{t('manager.productionTotal')}</div>
         </div>
         <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-center">
           <div className="text-2xl font-bold text-gray-900">
@@ -200,7 +202,7 @@ export function EnhancedInventoryTable({ counts }: EnhancedInventoryTableProps) 
               item.productionZones.map(zone => zone.zoneId)
             )).size}
           </div>
-          <div className="text-gray-700 text-sm">Active Zones</div>
+          <div className="text-gray-700 text-sm">{t('manager.activeZones')}</div>
         </div>
       </div>
 
@@ -210,25 +212,25 @@ export function EnhancedInventoryTable({ counts }: EnhancedInventoryTableProps) 
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200">
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                SKU
+                {t('inventory.sku')}
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Part Name
+                {t('inventory.partName')}
               </th>
               <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Logistics
+                {t('roles.logistics')}
               </th>
               <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Production
+                {t('roles.production')}
               </th>
               <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Total
+                {t('common.total')}
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Last Updated
+                {t('manager.lastUpdated')}
               </th>
               <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Actions
+                {t('manager.actions')}
               </th>
             </tr>
           </thead>
