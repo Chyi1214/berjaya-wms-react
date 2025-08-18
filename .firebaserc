@@ -1,0 +1,14 @@
+{
+  "projects": {
+    "default": "berjaya-autotech"
+  },
+  "targets": {
+    "berjaya-autotech": {
+      "hosting": {
+        "berjaya-autotech-4b4f4": [
+          "berjaya-autotech-4b4f4"
+        ]
+      }
+    }
+  }
+}
