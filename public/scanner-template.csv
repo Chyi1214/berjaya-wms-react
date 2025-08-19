@@ -1,0 +1,13 @@
+SKU,Zone,ItemName,ExpectedQuantity
+A001,8,Engine Part A,50
+A002,12,Engine Part B,30
+B001,5,Body Panel A,25
+B002,5,Body Panel B,25
+E001,15,Electronic Module A,100
+E002,15,Electronic Module B,75
+F001,3,Frame Component A,40
+F002,3,Frame Component B,35
+F16-1301P05AA,2,Provider A Part,20
+25469-CX70P250401,7,Provider B Component,15
+2010.0577.1700,18,T1NRHD Right Lower Guard,12
+401005094AA,22,Specification Part,8

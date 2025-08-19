@@ -1,4 +1,4 @@
-// Authentication Context for managing user state across the app - v3.1.0 Enhanced Security
+// Authentication Context for managing user state across the app - v3.2.0 Scanner Integration
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { authService } from '../services/firebase';
 import { userManagementService } from '../services/userManagement';

@@ -14,7 +14,7 @@ export interface AuthState {
   error: string | null;
 }
 
-// Application Roles - Enhanced for v3.1.0 Security
+// Application Roles - Enhanced for v3.2.0 Scanner Integration
 export enum UserRole {
   DEV_ADMIN = 'devAdmin',
   MANAGER = 'manager',
@@ -295,4 +295,29 @@ export interface ApiResponse<T> {
 export interface FirebaseError {
   code: string;
   message: string;
+}
+
+// Scanner Types - v3.2.0 Barcode Integration
+export interface ScanLookup {
+  sku: string;           // Primary key - "A001", "B003", etc.
+  targetZone: number;    // Zone number 1-30
+  itemName?: string;     // Optional item description
+  expectedQuantity?: number;  // How many items should be in this zone
+  createdAt: Date;
+  updatedAt: Date;
+  updatedBy: string;     // Email of user who last updated
+}
+
+export interface ScanResult {
+  scannedCode: string;   // Raw barcode/QR content
+  lookup?: ScanLookup;   // Found lookup data
+  timestamp: Date;
+  scannedBy: string;
+}
+
+export interface ScannerConfig {
+  enableBeep: boolean;
+  enableVibration: boolean;
+  autoFocus: boolean;
+  flashMode: 'auto' | 'on' | 'off';
 }

@@ -107,6 +107,12 @@ service cloud.firestore {
       allow write: if isDevAdmin() || hasPermission('scanner', 'admin');
     }
     
+    // Scanner lookup table - SKU to zone mapping for v3.2.0
+    match /scanLookups/{document} {
+      allow read: if isActiveUser();  // All authenticated users can read scan lookups
+      allow write: if isDevAdmin() || hasRole('manager');  // Only managers can modify lookup table
+    }
+    
     // Deny all other access
     match /{document=**} {
       allow read, write: if false;

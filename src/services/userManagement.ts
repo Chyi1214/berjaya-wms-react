@@ -1,4 +1,4 @@
-// User Management Service - v3.1.0 Security System
+// User Management Service - v3.2.0 Scanner Integration
 import { collection, doc, getDoc, setDoc, updateDoc, deleteDoc, getDocs, query, orderBy } from 'firebase/firestore';
 import { db } from './firebase';
 import { UserRecord, UserRole, UserPermissions, PermissionTemplate } from '../types';
