@@ -2,20 +2,57 @@
 import { InventoryCountEntry, Transaction, TransactionStatus, TransactionType } from '../types';
 import { inventoryService } from './inventory';
 import { transactionService } from './transactions';
+import { itemMasterService } from './itemMaster';
+import { bomService } from './bom';
 
-// Sample SKUs and items
-const SAMPLE_ITEMS = [
-  { sku: 'A001', name: 'Engine Oil Filter' },
-  { sku: 'A002', name: 'Air Filter' },
-  { sku: 'B003', name: 'Brake Pad Set' },
-  { sku: 'B004', name: 'Brake Disc' },
-  { sku: 'C005', name: 'Spark Plug Set' },
-  { sku: 'C006', name: 'Timing Belt' },
-  { sku: 'D007', name: 'Water Pump' },
-  { sku: 'D008', name: 'Alternator' },
-  { sku: 'E009', name: 'Battery' },
-  { sku: 'E010', name: 'Starter Motor' },
+// Comprehensive Item Master catalog for automotive warehouse
+const AUTOMOTIVE_ITEMS = [
+  // Filters
+  { sku: 'F001', name: 'Engine Oil Filter', category: 'Filters', unit: 'pcs' },
+  { sku: 'F002', name: 'Air Filter', category: 'Filters', unit: 'pcs' },
+  { sku: 'F003', name: 'Fuel Filter', category: 'Filters', unit: 'pcs' },
+  { sku: 'F004', name: 'Cabin Air Filter', category: 'Filters', unit: 'pcs' },
+  { sku: 'F005', name: 'Transmission Filter', category: 'Filters', unit: 'pcs' },
+  
+  // Brake Components
+  { sku: 'B001', name: 'Brake Pad Set Front', category: 'Brakes', unit: 'set' },
+  { sku: 'B002', name: 'Brake Pad Set Rear', category: 'Brakes', unit: 'set' },
+  { sku: 'B003', name: 'Brake Disc Front', category: 'Brakes', unit: 'pcs' },
+  { sku: 'B004', name: 'Brake Disc Rear', category: 'Brakes', unit: 'pcs' },
+  { sku: 'B005', name: 'Brake Caliper', category: 'Brakes', unit: 'pcs' },
+  { sku: 'B006', name: 'Brake Master Cylinder', category: 'Brakes', unit: 'pcs' },
+  
+  // Engine Components
+  { sku: 'E001', name: 'Spark Plug Set', category: 'Engine', unit: 'set' },
+  { sku: 'E002', name: 'Timing Belt', category: 'Engine', unit: 'pcs' },
+  { sku: 'E003', name: 'Water Pump', category: 'Engine', unit: 'pcs' },
+  { sku: 'E004', name: 'Thermostat', category: 'Engine', unit: 'pcs' },
+  { sku: 'E005', name: 'Gasket Set', category: 'Engine', unit: 'set' },
+  { sku: 'E006', name: 'Belt Tensioner', category: 'Engine', unit: 'pcs' },
+  
+  // Electrical
+  { sku: 'L001', name: 'Car Battery 12V', category: 'Electrical', unit: 'pcs' },
+  { sku: 'L002', name: 'Alternator', category: 'Electrical', unit: 'pcs' },
+  { sku: 'L003', name: 'Starter Motor', category: 'Electrical', unit: 'pcs' },
+  { sku: 'L004', name: 'Headlight Bulb', category: 'Electrical', unit: 'pcs' },
+  { sku: 'L005', name: 'Tail Light Assembly', category: 'Electrical', unit: 'pcs' },
+  
+  // Fluids
+  { sku: 'O001', name: 'Engine Oil 5W30', category: 'Fluids', unit: 'liters' },
+  { sku: 'O002', name: 'Transmission Oil', category: 'Fluids', unit: 'liters' },
+  { sku: 'O003', name: 'Brake Fluid DOT4', category: 'Fluids', unit: 'liters' },
+  { sku: 'O004', name: 'Coolant', category: 'Fluids', unit: 'liters' },
+  { sku: 'O005', name: 'Power Steering Fluid', category: 'Fluids', unit: 'liters' },
+  
+  // Suspension
+  { sku: 'S001', name: 'Shock Absorber Front', category: 'Suspension', unit: 'pcs' },
+  { sku: 'S002', name: 'Shock Absorber Rear', category: 'Suspension', unit: 'pcs' },
+  { sku: 'S003', name: 'Coil Spring', category: 'Suspension', unit: 'pcs' },
+  { sku: 'S004', name: 'Control Arm', category: 'Suspension', unit: 'pcs' },
+  { sku: 'S005', name: 'Ball Joint', category: 'Suspension', unit: 'pcs' },
 ];
+
+// Note: SAMPLE_ITEMS removed - using AUTOMOTIVE_ITEMS for all data generation to ensure consistency
 
 // Production zones 1-5 (limited for testing)
 const TEST_ZONES = [1, 2, 3, 4, 5];
@@ -41,23 +78,24 @@ class MockDataService {
     
     const mockCounts: InventoryCountEntry[] = [];
 
-    // Generate counts for logistics
-    for (let i = 0; i < 5; i++) {
-      const item = SAMPLE_ITEMS[i];
+    // Generate counts for logistics - use AUTOMOTIVE_ITEMS for consistency
+    for (let i = 0; i < 10; i++) {
+      const item = AUTOMOTIVE_ITEMS[i];
       mockCounts.push({
         sku: item.sku,
         itemName: item.name,
-        amount: this.randomBetween(10, 100),
+        amount: this.randomBetween(20, 100),
         location: 'logistics',
         countedBy: 'logistics.worker@berjaya.com',
         timestamp: this.randomRecentDate(2)
       });
     }
 
-    // Generate counts for production zones
+    // Generate counts for production zones - use AUTOMOTIVE_ITEMS for consistency
     TEST_ZONES.forEach(zone => {
-      for (let i = 0; i < 3; i++) {
-        const item = SAMPLE_ITEMS[i + zone];
+      for (let i = 0; i < 6; i++) {
+        const itemIndex = (zone - 1) * 6 + i; // Distribute items across zones
+        const item = AUTOMOTIVE_ITEMS[itemIndex];
         if (item) {
           mockCounts.push({
             sku: item.sku,
@@ -79,6 +117,124 @@ class MockDataService {
     console.log(`✅ Generated ${mockCounts.length} mock inventory counts`);
   }
 
+  // Generate mock Item Master data
+  async generateMockItemMaster(): Promise<void> {
+    console.log('🎲 Generating mock Item Master data...');
+    
+    // Save all items (addItem automatically sets createdAt/updatedAt)
+    for (const item of AUTOMOTIVE_ITEMS) {
+      await itemMasterService.addItem({
+        sku: item.sku,
+        name: item.name,
+        category: item.category,
+        unit: item.unit
+      });
+    }
+
+    console.log(`✅ Generated ${AUTOMOTIVE_ITEMS.length} mock Item Master entries`);
+  }
+
+  // Generate mock BOM data
+  async generateMockBOMs(): Promise<void> {
+    console.log('🎲 Generating mock BOM data...');
+    
+    const mockBOMs = [
+      {
+        bomCode: 'BOM001',
+        name: 'Basic Service Kit',
+        description: 'Standard maintenance package for routine service',
+        components: [
+          { sku: 'F001', name: 'Engine Oil Filter', quantity: 1, unit: 'pcs' },
+          { sku: 'F002', name: 'Air Filter', quantity: 1, unit: 'pcs' },
+          { sku: 'O001', name: 'Engine Oil 5W30', quantity: 4, unit: 'liters' },
+          { sku: 'E001', name: 'Spark Plug Set', quantity: 1, unit: 'set' }
+        ]
+      },
+      {
+        bomCode: 'BOM002',
+        name: 'Brake Service Package',
+        description: 'Complete brake system maintenance kit',
+        components: [
+          { sku: 'B001', name: 'Brake Pad Set Front', quantity: 1, unit: 'set' },
+          { sku: 'B002', name: 'Brake Pad Set Rear', quantity: 1, unit: 'set' },
+          { sku: 'B003', name: 'Brake Disc Front', quantity: 2, unit: 'pcs' },
+          { sku: 'O003', name: 'Brake Fluid DOT4', quantity: 1, unit: 'liters' }
+        ]
+      },
+      {
+        bomCode: 'BOM003',
+        name: 'Timing Belt Kit',
+        description: 'Timing belt replacement with water pump',
+        components: [
+          { sku: 'E002', name: 'Timing Belt', quantity: 1, unit: 'pcs' },
+          { sku: 'E003', name: 'Water Pump', quantity: 1, unit: 'pcs' },
+          { sku: 'E006', name: 'Belt Tensioner', quantity: 1, unit: 'pcs' },
+          { sku: 'O004', name: 'Coolant', quantity: 2, unit: 'liters' }
+        ]
+      },
+      {
+        bomCode: 'BOM004',
+        name: 'Filter Replacement Kit',
+        description: 'All filters for comprehensive service',
+        components: [
+          { sku: 'F001', name: 'Engine Oil Filter', quantity: 1, unit: 'pcs' },
+          { sku: 'F002', name: 'Air Filter', quantity: 1, unit: 'pcs' },
+          { sku: 'F003', name: 'Fuel Filter', quantity: 1, unit: 'pcs' },
+          { sku: 'F004', name: 'Cabin Air Filter', quantity: 1, unit: 'pcs' }
+        ]
+      },
+      {
+        bomCode: 'BOM005',
+        name: 'Electrical Maintenance Kit',
+        description: 'Battery and charging system service',
+        components: [
+          { sku: 'L001', name: 'Car Battery 12V', quantity: 1, unit: 'pcs' },
+          { sku: 'L004', name: 'Headlight Bulb', quantity: 2, unit: 'pcs' }
+        ]
+      },
+      {
+        bomCode: 'BOM006',
+        name: 'Suspension Service Kit',
+        description: 'Front suspension overhaul package',
+        components: [
+          { sku: 'S001', name: 'Shock Absorber Front', quantity: 2, unit: 'pcs' },
+          { sku: 'S003', name: 'Coil Spring', quantity: 2, unit: 'pcs' },
+          { sku: 'S005', name: 'Ball Joint', quantity: 2, unit: 'pcs' }
+        ]
+      },
+      {
+        bomCode: 'BOM007',
+        name: 'Engine Tune-up Package',
+        description: 'Complete engine performance maintenance',
+        components: [
+          { sku: 'E001', name: 'Spark Plug Set', quantity: 1, unit: 'set' },
+          { sku: 'F001', name: 'Engine Oil Filter', quantity: 1, unit: 'pcs' },
+          { sku: 'F002', name: 'Air Filter', quantity: 1, unit: 'pcs' },
+          { sku: 'F003', name: 'Fuel Filter', quantity: 1, unit: 'pcs' },
+          { sku: 'O001', name: 'Engine Oil 5W30', quantity: 5, unit: 'liters' }
+        ]
+      },
+      {
+        bomCode: 'BOM008',
+        name: 'Fluid Top-up Kit',
+        description: 'All essential fluids for maintenance',
+        components: [
+          { sku: 'O001', name: 'Engine Oil 5W30', quantity: 1, unit: 'liters' },
+          { sku: 'O003', name: 'Brake Fluid DOT4', quantity: 1, unit: 'liters' },
+          { sku: 'O004', name: 'Coolant', quantity: 1, unit: 'liters' },
+          { sku: 'O005', name: 'Power Steering Fluid', quantity: 1, unit: 'liters' }
+        ]
+      }
+    ];
+
+    // Save all BOMs (addBOM automatically calculates totalComponents and sets timestamps)
+    for (const bom of mockBOMs) {
+      await bomService.addBOM(bom);
+    }
+
+    console.log(`✅ Generated ${mockBOMs.length} mock BOM definitions`);
+  }
+
   // Generate mock completed transactions
   async generateMockTransactions(): Promise<void> {
     console.log('🎲 Generating mock completed transactions...');
@@ -88,7 +244,7 @@ class MockDataService {
     // Start with zero transactions (Expected = Checked)
     // Generate some completed transactions - START WITH 0 for clean baseline
     for (let i = 0; i < 0; i++) {
-      const item = SAMPLE_ITEMS[i % SAMPLE_ITEMS.length];
+      const item = AUTOMOTIVE_ITEMS[i % AUTOMOTIVE_ITEMS.length];
       const sourceZone = Math.random() > 0.5 ? 'logistics' : `production_zone_${this.randomBetween(1, 3)}`;
       const targetZone = `production_zone_${this.randomBetween(1, 5)}`;
       
@@ -140,17 +296,41 @@ class MockDataService {
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       // Generate mock data
+      await this.generateMockItemMaster();
+      await this.generateMockBOMs();
       await this.generateMockInventoryCounts();
       await this.generateMockTransactions();
       
       console.log('🎉 Complete test scenario generated!');
       console.log('📋 You now have:');
-      console.log('  • Mock inventory counts from logistics and production zones');
+      console.log('  • 30 automotive items in Item Master catalog');
+      console.log('  • 8 BOM definitions for service packages');
+      console.log('  • Mock inventory counts using SAME SKUs as Item Master');
       console.log('  • Zero transactions (Expected = Checked baseline)');
-      console.log('  • Ready to test Eugene\'s workflow by creating transactions');
+      console.log('  • ✅ ALL DATA SYNCHRONIZED - ready to test complete WMS workflow!');
       
     } catch (error) {
       console.error('❌ Failed to generate test scenario:', error);
+      throw error;
+    }
+  }
+
+  // Generate just Item Master and BOM data (for testing Item Management)
+  async generateItemAndBOMTestData(): Promise<void> {
+    console.log('📦 Generating Item Master and BOM test data...');
+    
+    try {
+      await this.generateMockItemMaster();
+      await this.generateMockBOMs();
+      
+      console.log('✅ Item Management test data ready!');
+      console.log('📋 You now have:');
+      console.log('  • 30 automotive items across 6 categories');
+      console.log('  • 8 realistic BOM definitions');
+      console.log('  • Ready to test Item Management features!');
+      
+    } catch (error) {
+      console.error('❌ Failed to generate Item/BOM data:', error);
       throw error;
     }
   }
@@ -180,7 +360,7 @@ class MockDataService {
     
     const testCounts: InventoryCountEntry[] = [
       {
-        sku: 'A001',
+        sku: 'F001',
         itemName: 'Engine Oil Filter', 
         amount: 50,
         location: 'logistics',
@@ -188,7 +368,7 @@ class MockDataService {
         timestamp: new Date()
       },
       {
-        sku: 'A001',
+        sku: 'F001',
         itemName: 'Engine Oil Filter',
         amount: 35, // Should become 45 after transaction
         location: 'production_zone_1',
@@ -203,8 +383,8 @@ class MockDataService {
 
     console.log('✅ Transaction test case ready!');
     console.log('📋 Test scenario:');
-    console.log('  • Logistics: 50 Engine Oil Filters');  
-    console.log('  • Zone 1: 35 Engine Oil Filters');
+    console.log('  • Logistics: 50 Engine Oil Filters (F001)');  
+    console.log('  • Zone 1: 35 Engine Oil Filters (F001)');
     console.log('  • Send 10 from Logistics to Zone 1');
     console.log('  • Expected result: Zone 1 should have 45 total');
   }
@@ -216,7 +396,19 @@ class MockDataService {
     try {
       await inventoryService.clearAllInventory();
       await transactionService.clearAllTransactions();
-      console.log('✅ All mock data cleared');
+      
+      // Also clear Item Master and BOM data to ensure fresh start
+      const allItems = await itemMasterService.getAllItems();
+      for (const item of allItems) {
+        await itemMasterService.deleteItem(item.sku);
+      }
+      
+      const allBOMs = await bomService.getAllBOMs();
+      for (const bom of allBOMs) {
+        await bomService.deleteBOM(bom.bomCode);
+      }
+      
+      console.log('✅ All mock data cleared (inventory, transactions, items, BOMs)');
     } catch (error) {
       console.error('❌ Failed to clear mock data:', error);
       throw error;
