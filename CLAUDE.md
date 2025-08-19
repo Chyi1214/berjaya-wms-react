@@ -16,10 +16,14 @@ The user has explicitly stated that **maintainability is the highest priority**.
 
 ## 📋 Project Overview
 
-**Current Status**: Successfully migrated from vanilla JavaScript to React
+**Current Status**: v2.1.1 - SKU Synchronization Fix (deployed August 19, 2025)
+**IMPORTANT**: Read Eugene_note.md first! Contains complete roadmap and vision.
 - **Original Problem**: Complex event management, scope issues, Firebase integration chaos
 - **Solution**: Clean React architecture with TypeScript + Tailwind CSS
-- **Result**: Deployed and working at https://berjaya-autotech-4b4f4.web.app
+- **Result**: Live at https://berjaya-autotech-4b4f4.web.app
+- **GitHub**: https://github.com/Chyi1214/berjaya-wms-react.git
+- **Last Commit**: 5da071c (v2.1.1: Fix version number display + SKU synchronization)
+- **Codebase Size**: 44 files, 10,867 lines of TypeScript/React code
 
 ### Migration Success Metrics
 ✅ **Event Management**: React handles all DOM events automatically - no manual cleanup needed
@@ -27,6 +31,23 @@ The user has explicitly stated that **maintainability is the highest priority**.
 ✅ **Firebase Integration**: Clean service layer with proper error handling
 ✅ **Mobile Experience**: Mobile-first Tailwind CSS design
 ✅ **Developer Experience**: TypeScript catches errors, hot reloading, clear component structure
+
+## ⚠️ CRITICAL DEPLOYMENT ISSUE
+
+### Bundle Size Crisis - URGENT
+**Problem**: Main JavaScript bundle is 751 KB, deployment times 3+ minutes
+**Current Status**: ManagerView.tsx is 960 lines (BLOATED!)
+**Future Risk**: Scanner integration will add significant complexity
+**Impact**: Blocking rapid development and testing cycles
+
+### CRITICAL: Code Splitting Before Scanner Work
+**Must implement before v2.2.0 scanner integration**:
+1. **Split ManagerView.tsx (960 lines)** → 4-5 smaller components  
+2. **Lazy Load Dialogs**: ItemManagementDialog, CSVImportDialog with React.lazy()
+3. **Component Structure**: Overview, Inventory, Transactions, ItemMaster as separate files
+4. **Expected Results**: Main bundle ~300-400 KB, faster deployments <1 minute
+
+**Next Session Priority**: Code splitting BEFORE scanner features
 
 ## 🏗️ Architecture Principles - MAINTAINABILITY FOCUSED
 
@@ -202,11 +223,148 @@ If any answer is "No", **STOP** and refactor before adding more features.
 
 ## 📞 Support Information
 
-- **Live Site**: https://berjaya-autotech-4b4f4.web.app
+- **Live Site**: https://berjaya-autotech-4b4f4.web.app (v2.1.1)
 - **Local Development**: http://localhost:3000
 - **Firebase Console**: https://console.firebase.google.com/project/berjaya-autotech
+- **GitHub Repo**: https://github.com/Chyi1214/berjaya-wms-react.git
 - **Original Codebase**: `/berjaya-wms/` (reference only, do not modify)
+- **Eugene's Master Plan**: `/Users/dingjunqi/Desktop/Berjaya WMS playground/Eugene_note.md` (READ FIRST - contains complete roadmap)
+
+## 📊 Current Feature Status (v2.1.1)
+
+### ⚠️ CRITICAL TESTING STATUS
+**All functions need comprehensive testing before scanner integration**:
+- Item Master CRUD operations (add/edit/delete items)
+- BOM Management (create/edit BOMs with components)
+- Inventory counting across all zones
+- Transaction management with OTP verification
+- CSV import/export for all data types
+- Multi-language support (5 languages)
+- Cross-device real-time synchronization
+
+**Testing Gap**: User reported "all functions still need testing" - comprehensive QA required
+
+## 🔮 Next Major Version: Scanner Integration (v2.2.0)
+
+### Scanner Requirements Planning:
+1. **Barcode/QR Code Scanning**: Camera-based item identification
+2. **Mobile-First Design**: Optimized for handheld scanner devices
+3. **Offline Capability**: Work without internet, sync when connected
+4. **Audio Feedback**: Beeps/voice confirmation for scans
+5. **Batch Scanning**: Rapid multiple item processing
+6. **Integration Points**: 
+   - Item Master lookup via barcode
+   - BOM component verification
+   - Inventory counting automation
+   - Transaction item selection
+
+### Technical Challenges:
+- **Bundle Size**: Scanner libraries will increase JS bundle significantly
+- **Camera Permissions**: Browser security and mobile compatibility
+- **Performance**: Real-time image processing on mobile devices
+- **Offline Sync**: Complex state management for disconnected operation
+
+### Development Strategy:
+1. **Phase 1**: Code splitting and performance optimization (current priority)
+2. **Phase 2**: Basic barcode scanning integration
+3. **Phase 3**: Advanced scanner features and offline capability
+4. **Phase 4**: Production deployment and training
+
+## 📊 Detailed Feature Status (v2.1.1)
+
+### ✅ Completed Features
+1. **Authentication**: Google OAuth via Firebase
+2. **Role Management**: Logistics, Production, Manager roles  
+3. **Inventory Counting**: Multi-zone with real-time sync
+4. **Transaction System**: OTP-based secure transfers
+5. **Eugene's v2.0.0**: Three-table workflow (Checked, Expected, Yesterday)
+6. **CSV Export/Import**: Full data import/export capabilities
+7. **Item Master & BOM**: Phase 1 - Data structures and basic CRUD UI
+8. **Multi-language**: English, Chinese, Malay, Bengali, Burmese
+9. **Cross-device Sync**: Real-time Firebase synchronization
+
+### 🚧 In Progress (50% Complete)
+**BOM Implementation - Remaining Phases:**
+- **Phase 2**: Autocomplete component (COMPLEX - expect +100 KB bundle size)
+- **Phase 3**: BOM expansion logic (convert BOM to individual inventory entries)  
+- **Phase 4**: Integration with inventory counting workflow
+
+**Technical Debt (URGENT):**
+- Bundle size optimization (blocking deployments)
+- Component splitting for maintainability
+
+## 🛠️ Commands for Next Claude
+
+### Development
+```bash
+npm run dev                    # Start development server
+npm run build                  # Build for production
+```
+
+### Firebase Deployment  
+```bash
+firebase deploy --only hosting:berjaya-autotech-4b4f4
+# If timeout, check: curl -I https://berjaya-autotech-4b4f4.web.app/
+```
+
+### Git Operations
+```bash
+git status                     # Check changes
+git add -A && git commit -m "message" && git push origin main
+```
+
+## 🎯 Priority for Next Session - Scanner Preparation
+
+### URGENT (Must Complete Before Scanner Work):
+1. **CRITICAL**: Split ManagerView.tsx (960 lines) into 4-5 components
+2. **CRITICAL**: Implement React.lazy() for ItemManagementDialog, CSVImportDialog
+3. **CRITICAL**: Test bundle size reduction and deployment speed
+4. **CRITICAL**: Comprehensive testing of all existing functions
+
+### Scanner Integration Planning (v2.2.0):
+1. **Research**: Barcode scanning libraries (QuaggaJS, ZXing, etc.)
+2. **Prototype**: Basic camera-based scanning proof of concept
+3. **Integration**: Scanner with Item Master lookup
+4. **Mobile**: Optimize for handheld scanner devices
+5. **Offline**: Design offline-first scanning workflow
+
+### Current System Readiness:
+- ✅ Item Master catalog with SKU system (F001, B001, E001 patterns)
+- ✅ BOM management for complex assemblies
+- ✅ Multi-zone inventory tracking
+- ✅ Transaction system with audit trail
+- ⚠️ Bundle size blocking rapid development
+- ⚠️ All functions need comprehensive testing
+- ❌ Scanner integration not started
+
+## 📝 Important Context
+
+- **User Philosophy**: "We are at best half way" - many more features coming
+- **Bundle Crisis**: 722 KB now, could reach 1.5-2 MB without optimization
+- **Deployment Issues**: Currently times out but succeeds in background
+- **Maintainability Focus**: User values simple solutions over complex ones
+- **BOM Complexity**: Next autocomplete component will be most complex part
 
 ---
 
-**Remember: Every line of code is a liability. Every feature that doesn't directly serve user needs is technical debt. Maintainability is not optional - it's the difference between a successful project and "another explosion".**
+**Remember: Every line of code is a liability. Bundle size is now blocking rapid development. Scanner integration will be complex - we MUST have a solid, well-tested foundation first. Fix technical debt and complete testing BEFORE scanner work. Maintainability is not optional - it's the difference between a successful scanner implementation and "another explosion".**
+
+## 🔬 Scanner Integration Research Notes
+
+### Potential Libraries:
+- **QuaggaJS**: Barcode scanning, good mobile support
+- **ZXing-js**: QR codes and 2D barcodes
+- **@capacitor/barcode-scanner**: For mobile apps
+- **html5-qrcode**: Lightweight QR code scanning
+
+### Implementation Strategy:
+1. **Start Small**: Single SKU lookup via barcode
+2. **Expand Gradually**: BOM scanning, inventory counting
+3. **Mobile Focus**: Touch-friendly interface for scanners
+4. **Progressive Enhancement**: Scanner as optional feature
+
+### Success Metrics:
+- Reduce manual typing by 80%+ for inventory counts
+- 3-second average scan-to-confirmation time
+- 99%+ accuracy with standard automotive part barcodes
+- Seamless offline operation for 8+ hour shifts

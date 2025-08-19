@@ -1,13 +1,19 @@
-// Authentication Context for managing user state across the app
+// Authentication Context for managing user state across the app - v3.1.0 Enhanced Security
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { authService } from '../services/firebase';
-import type { User, AuthState } from '../types';
+import { userManagementService } from '../services/userManagement';
+import type { User, AuthState, UserRecord, AuthenticatedUser } from '../types';
 
-// Create the Auth Context
+// Enhanced Auth Context with User Management
 const AuthContext = createContext<AuthState & {
   login: () => Promise<void>;
   logout: () => Promise<void>;
   isAuthenticated: boolean;
+  authenticatedUser: AuthenticatedUser | null;
+  userRecord: UserRecord | null;
+  isDevAdmin: boolean;
+  hasPermission: (permission: string) => boolean;
+  refreshUserRecord: () => Promise<void>;
 } | undefined>(undefined);
 
 // Auth Provider Props
@@ -19,11 +25,55 @@ interface AuthProviderProps {
 export function AuthProvider({ children }: AuthProviderProps) {
   // Auth state
   const [user, setUser] = useState<User | null>(null);
+  const [userRecord, setUserRecord] = useState<UserRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Computed property for easier checking
+  // Computed properties
   const isAuthenticated = user !== null;
+  const isDevAdmin = user ? userManagementService.isDevAdmin(user.email) : false;
+  
+  // Create authenticated user object
+  const authenticatedUser: AuthenticatedUser | null = user ? {
+    ...user,
+    userRecord,
+    isDevAdmin,
+    hasPermission: (permission: string) => hasPermission(permission)
+  } : null;
+
+  // Load user record from database
+  const loadUserRecord = async (user: User): Promise<UserRecord | null> => {
+    try {
+      const record = await userManagementService.getUserRecord(user.email);
+      
+      if (record) {
+        // Update last login time
+        await userManagementService.updateLastLogin(user.email);
+        console.log('✅ User authorized:', user.email, 'Role:', record.role);
+        return record;
+      } else {
+        console.log('❌ User not authorized:', user.email);
+        return null;
+      }
+    } catch (error) {
+      console.error('Failed to load user record:', error);
+      return null;
+    }
+  };
+
+  // Permission checking function
+  const hasPermission = (permission: string): boolean => {
+    if (!user || !userRecord) return false;
+    return userManagementService.hasPermission(userRecord, permission);
+  };
+
+  // Refresh user record from database
+  const refreshUserRecord = async (): Promise<void> => {
+    if (user) {
+      const record = await loadUserRecord(user);
+      setUserRecord(record);
+    }
+  };
 
   // Login function
   const login = async (): Promise<void> => {
@@ -33,7 +83,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
       
       // Try popup first, fallback to redirect on error
       const loggedInUser = await authService.signInWithGoogle();
+      
+      // Load user record to check authorization
+      const record = await loadUserRecord(loggedInUser);
+      
+      if (!record && !userManagementService.isDevAdmin(loggedInUser.email)) {
+        // User not authorized
+        await authService.signOut();
+        setError('Access denied. Please contact your administrator for access.');
+        return;
+      }
+      
       setUser(loggedInUser);
+      setUserRecord(record);
       
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Login failed';
@@ -59,6 +121,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       
       await authService.signOut();
       setUser(null);
+      setUserRecord(null);
       
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Logout failed';
@@ -90,10 +153,30 @@ export function AuthProvider({ children }: AuthProviderProps) {
     };
 
     // Listen for auth state changes
-    const unsubscribe = authService.onAuthStateChanged((user) => {
+    const unsubscribe = authService.onAuthStateChanged(async (user) => {
       if (mounted) {
         console.log('Auth state changed:', user ? user.email : 'No user');
-        setUser(user);
+        
+        if (user) {
+          // Load user record for authenticated users
+          const record = await loadUserRecord(user);
+          
+          if (!record && !userManagementService.isDevAdmin(user.email)) {
+            // User not authorized, sign them out
+            console.log('❌ Unauthorized user detected, signing out');
+            await authService.signOut();
+            setError('Access denied. Please contact your administrator for access.');
+            setUser(null);
+            setUserRecord(null);
+          } else {
+            setUser(user);
+            setUserRecord(record);
+          }
+        } else {
+          setUser(null);
+          setUserRecord(null);
+        }
+        
         setLoading(false);
         setError(null);
       }
@@ -123,7 +206,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
     error,
     login,
     logout,
-    isAuthenticated
+    isAuthenticated,
+    authenticatedUser,
+    userRecord,
+    isDevAdmin,
+    hasPermission,
+    refreshUserRecord
   };
 
   return (

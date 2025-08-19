@@ -2,39 +2,109 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow authenticated users to read/write inventory counts
+    
+    // Helper functions for security
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isDevAdmin() {
+      return request.auth.token.email == 'luckyxstar1214@gmail.com';
+    }
+    
+    function getUserRecord() {
+      return get(/databases/$(database)/documents/users/$(request.auth.token.email));
+    }
+    
+    function hasRole(role) {
+      return isDevAdmin() || (isAuthenticated() && getUserRecord().data.role == role);
+    }
+    
+    function hasPermission(category, action) {
+      return isDevAdmin() || 
+        (isAuthenticated() && 
+         getUserRecord().data.isActive == true &&
+         getUserRecord().data.permissions[category][action] == true);
+    }
+    
+    function isActiveUser() {
+      return isDevAdmin() || 
+        (isAuthenticated() && getUserRecord().data.isActive == true);
+    }
+
+    // Users collection - DevAdmin and users can read their own record
+    match /users/{email} {
+      allow read: if isDevAdmin() || (isAuthenticated() && request.auth.token.email == email);
+      allow write: if isDevAdmin();
+      allow list: if isDevAdmin();
+    }
+    
+    // Inventory counts - role-based access
     match /inventory_counts/{document} {
-      allow read, write: if request.auth != null;
+      allow read: if isActiveUser() && hasPermission('inventory', 'view');
+      allow create, update: if isActiveUser() && hasPermission('inventory', 'count');
+      allow delete: if isDevAdmin() || hasPermission('inventory', 'delete');
     }
     
-    // Allow authenticated users to read/write transactions
+    // Transactions - role-based access
     match /transactions/{document} {
-      allow read, write: if request.auth != null;
+      allow read: if isActiveUser() && hasPermission('transactions', 'view');
+      allow create: if isActiveUser() && hasPermission('transactions', 'create');
+      allow update: if isActiveUser() && (
+        hasPermission('transactions', 'approve') || 
+        hasPermission('transactions', 'cancel')
+      );
+      allow delete: if isDevAdmin();
     }
     
-    // Allow authenticated users to read/write transaction OTPs
+    // Transaction OTPs - sensitive, manager+ only
     match /transaction_otps/{document} {
-      allow read, write: if request.auth != null;
+      allow read, write: if isDevAdmin() || hasRole('manager') || hasRole('supervisor');
     }
     
-    // Allow authenticated users to read/write expected inventory
+    // Expected inventory - calculated data, manager+ read/write
     match /expected_inventory/{document} {
-      allow read, write: if request.auth != null;
+      allow read: if isActiveUser() && hasPermission('inventory', 'view');
+      allow write: if isDevAdmin() || hasRole('manager');
     }
     
-    // Allow authenticated users to read/write yesterday results
+    // Yesterday results - historical data, manager+ read/write
     match /yesterday_results/{document} {
-      allow read, write: if request.auth != null;
+      allow read: if isActiveUser() && hasPermission('inventory', 'view');
+      allow write: if isDevAdmin() || hasRole('manager');
     }
     
-    // Allow authenticated users to read/write item master list
+    // Item master list - role-based CRUD
     match /item_master/{document} {
-      allow read, write: if request.auth != null;
+      allow read: if isActiveUser() && hasPermission('itemMaster', 'view');
+      allow create: if isActiveUser() && hasPermission('itemMaster', 'add');
+      allow update: if isActiveUser() && hasPermission('itemMaster', 'edit');
+      allow delete: if isDevAdmin() || hasPermission('itemMaster', 'delete');
     }
     
-    // Allow authenticated users to read/write BOMs
+    // BOMs - role-based CRUD
     match /boms/{document} {
-      allow read, write: if request.auth != null;
+      allow read: if isActiveUser() && hasPermission('bom', 'view');
+      allow create: if isActiveUser() && hasPermission('bom', 'create');
+      allow update: if isActiveUser() && hasPermission('bom', 'edit');
+      allow delete: if isDevAdmin() || hasPermission('bom', 'delete');
+    }
+    
+    // Audit logs - read-only for authorized users, write for system
+    match /audit_logs/{document} {
+      allow read: if isDevAdmin() || hasPermission('system', 'auditLogs');
+      allow write: if isDevAdmin();
+    }
+    
+    // System settings - DevAdmin only
+    match /system_settings/{document} {
+      allow read, write: if isDevAdmin();
+    }
+    
+    // Scanner configurations - v3.2 future feature
+    match /scanner_config/{document} {
+      allow read: if isActiveUser() && hasPermission('scanner', 'use');
+      allow write: if isDevAdmin() || hasPermission('scanner', 'admin');
     }
     
     // Deny all other access

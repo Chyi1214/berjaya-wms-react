@@ -1,6 +1,6 @@
 // Manager View Component - Dashboard and reporting
 import { useState, useEffect } from 'react';
-import { User, InventoryCountEntry, Transaction, TransactionStatus } from '../types';
+import { User, InventoryCountEntry, Transaction, TransactionStatus, ItemMaster, BOM } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import EnhancedInventoryTable from './EnhancedInventoryTable';
 import TransactionTable from './TransactionTable';
@@ -10,7 +10,13 @@ import { inventoryService } from '../services/inventory';
 import { tableStateService } from '../services/tableState';
 import { csvExportService } from '../services/csvExport';
 import CSVImportDialog from './CSVImportDialog';
-import ItemManagement from './ItemManagement';
+import { ItemMasterTab } from './ItemMasterTab';
+import { BOMTab } from './BOMTab';
+import { UserManagementTab } from './UserManagementTab';
+import { OperationsTab } from './OperationsTab';
+import { itemMasterService } from '../services/itemMaster';
+import { bomService } from '../services/bom';
+import { useAuth } from '../contexts/AuthContext';
 
 interface ManagerViewProps {
   user: User;
@@ -22,7 +28,8 @@ interface ManagerViewProps {
 
 export function ManagerView({ user, onBack, inventoryCounts, onClearCounts, transactions }: ManagerViewProps) {
   const { t } = useLanguage();
-  const [activeTab, setActiveTab] = useState<'checked' | 'expected' | 'transaction' | 'yesterday'>('checked');
+  const { isDevAdmin, hasPermission } = useAuth();
+  const [activeTab, setActiveTab] = useState<'overview' | 'checked' | 'expected' | 'transaction' | 'yesterday' | 'itemmaster' | 'hr' | 'operations'>('overview');
   
   // Unified state management - ALL tables controlled locally
   const [tableData, setTableData] = useState<{
@@ -38,7 +45,12 @@ export function ManagerView({ user, onBack, inventoryCounts, onClearCounts, tran
   const [isLoading, setIsLoading] = useState(false);
   const [showComparison, setShowComparison] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
-  const [showItemManagement, setShowItemManagement] = useState(false);
+  
+  // Item Master and BOM state for the new tab
+  const [items, setItems] = useState<ItemMaster[]>([]);
+  const [boms, setBOMs] = useState<BOM[]>([]);
+  const [itemsLoading, setItemsLoading] = useState(false);
+  const [activeItemTab, setActiveItemTab] = useState<'items' | 'boms'>('items');
 
   // Sync incoming inventory data with local checked table
   useEffect(() => {
@@ -94,6 +106,59 @@ export function ManagerView({ user, onBack, inventoryCounts, onClearCounts, tran
       }
     }
   }, [transactions, tableData.yesterday]);
+
+  // Load items and BOMs when Item Master tab is accessed
+  useEffect(() => {
+    if (activeTab === 'itemmaster') {
+      loadItemsAndBOMs();
+    }
+  }, [activeTab]);
+
+  const loadItemsAndBOMs = async () => {
+    setItemsLoading(true);
+    try {
+      const [itemsData, bomsData] = await Promise.all([
+        itemMasterService.getAllItems(),
+        bomService.getAllBOMs()
+      ]);
+      setItems(itemsData);
+      setBOMs(bomsData);
+    } catch (error) {
+      console.error('Failed to load items and BOMs:', error);
+      alert('Failed to load items and BOMs. Please try again.');
+    } finally {
+      setItemsLoading(false);
+    }
+  };
+
+  // Item Management export functions
+  const handleExportItems = () => {
+    csvExportService.exportItemMaster(items);
+  };
+
+  const handleExportBOMs = () => {
+    csvExportService.exportBOMs(boms);
+  };
+
+  const handleExportAllItemData = () => {
+    csvExportService.exportAllItemData(items, boms);
+  };
+
+  const handleGenerateItemMockData = async () => {
+    if (!confirm('Generate mock data? This will add test items and BOMs.')) return;
+    
+    setItemsLoading(true);
+    try {
+      await mockDataService.generateItemAndBOMTestData();
+      await loadItemsAndBOMs(); // Reload to show new data
+      alert('Mock data generated successfully! 30 items and 8 BOMs added.');
+    } catch (error) {
+      console.error('Failed to generate mock data:', error);
+      alert('Failed to generate mock data. Please try again.');
+    } finally {
+      setItemsLoading(false);
+    }
+  };
 
   // Handler functions for Eugene's workflow
   // Clean synchronization function - single source of truth
@@ -365,10 +430,21 @@ export function ManagerView({ user, onBack, inventoryCounts, onClearCounts, tran
             </p>
           </div>
 
-          {/* Three Table Navigation Tabs */}
+          {/* Manager Navigation Tabs */}
           <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
             <div className="border-b border-gray-200">
               <nav className="flex overflow-x-auto space-x-2 sm:space-x-8 px-4 sm:px-6" aria-label="Tabs">
+                <button
+                  onClick={() => setActiveTab('overview')}
+                  className={`flex-shrink-0 whitespace-nowrap border-b-2 py-4 px-1 text-sm font-medium transition-colors ${
+                    activeTab === 'overview'
+                      ? 'border-indigo-500 text-indigo-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  <span className="hidden sm:inline">📊 Overview</span>
+                  <span className="sm:hidden">📊 Overview</span>
+                </button>
                 <button
                   onClick={() => setActiveTab('checked')}
                   className={`flex-shrink-0 whitespace-nowrap border-b-2 py-4 px-1 text-sm font-medium transition-colors ${
@@ -413,11 +489,81 @@ export function ManagerView({ user, onBack, inventoryCounts, onClearCounts, tran
                   <span className="hidden sm:inline">🗓️ Yesterday Result Table ({tableData.yesterday.length})</span>
                   <span className="sm:hidden">🗓️ Yesterday ({tableData.yesterday.length})</span>
                 </button>
+                <button
+                  onClick={() => setActiveTab('itemmaster')}
+                  className={`flex-shrink-0 whitespace-nowrap border-b-2 py-4 px-1 text-sm font-medium transition-colors ${
+                    activeTab === 'itemmaster'
+                      ? 'border-pink-500 text-pink-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  <span className="hidden sm:inline">📦 Item Master ({items.length})</span>
+                  <span className="sm:hidden">📦 Items ({items.length})</span>
+                </button>
+
+                {/* HR Tab - DevAdmin or HR permission required */}
+                {(isDevAdmin || hasPermission('system.userManagement')) && (
+                  <button
+                    onClick={() => setActiveTab('hr')}
+                    className={`flex-shrink-0 whitespace-nowrap border-b-2 py-4 px-1 text-sm font-medium transition-colors ${
+                      activeTab === 'hr'
+                        ? 'border-purple-500 text-purple-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }`}
+                  >
+                    <span className="hidden sm:inline">👥 HR</span>
+                    <span className="sm:hidden">👥 HR</span>
+                  </button>
+                )}
+
+                {/* Operations Tab - Available to all managers */}
+                <button
+                  onClick={() => setActiveTab('operations')}
+                  className={`flex-shrink-0 whitespace-nowrap border-b-2 py-4 px-1 text-sm font-medium transition-colors ${
+                    activeTab === 'operations'
+                      ? 'border-green-500 text-green-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  <span className="hidden sm:inline">🚀 Operations</span>
+                  <span className="sm:hidden">🚀 Ops</span>
+                </button>
               </nav>
             </div>
 
             {/* Tab Content */}
             <div className="p-6">
+              {activeTab === 'overview' && (
+                <div>
+                  <div className="text-center py-12">
+                    <div className="text-6xl mb-6">📊</div>
+                    <h3 className="text-xl font-semibold text-gray-900 mb-2">Overview Dashboard</h3>
+                    <p className="text-gray-500 mb-8">Coming Soon - Manager insights and quick actions will appear here</p>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+                      {/* Quick Stats Cards - Placeholders */}
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+                        <div className="text-blue-600 text-2xl mb-2">📋</div>
+                        <h4 className="font-medium text-blue-900">Inventory Status</h4>
+                        <p className="text-blue-700 text-sm mt-1">Track inventory levels</p>
+                      </div>
+                      
+                      <div className="bg-purple-50 border border-purple-200 rounded-lg p-6">
+                        <div className="text-purple-600 text-2xl mb-2">📦</div>
+                        <h4 className="font-medium text-purple-900">Item Management</h4>
+                        <p className="text-purple-700 text-sm mt-1">Manage catalog & BOMs</p>
+                      </div>
+                      
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+                        <div className="text-green-600 text-2xl mb-2">📊</div>
+                        <h4 className="font-medium text-green-900">Analytics</h4>
+                        <p className="text-green-700 text-sm mt-1">Performance insights</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {activeTab === 'checked' && (
                 <div>
                   <div className="flex justify-between items-center mb-6">
@@ -536,6 +682,93 @@ export function ManagerView({ user, onBack, inventoryCounts, onClearCounts, tran
                   )}
                 </div>
               )}
+
+              {activeTab === 'itemmaster' && (
+                <div>
+                  <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      📦 Item Master Management
+                    </h3>
+                    <span className="text-sm text-gray-500">
+                      Manage catalog items and Bill of Materials
+                    </span>
+                  </div>
+
+                  {/* Sub-tabs for Items and BOMs */}
+                  <div className="mb-6">
+                    <div className="border-b border-gray-200">
+                      <nav className="flex space-x-8" aria-label="Item Management Tabs">
+                        <button
+                          onClick={() => setActiveItemTab('items')}
+                          className={`whitespace-nowrap border-b-2 py-2 px-1 text-sm font-medium ${
+                            activeItemTab === 'items'
+                              ? 'border-blue-500 text-blue-600'
+                              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                          }`}
+                        >
+                          🏷️ Items ({items.length})
+                        </button>
+                        <button
+                          onClick={() => setActiveItemTab('boms')}
+                          className={`whitespace-nowrap border-b-2 py-2 px-1 text-sm font-medium ${
+                            activeItemTab === 'boms'
+                              ? 'border-purple-500 text-purple-600'
+                              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                          }`}
+                        >
+                          📋 BOMs ({boms.length})
+                        </button>
+                      </nav>
+                    </div>
+                  </div>
+
+                  {/* Item Management Content */}
+                  {activeItemTab === 'items' ? (
+                    <ItemMasterTab
+                      items={items}
+                      onDataChange={loadItemsAndBOMs}
+                      onExport={handleExportItems}
+                      onExportAll={handleExportAllItemData}
+                      onGenerateMockData={handleGenerateItemMockData}
+                      isLoading={itemsLoading}
+                      setIsLoading={setItemsLoading}
+                      hasAnyData={items.length > 0 || boms.length > 0}
+                    />
+                  ) : (
+                    <BOMTab
+                      boms={boms}
+                      items={items}
+                      onDataChange={loadItemsAndBOMs}
+                      onExport={handleExportBOMs}
+                      onExportAll={handleExportAllItemData}
+                      onGenerateMockData={handleGenerateItemMockData}
+                      isLoading={itemsLoading}
+                      setIsLoading={setItemsLoading}
+                      hasAnyData={items.length > 0 || boms.length > 0}
+                    />
+                  )}
+                </div>
+              )}
+
+              {/* HR Tab Content */}
+              {activeTab === 'hr' && (
+                <UserManagementTab 
+                  onRefresh={() => {
+                    // Refresh user data if needed
+                  }}
+                />
+              )}
+
+              {/* Operations Tab Content */}
+              {activeTab === 'operations' && (
+                <OperationsTab 
+                  onRefresh={() => {
+                    // Refresh all data
+                    loadItemsAndBOMs();
+                    // Add any other data refresh logic here
+                  }}
+                />
+              )}
             </div>
           </div>
 
@@ -612,12 +845,18 @@ export function ManagerView({ user, onBack, inventoryCounts, onClearCounts, tran
                       csvExportService.exportInventoryCounts(tableData.yesterday, 'yesterday-results');
                     } else if (activeTab === 'transaction') {
                       csvExportService.exportTransactions(transactions);
+                    } else if (activeTab === 'itemmaster') {
+                      if (activeItemTab === 'items') {
+                        csvExportService.exportItemMaster(items);
+                      } else {
+                        csvExportService.exportBOMs(boms);
+                      }
                     }
                   }}
                   disabled={isLoading}
                   className="w-full bg-green-500 hover:bg-green-600 disabled:bg-green-300 text-white text-sm py-2 px-3 rounded transition-colors"
                 >
-                  📤 Export {activeTab === 'checked' ? 'Checked' : activeTab === 'expected' ? 'Expected' : activeTab === 'yesterday' ? 'Yesterday' : 'Transactions'}
+                  📤 Export {activeTab === 'checked' ? 'Checked' : activeTab === 'expected' ? 'Expected' : activeTab === 'yesterday' ? 'Yesterday' : activeTab === 'transaction' ? 'Transactions' : activeTab === 'itemmaster' ? (activeItemTab === 'items' ? 'Items' : 'BOMs') : 'Current Tab'}
                 </button>
               </div>
 
@@ -670,29 +909,6 @@ export function ManagerView({ user, onBack, inventoryCounts, onClearCounts, tran
             <h3 className="text-lg font-semibold text-gray-900 mb-4">📦 Item Management</h3>
             <div className="grid md:grid-cols-2 gap-4 mb-6">
               
-              {/* Item Master List */}
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <div className="text-blue-600 mb-2">🏷️</div>
-                <h4 className="font-medium text-blue-900 mb-1">Item Master List</h4>
-                <p className="text-blue-700 text-sm mb-3">Manage catalog of all available items (SKU + Name)</p>
-                <button 
-                  onClick={() => setShowItemManagement(true)}
-                  disabled={isLoading}
-                  className="w-full bg-blue-500 hover:bg-blue-600 disabled:bg-blue-300 text-white text-sm py-2 px-3 rounded transition-colors"
-                >
-                  📦 Manage Items & BOMs
-                </button>
-              </div>
-
-              {/* BOM Management */}
-              <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-                <div className="text-purple-600 mb-2">📋</div>
-                <h4 className="font-medium text-purple-900 mb-1">BOM Management</h4>
-                <p className="text-purple-700 text-sm mb-3">Create and manage Bill of Materials (recipes)</p>
-                <div className="text-center text-purple-600 text-sm">
-                  ↖️ Use "Manage Items & BOMs" button
-                </div>
-              </div>
             </div>
 
             {/* Info Box */}
@@ -789,12 +1005,6 @@ export function ManagerView({ user, onBack, inventoryCounts, onClearCounts, tran
         isOpen={showImportDialog}
         onClose={() => setShowImportDialog(false)}
         onImport={handleCSVImport}
-      />
-      
-      {/* Item Management Dialog */}
-      <ItemManagement
-        isOpen={showItemManagement}
-        onClose={() => setShowItemManagement(false)}
       />
     </div>
   );

@@ -3,6 +3,8 @@ import { useState, useEffect } from 'react';
 import { ItemMaster, BOM, BOMComponent } from '../types';
 import { itemMasterService } from '../services/itemMaster';
 import { bomService } from '../services/bom';
+import { csvExportService } from '../services/csvExport';
+import { mockDataService } from '../services/mockData';
 
 interface ItemManagementProps {
   isOpen: boolean;
@@ -250,6 +252,36 @@ export function ItemManagement({ isOpen, onClose }: ItemManagementProps) {
     }));
   };
 
+  // Export functions
+  const handleExportItems = () => {
+    csvExportService.exportItemMaster(filteredItems);
+  };
+
+  const handleExportBOMs = () => {
+    csvExportService.exportBOMs(filteredBOMs);
+  };
+
+  const handleExportAll = () => {
+    csvExportService.exportAllItemData(items, boms);
+  };
+
+  // Mock data generation
+  const handleGenerateMockData = async () => {
+    if (!confirm('Generate mock data? This will add test items and BOMs.')) return;
+    
+    setIsLoading(true);
+    try {
+      await mockDataService.generateItemAndBOMTestData();
+      await loadData(); // Reload to show new data
+      alert('Mock data generated successfully! 30 items and 8 BOMs added.');
+    } catch (error) {
+      console.error('Failed to generate mock data:', error);
+      alert('Failed to generate mock data. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -296,29 +328,105 @@ export function ItemManagement({ isOpen, onClose }: ItemManagementProps) {
 
         {/* Content */}
         <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
-          {/* Search and Add Button */}
-          <div className="flex justify-between items-center mb-6">
-            <div className="flex-1 max-w-md">
-              <input
-                type="text"
-                placeholder={`Search ${activeTab === 'items' ? 'items' : 'BOMs'}...`}
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
+          {/* Action Bar */}
+          <div className="flex flex-col space-y-4 mb-6">
+            {/* Search and Quick Stats */}
+            <div className="flex justify-between items-center">
+              <div className="flex-1 max-w-md">
+                <input
+                  type="text"
+                  placeholder={`Search ${activeTab === 'items' ? 'items' : 'BOMs'}...`}
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              
+              {/* Quick Stats */}
+              <div className="text-sm text-gray-500 mr-4">
+                {activeTab === 'items' ? (
+                  <span>
+                    {items.length} items total
+                    {items.length > 0 && (
+                      <span className="ml-2">
+                        • {new Set(items.map(i => i.category)).size} categories
+                      </span>
+                    )}
+                  </span>
+                ) : (
+                  <span>
+                    {boms.length} BOMs total
+                    {boms.length > 0 && (
+                      <span className="ml-2">
+                        • {boms.reduce((sum, bom) => sum + bom.totalComponents, 0)} total components
+                      </span>
+                    )}
+                  </span>
+                )}
+              </div>
             </div>
             
-            <button
-              onClick={activeTab === 'items' ? handleAddItem : handleAddBOM}
-              disabled={isLoading}
-              className={`ml-4 px-4 py-2 rounded text-white ${
-                activeTab === 'items'
-                  ? 'bg-blue-500 hover:bg-blue-600'
-                  : 'bg-purple-500 hover:bg-purple-600'
-              } disabled:opacity-50`}
-            >
-              ➕ Add {activeTab === 'items' ? 'Item' : 'BOM'}
-            </button>
+            {/* Action Buttons */}
+            <div className="flex items-center space-x-3">
+              {/* Data Actions */}
+              <div className="flex items-center space-x-2">
+                {items.length === 0 && boms.length === 0 && (
+                  <button
+                    onClick={handleGenerateMockData}
+                    disabled={isLoading}
+                    className="px-3 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg text-sm disabled:opacity-50"
+                  >
+                    🎲 Generate Test Data
+                  </button>
+                )}
+                
+                {activeTab === 'items' && filteredItems.length > 0 && (
+                  <button
+                    onClick={handleExportItems}
+                    disabled={isLoading}
+                    className="px-3 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg text-sm disabled:opacity-50"
+                  >
+                    📥 Export Items
+                  </button>
+                )}
+                
+                {activeTab === 'boms' && filteredBOMs.length > 0 && (
+                  <button
+                    onClick={handleExportBOMs}
+                    disabled={isLoading}
+                    className="px-3 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg text-sm disabled:opacity-50"
+                  >
+                    📥 Export BOMs
+                  </button>
+                )}
+                
+                {items.length > 0 && boms.length > 0 && (
+                  <button
+                    onClick={handleExportAll}
+                    disabled={isLoading}
+                    className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm disabled:opacity-50"
+                  >
+                    📥 Export All
+                  </button>
+                )}
+              </div>
+              
+              {/* Spacer */}
+              <div className="flex-1"></div>
+              
+              {/* Primary Action */}
+              <button
+                onClick={activeTab === 'items' ? handleAddItem : handleAddBOM}
+                disabled={isLoading}
+                className={`px-4 py-2 rounded-lg text-white font-medium ${
+                  activeTab === 'items'
+                    ? 'bg-blue-500 hover:bg-blue-600'
+                    : 'bg-purple-500 hover:bg-purple-600'
+                } disabled:opacity-50`}
+              >
+                ➕ Add {activeTab === 'items' ? 'Item' : 'BOM'}
+              </button>
+            </div>
           </div>
 
           {/* Loading State */}
@@ -333,9 +441,33 @@ export function ItemManagement({ isOpen, onClose }: ItemManagementProps) {
           {activeTab === 'items' && !isLoading && (
             <div>
               {filteredItems.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <div className="text-4xl mb-4">📦</div>
-                  <p>No items found</p>
+                <div className="text-center py-12 text-gray-500">
+                  <div className="text-6xl mb-6">📦</div>
+                  {items.length === 0 ? (
+                    <div>
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">No items in your catalog yet</h3>
+                      <p className="text-gray-500 mb-6">Get started by adding your first item or importing existing data</p>
+                      <div className="flex justify-center space-x-4">
+                        <button
+                          onClick={handleAddItem}
+                          className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg"
+                        >
+                          ➕ Add First Item
+                        </button>
+                        <button
+                          onClick={handleGenerateMockData}
+                          className="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg"
+                        >
+                          🎲 Load Sample Data
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">No items match your search</h3>
+                      <p className="text-gray-500">Try adjusting your search terms or browse all items</p>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -383,9 +515,33 @@ export function ItemManagement({ isOpen, onClose }: ItemManagementProps) {
           {activeTab === 'boms' && !isLoading && (
             <div>
               {filteredBOMs.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <div className="text-4xl mb-4">📋</div>
-                  <p>No BOMs found</p>
+                <div className="text-center py-12 text-gray-500">
+                  <div className="text-6xl mb-6">📋</div>
+                  {boms.length === 0 ? (
+                    <div>
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">No BOMs defined yet</h3>
+                      <p className="text-gray-500 mb-6">Create your first Bill of Materials to group related items</p>
+                      <div className="flex justify-center space-x-4">
+                        <button
+                          onClick={handleAddBOM}
+                          className="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg"
+                        >
+                          ➕ Create First BOM
+                        </button>
+                        <button
+                          onClick={handleGenerateMockData}
+                          className="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg"
+                        >
+                          🎲 Load Sample BOMs
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">No BOMs match your search</h3>
+                      <p className="text-gray-500">Try adjusting your search terms or browse all BOMs</p>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="grid gap-4">
