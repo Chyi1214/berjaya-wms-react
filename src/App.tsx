@@ -1,13 +1,15 @@
 // Main App Component
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { LanguageProvider } from './contexts/LanguageContext';
 import Login from './components/Login';
 import RoleSelection from './components/RoleSelection';
 import LogisticsView from './components/LogisticsView';
 import ProductionView from './components/ProductionView';
-import ManagerView from './components/ManagerView';
 import { UserRole, AppSection, InventoryCountEntry, Transaction, TransactionStatus, TransactionFormData } from './types';
+
+// Lazy load the heavy ManagerView component for better performance
+const ManagerView = lazy(() => import('./components/ManagerView').then(module => ({ default: module.ManagerView })));
 import { inventoryService } from './services/inventory';
 import { transactionService } from './services/transactions';
 
@@ -255,13 +257,22 @@ function AppContent() {
       
     case AppSection.MANAGER:
       return user ? (
-        <ManagerView 
-          user={user} 
-          onBack={handleBackToRoles}
-          inventoryCounts={inventoryCounts}
-          onClearCounts={handleClearCounts}
-          transactions={transactions}
-        />
+        <Suspense fallback={
+          <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+            <div className="text-center">
+              <div className="w-12 h-12 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+              <p className="text-gray-600">Loading Manager Dashboard...</p>
+            </div>
+          </div>
+        }>
+          <ManagerView 
+            user={user} 
+            onBack={handleBackToRoles}
+            inventoryCounts={inventoryCounts}
+            onClearCounts={handleClearCounts}
+            transactions={transactions}
+          />
+        </Suspense>
       ) : <Login />;
       
     default:
