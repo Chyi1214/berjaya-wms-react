@@ -1,22 +1,28 @@
 // Manager View Component - Dashboard and reporting
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { User, InventoryCountEntry, Transaction, TransactionStatus, ItemMaster, BOM } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
-import EnhancedInventoryTable from './EnhancedInventoryTable';
-import TransactionTable from './TransactionTable';
 import VersionFooter from './VersionFooter';
 import { mockDataService } from '../services/mockData';
 import { inventoryService } from '../services/inventory';
 import { tableStateService } from '../services/tableState';
 import { csvExportService } from '../services/csvExport';
-import CSVImportDialog from './CSVImportDialog';
-import { ItemMasterTab } from './ItemMasterTab';
-import { BOMTab } from './BOMTab';
-import { UserManagementTab } from './UserManagementTab';
-import { OperationsTab } from './OperationsTab';
+// Lazy load heavy components
+const CSVImportDialog = lazy(() => import('./CSVImportDialog'));
+const ItemMasterTab = lazy(() => import('./ItemMasterTab').then(module => ({ default: module.ItemMasterTab })));
+const BOMTab = lazy(() => import('./BOMTab').then(module => ({ default: module.BOMTab })));
+const UserManagementTab = lazy(() => import('./UserManagementTab').then(module => ({ default: module.UserManagementTab })));
+const OperationsTab = lazy(() => import('./OperationsTab').then(module => ({ default: module.OperationsTab })));
 import { itemMasterService } from '../services/itemMaster';
 import { bomService } from '../services/bom';
 import { useAuth } from '../contexts/AuthContext';
+import { 
+  OverviewTab,
+  CheckedItemTab,
+  ExpectedItemTab,
+  TransactionLogTab,
+  YesterdayResultTab
+} from './manager/inventory';
 
 interface ManagerViewProps {
   user: User;
@@ -616,153 +622,32 @@ export function ManagerView({ user, onBack, inventoryCounts, onClearCounts, tran
             {/* Tab Content */}
             <div className="p-6">
               {activeTab === 'overview' && (
-                <div>
-                  <div className="text-center py-12">
-                    <div className="text-6xl mb-6">📊</div>
-                    <h3 className="text-xl font-semibold text-gray-900 mb-2">Overview Dashboard</h3>
-                    <p className="text-gray-500 mb-8">Coming Soon - Manager insights and quick actions will appear here</p>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
-                      {/* Quick Stats Cards - Placeholders */}
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-                        <div className="text-blue-600 text-2xl mb-2">📋</div>
-                        <h4 className="font-medium text-blue-900">Inventory Status</h4>
-                        <p className="text-blue-700 text-sm mt-1">Track inventory levels</p>
-                      </div>
-                      
-                      <div className="bg-purple-50 border border-purple-200 rounded-lg p-6">
-                        <div className="text-purple-600 text-2xl mb-2">📦</div>
-                        <h4 className="font-medium text-purple-900">Item Management</h4>
-                        <p className="text-purple-700 text-sm mt-1">Manage catalog & BOMs</p>
-                      </div>
-                      
-                      <div className="bg-green-50 border border-green-200 rounded-lg p-6">
-                        <div className="text-green-600 text-2xl mb-2">📊</div>
-                        <h4 className="font-medium text-green-900">Analytics</h4>
-                        <p className="text-green-700 text-sm mt-1">Performance insights</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <OverviewTab
+                  checkedCount={tableData.checked.length}
+                  expectedCount={tableData.expected.length}
+                  transactionCount={transactions.length}
+                  yesterdayCount={tableData.yesterday.length}
+                  itemCount={items.length}
+                />
               )}
 
               {activeTab === 'checked' && (
-                <div>
-                  <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-lg font-semibold text-gray-900">
-                      📋 Checked Item Table
-                    </h3>
-                    <span className="text-sm text-gray-500">
-                      Items counted by workers today
-                    </span>
-                  </div>
-                  
-                  {tableData.checked.length > 0 ? (
-                    <EnhancedInventoryTable counts={tableData.checked} />
-                  ) : (
-                    <div className="text-center py-8 text-gray-500">
-                      <div className="text-4xl mb-4">📭</div>
-                      <p>No inventory counts recorded yet</p>
-                      <p className="text-sm mt-2">Workers need to submit counts via Logistics or Production roles</p>
-                    </div>
-                  )}
-                </div>
+                <CheckedItemTab tableData={tableData.checked} />
               )}
 
               {activeTab === 'expected' && (
-                <div>
-                  <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-lg font-semibold text-gray-900">
-                      📊 Expected Item Table
-                    </h3>
-                    <span className="text-sm text-gray-500">
-                      Yesterday inventory + today's completed transactions
-                    </span>
-                  </div>
-                  
-                  {tableData.expected.length > 0 ? (
-                    <div>
-                      <div className="mb-4 bg-orange-50 border border-orange-200 rounded-lg p-4">
-                        <h4 className="font-medium text-orange-900 mb-2">📊 System Calculated Expected Inventory</h4>
-                        <p className="text-orange-700 text-sm">
-                          This shows what inventory should be after applying all completed transactions to yesterday's baseline.
-                          Compare with Checked Item Table to identify discrepancies.
-                        </p>
-                      </div>
-                      <EnhancedInventoryTable counts={tableData.expected} />
-                    </div>
-                  ) : (
-                    <div className="text-center py-8 text-gray-500">
-                      <div className="text-4xl mb-4">🧮</div>
-                      <p className="font-medium">No Expected Inventory Calculated Yet</p>
-                      <p className="text-sm mt-2">Use "Compare Tables" to calculate expected inventory from yesterday results + transactions</p>
-                      <div className="mt-4 bg-orange-50 border border-orange-200 rounded-lg p-4 max-w-md mx-auto">
-                        <p className="text-orange-700 text-sm">
-                          <strong>How it works:</strong><br/>
-                          Expected = Yesterday Results + Today's Completed Transactions<br/>
-                          Compare this with Checked Items to spot differences
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                <ExpectedItemTab tableData={tableData.expected} />
               )}
 
               {activeTab === 'transaction' && (
-                <div>
-                  <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-lg font-semibold text-gray-900">
-                      🔄 Transaction Log
-                    </h3>
-                    <span className="text-sm text-gray-500">
-                      All transaction activity (pending, completed, cancelled)
-                    </span>
-                  </div>
-                  
-                  <TransactionTable transactions={transactions} />
-                </div>
+                <TransactionLogTab transactions={transactions} />
               )}
 
               {activeTab === 'yesterday' && (
-                <div>
-                  <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-lg font-semibold text-gray-900">
-                      🗓️ Yesterday Result Table
-                    </h3>
-                    <span className="text-sm text-gray-500">
-                      Final confirmed inventory from previous period
-                    </span>
-                  </div>
-                  
-                  {tableData.yesterday.length > 0 ? (
-                    <div>
-                      <div className="mb-4 bg-green-50 border border-green-200 rounded-lg p-4">
-                        <h4 className="font-medium text-green-900 mb-2">📊 Yesterday's Final Results</h4>
-                        <p className="text-green-700 text-sm">
-                          {showComparison ? 
-                            'These are calculated results based on checked items and completed transactions.' :
-                            'These are the concluded inventory amounts from the previous period.'
-                          }
-                        </p>
-                      </div>
-                      <EnhancedInventoryTable counts={tableData.yesterday} />
-                    </div>
-                  ) : (
-                    <div className="text-center py-8 text-gray-500">
-                      <div className="text-4xl mb-4">📊</div>
-                      <p className="font-medium">No Yesterday Results Yet</p>
-                      <p className="text-sm mt-2">Use "Compare Tables" to calculate expected results or "Conclude Period" to save current data</p>
-                      <div className="mt-4 bg-green-50 border border-green-200 rounded-lg p-4 max-w-md mx-auto">
-                        <p className="text-green-700 text-sm">
-                          <strong>Eugene's v2.0.0 Workflow:</strong><br/>
-                          1. Compare Checked vs Transaction tables<br/>
-                          2. Resolve any differences<br/>
-                          3. Conclude period to create Yesterday Results
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                <YesterdayResultTab 
+                  tableData={tableData.yesterday} 
+                  showComparison={showComparison} 
+                />
               )}
 
               {activeTab === 'itemmaster' && (
@@ -806,50 +691,86 @@ export function ManagerView({ user, onBack, inventoryCounts, onClearCounts, tran
 
                   {/* Item Management Content */}
                   {activeItemTab === 'items' ? (
-                    <ItemMasterTab
-                      items={items}
-                      onDataChange={loadItemsAndBOMs}
-                      onExport={handleExportItems}
-                      onExportAll={handleExportAllItemData}
-                      onGenerateMockData={handleGenerateItemMockData}
-                      isLoading={itemsLoading}
-                      setIsLoading={setItemsLoading}
-                      hasAnyData={items.length > 0 || boms.length > 0}
-                    />
+                    <Suspense fallback={
+                      <div className="flex items-center justify-center py-12">
+                        <div className="text-center">
+                          <div className="text-4xl mb-4">⏳</div>
+                          <p className="text-gray-500">Loading Item Master...</p>
+                        </div>
+                      </div>
+                    }>
+                      <ItemMasterTab
+                        items={items}
+                        onDataChange={loadItemsAndBOMs}
+                        onExport={handleExportItems}
+                        onExportAll={handleExportAllItemData}
+                        onGenerateMockData={handleGenerateItemMockData}
+                        isLoading={itemsLoading}
+                        setIsLoading={setItemsLoading}
+                        hasAnyData={items.length > 0 || boms.length > 0}
+                      />
+                    </Suspense>
                   ) : (
-                    <BOMTab
-                      boms={boms}
-                      items={items}
-                      onDataChange={loadItemsAndBOMs}
-                      onExport={handleExportBOMs}
-                      onExportAll={handleExportAllItemData}
-                      onGenerateMockData={handleGenerateItemMockData}
-                      isLoading={itemsLoading}
-                      setIsLoading={setItemsLoading}
-                      hasAnyData={items.length > 0 || boms.length > 0}
-                    />
+                    <Suspense fallback={
+                      <div className="flex items-center justify-center py-12">
+                        <div className="text-center">
+                          <div className="text-4xl mb-4">⏳</div>
+                          <p className="text-gray-500">Loading BOM Management...</p>
+                        </div>
+                      </div>
+                    }>
+                      <BOMTab
+                        boms={boms}
+                        items={items}
+                        onDataChange={loadItemsAndBOMs}
+                        onExport={handleExportBOMs}
+                        onExportAll={handleExportAllItemData}
+                        onGenerateMockData={handleGenerateItemMockData}
+                        isLoading={itemsLoading}
+                        setIsLoading={setItemsLoading}
+                        hasAnyData={items.length > 0 || boms.length > 0}
+                      />
+                    </Suspense>
                   )}
                 </div>
               )}
 
               {/* HR Tab Content */}
               {activeTab === 'hr' && (
-                <UserManagementTab 
-                  onRefresh={() => {
-                    // Refresh user data if needed
-                  }}
-                />
+                <Suspense fallback={
+                  <div className="flex items-center justify-center py-12">
+                    <div className="text-center">
+                      <div className="text-4xl mb-4">⏳</div>
+                      <p className="text-gray-500">Loading HR Management...</p>
+                    </div>
+                  </div>
+                }>
+                  <UserManagementTab 
+                    onRefresh={() => {
+                      // Refresh user data if needed
+                    }}
+                  />
+                </Suspense>
               )}
 
               {/* Operations Tab Content */}
               {activeTab === 'operations' && (
-                <OperationsTab 
-                  onRefresh={() => {
-                    // Refresh all data
-                    loadItemsAndBOMs();
-                    // Add any other data refresh logic here
-                  }}
-                />
+                <Suspense fallback={
+                  <div className="flex items-center justify-center py-12">
+                    <div className="text-center">
+                      <div className="text-4xl mb-4">⏳</div>
+                      <p className="text-gray-500">Loading Operations Center...</p>
+                    </div>
+                  </div>
+                }>
+                  <OperationsTab 
+                    onRefresh={() => {
+                      // Refresh all data
+                      loadItemsAndBOMs();
+                      // Add any other data refresh logic here
+                    }}
+                  />
+                </Suspense>
               )}
             </div>
           </div>
@@ -1083,11 +1004,15 @@ export function ManagerView({ user, onBack, inventoryCounts, onClearCounts, tran
       <VersionFooter />
       
       {/* CSV Import Dialog */}
-      <CSVImportDialog
-        isOpen={showImportDialog}
-        onClose={() => setShowImportDialog(false)}
-        onImport={handleCSVImport}
-      />
+      {showImportDialog && (
+        <Suspense fallback={<div />}>
+          <CSVImportDialog
+            isOpen={showImportDialog}
+            onClose={() => setShowImportDialog(false)}
+            onImport={handleCSVImport}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }
