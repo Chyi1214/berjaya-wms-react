@@ -64,7 +64,12 @@ class UserManagementService {
         isActive: true
       };
 
-      await setDoc(doc(this.usersCollection, email), userRecord);
+      // Clean data - remove undefined fields for Firestore
+      const cleanData = Object.fromEntries(
+        Object.entries(userRecord).filter(([_, value]) => value !== undefined)
+      );
+
+      await setDoc(doc(this.usersCollection, email), cleanData);
       console.log('✅ User created:', email, role);
     } catch (error) {
       console.error('Failed to create user:', error);
@@ -84,7 +89,12 @@ class UserManagementService {
         updatedAt: new Date()
       };
 
-      await updateDoc(doc(this.usersCollection, email), updateData);
+      // Clean data - remove undefined fields for Firestore
+      const cleanData = Object.fromEntries(
+        Object.entries(updateData).filter(([_, value]) => value !== undefined)
+      );
+
+      await updateDoc(doc(this.usersCollection, email), cleanData);
       console.log('✅ User updated:', email);
     } catch (error) {
       console.error('Failed to update user:', error);
@@ -194,7 +204,7 @@ class UserManagementService {
           itemMaster: { view: true, add: false, edit: false, delete: false },
           bom: { view: true, create: false, edit: false, delete: false },
           csv: { export: false, import: false },
-          scanner: { use: false, admin: false, bulkScan: false },
+          scanner: { use: true, admin: false, bulkScan: false },
           system: { userManagement: false, settings: false, auditLogs: false }
         };
       
@@ -206,17 +216,6 @@ class UserManagementService {
           bom: { view: true, create: false, edit: false, delete: false },
           csv: { export: false, import: false },
           scanner: { use: false, admin: false, bulkScan: false },
-          system: { userManagement: false, settings: false, auditLogs: false }
-        };
-      
-      case UserRole.SCANNER:
-        return {
-          inventory: { view: true, count: false, edit: false, delete: false },
-          transactions: { view: false, create: false, approve: false, cancel: false },
-          itemMaster: { view: true, add: false, edit: false, delete: false },
-          bom: { view: true, create: false, edit: false, delete: false },
-          csv: { export: false, import: false },
-          scanner: { use: true, admin: false, bulkScan: false },
           system: { userManagement: false, settings: false, auditLogs: false }
         };
       
@@ -277,18 +276,13 @@ class UserManagementService {
       },
       {
         name: 'Logistics Worker',
-        description: 'Can count inventory and create transactions',
+        description: 'Can count inventory, create transactions, and use scanner',
         permissions: this.getPermissionTemplate(UserRole.LOGISTICS)
       },
       {
         name: 'Production Worker',
         description: 'Can count inventory and approve incoming transactions',
         permissions: this.getPermissionTemplate(UserRole.PRODUCTION)
-      },
-      {
-        name: 'Scanner Operator',
-        description: 'Can use scanner and view item information',
-        permissions: this.getPermissionTemplate(UserRole.SCANNER)
       },
       {
         name: 'Viewer',

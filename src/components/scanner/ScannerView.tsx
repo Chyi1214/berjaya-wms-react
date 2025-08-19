@@ -142,17 +142,42 @@ export function ScannerView({ user, onBack }: ScannerViewProps) {
     console.log('🔧 Normalized code:', normalizedCode);
 
     // Step 3: Split by * to get potential SKU candidates
-    // Get both long candidates (>10 chars) and shorter ones (3-10 chars) that look like SKUs
     const allSegments = normalizedCode.split('*').filter(str => str.length >= 3);
-    const longCandidates = allSegments.filter(str => str.length > 10);
-    const shortCandidates = allSegments.filter(str => str.length >= 3 && str.length <= 10);
     
-    // Combine: try short candidates first (more likely to be SKUs), then long ones
-    const candidates = [...shortCandidates, ...longCandidates].slice(0, 8); // Maximum 8 candidates
+    // Smart filtering: prioritize segments that look like actual SKU values, not field names
+    const skuLikeSegments = allSegments.filter(segment => {
+      // Skip obvious field names
+      const fieldNames = ['BT', 'MO', 'ITEMCODE', 'ITEMNAME', 'SPEC', 'QTY', 'UNIT', 'UNITNAME', 'LOT', 'SN', 'MEMO', 'CLC'];
+      if (fieldNames.includes(segment)) return false;
+      
+      // Skip very short segments that are likely noise
+      if (segment.length < 4) return false;
+      
+      // Prioritize segments that contain numbers and letters (typical SKU pattern)
+      const hasNumbers = /\d/.test(segment);
+      const hasLetters = /[A-Z]/.test(segment);
+      
+      return hasNumbers || hasLetters;
+    });
+    
+    // Sort by likelihood of being a SKU (segments with both numbers and letters first)
+    const sortedCandidates = skuLikeSegments.sort((a, b) => {
+      const aHasBoth = /\d/.test(a) && /[A-Z]/.test(a);
+      const bHasBoth = /\d/.test(b) && /[A-Z]/.test(b);
+      
+      if (aHasBoth && !bHasBoth) return -1;
+      if (!aHasBoth && bHasBoth) return 1;
+      
+      // If both or neither have both, prefer shorter ones (more likely to be simple SKUs)
+      return a.length - b.length;
+    });
+    
+    // Take top candidates
+    const candidates = sortedCandidates.slice(0, 8);
     
     console.log('📋 All segments:', allSegments);
-    console.log('📋 Short candidates (3-10 chars):', shortCandidates);
-    console.log('📋 Long candidates (>10 chars):', longCandidates);
+    console.log('📋 SKU-like candidates (filtered):', skuLikeSegments);
+    console.log('📋 Sorted candidates:', sortedCandidates);
     console.log('📋 Final candidates to test:', candidates);
 
     // Step 4: Try lookup for each candidate until one succeeds

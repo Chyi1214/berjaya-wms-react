@@ -21,7 +21,6 @@ export enum UserRole {
   SUPERVISOR = 'supervisor',
   LOGISTICS = 'logistics',
   PRODUCTION = 'production',
-  SCANNER = 'scanner',
   VIEWER = 'viewer'
 }
 
