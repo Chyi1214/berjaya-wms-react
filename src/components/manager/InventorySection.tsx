@@ -1,5 +1,6 @@
 // Inventory Section Component - Handles all inventory-related tabs and content
 import { InventoryCountEntry, Transaction, ItemMaster, BOM } from '../../types';
+import { InventoryTab, ItemTab } from '../../types/manager';
 import { 
   OverviewTab,
   CheckedItemTab,
@@ -8,9 +9,6 @@ import {
   YesterdayResultTab
 } from '../manager/inventory';
 import { ItemBOMSection } from './ItemBOMSection';
-
-type InventoryTab = 'overview' | 'checked' | 'expected' | 'transaction' | 'yesterday' | 'itemmaster';
-type ItemTab = 'items' | 'boms';
 
 interface InventorySectionProps {
   activeTab: InventoryTab;

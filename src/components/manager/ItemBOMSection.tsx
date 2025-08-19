@@ -1,12 +1,11 @@
 // Item BOM Section Component - Manages Item Master and BOM tabs within inventory
 import { Suspense, lazy } from 'react';
 import { ItemMaster, BOM } from '../../types';
+import { ItemTab } from '../../types/manager';
 
 // Lazy load heavy components
 const ItemMasterTab = lazy(() => import('../ItemMasterTab').then(module => ({ default: module.ItemMasterTab })));
 const BOMTab = lazy(() => import('../BOMTab').then(module => ({ default: module.BOMTab })));
-
-type ItemTab = 'items' | 'boms';
 
 interface ItemBOMSectionProps {
   activeItemTab: ItemTab;

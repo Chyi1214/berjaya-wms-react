@@ -1,14 +1,12 @@
 // Manager View Component - Refactored into modular components
 import { Suspense, lazy } from 'react';
 import { User, InventoryCountEntry, Transaction, TransactionStatus } from '../../types';
+import { isInventoryTab } from '../../types/manager';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { mockDataService } from '../../services/mockData';
 import { inventoryService } from '../../services/inventory';
 import { tableStateService } from '../../services/tableState';
 import VersionFooter from '../VersionFooter';
-
-// Type definitions for this component
-type ManagerTab = 'overview' | 'checked' | 'expected' | 'transaction' | 'yesterday' | 'itemmaster' | 'hr' | 'operations';
 
 // Custom hooks
 import { useManagerState } from './hooks/useManagerState';
@@ -122,7 +120,7 @@ export function ManagerView({ onBack, inventoryCounts, onClearCounts, transactio
       ]);
       
       alert('✅ Period concluded! Yesterday results saved, ready for next period.');
-      managerState.handleTabChange('yesterday' as ManagerTab);
+      managerState.handleTabChange('yesterday');
     } catch (error) {
       console.error('Failed to conclude period:', error);
       alert('❌ Failed to conclude period. Check console for details.');
@@ -180,9 +178,9 @@ export function ManagerView({ onBack, inventoryCounts, onClearCounts, transactio
 
         {/* Tab Content */}
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-          {managerState.activeCategory === 'inventory' && (
+          {managerState.activeCategory === 'inventory' && isInventoryTab(managerState.activeTab) && (
             <InventorySection
-              activeTab={managerState.activeTab as 'overview' | 'checked' | 'expected' | 'transaction' | 'yesterday' | 'itemmaster'}
+              activeTab={managerState.activeTab}
               activeItemTab={managerState.activeItemTab}
               tableData={tableData}
               transactions={transactions}
@@ -226,17 +224,19 @@ export function ManagerView({ onBack, inventoryCounts, onClearCounts, transactio
           handleGenerateTransactionTest={handleGenerateTransactionTest}
         />
 
-        {/* CSV Export & Import */}
-        <CSVExportSection
-          activeTab={managerState.activeTab as 'overview' | 'checked' | 'expected' | 'transaction' | 'yesterday' | 'itemmaster'}
-          activeItemTab={managerState.activeItemTab}
-          isLoading={managerState.isLoading}
-          tableData={tableData}
-          transactions={transactions}
-          items={managerState.items}
-          boms={managerState.boms}
-          setShowImportDialog={managerState.setShowImportDialog}
-        />
+        {/* CSV Export & Import - Only show for inventory tabs */}
+        {isInventoryTab(managerState.activeTab) && (
+          <CSVExportSection
+            activeTab={managerState.activeTab}
+            activeItemTab={managerState.activeItemTab}
+            isLoading={managerState.isLoading}
+            tableData={tableData}
+            transactions={transactions}
+            items={managerState.items}
+            boms={managerState.boms}
+            setShowImportDialog={managerState.setShowImportDialog}
+          />
+        )}
 
         {/* Item Management Info */}
         <div className="bg-white rounded-lg border border-gray-200 p-6">

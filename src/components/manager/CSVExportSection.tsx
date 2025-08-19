@@ -1,12 +1,10 @@
 // CSV Export Section Component - Handles data import/export functionality
 import { InventoryCountEntry, Transaction, ItemMaster, BOM } from '../../types';
+import { InventoryTab, ItemTab } from '../../types/manager';
 import { csvExportService } from '../../services/csvExport';
 
-type CSVExportTab = 'overview' | 'checked' | 'expected' | 'transaction' | 'yesterday' | 'itemmaster';
-type ItemTab = 'items' | 'boms';
-
 interface CSVExportSectionProps {
-  activeTab: CSVExportTab;
+  activeTab: InventoryTab;
   activeItemTab: ItemTab;
   isLoading: boolean;
   tableData: {

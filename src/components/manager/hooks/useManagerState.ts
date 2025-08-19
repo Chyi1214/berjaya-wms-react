@@ -1,14 +1,11 @@
 // Custom hook for managing overall manager state
 import { useState, useEffect } from 'react';
 import { ItemMaster, BOM } from '../../../types';
+import { ManagerTab, ManagerCategory, ItemTab, getCategoryForTab, isInventoryTab } from '../../../types/manager';
 import { itemMasterService } from '../../../services/itemMaster';
 import { bomService } from '../../../services/bom';
 import { csvExportService } from '../../../services/csvExport';
 import { mockDataService } from '../../../services/mockData';
-
-type ManagerTab = 'overview' | 'checked' | 'expected' | 'transaction' | 'yesterday' | 'itemmaster' | 'hr' | 'operations';
-type ManagerCategory = 'inventory' | 'hr' | 'operations';
-type ItemTab = 'items' | 'boms';
 
 interface UseManagerStateReturn {
   // Navigation state
@@ -64,31 +61,22 @@ export function useManagerState(): UseManagerStateReturn {
   const [items, setItems] = useState<ItemMaster[]>([]);
   const [boms, setBOMs] = useState<BOM[]>([]);
 
-  // Helper functions for category-tab management
-  const inventoryTabs = ['overview', 'checked', 'expected', 'transaction', 'yesterday', 'itemmaster'];
-  const hrTabs = ['hr'];
-  const operationsTabs = ['operations'];
+  // Tab management now handled by centralized type guards
 
   const handleTabChange = (tab: ManagerTab) => {
     setActiveTab(tab);
-    // Auto-switch category based on tab
-    if (inventoryTabs.includes(tab)) {
-      setActiveCategory('inventory');
-    } else if (hrTabs.includes(tab)) {
-      setActiveCategory('hr');
-    } else if (operationsTabs.includes(tab)) {
-      setActiveCategory('operations');
-    }
+    // Auto-switch category based on tab using type-safe helper
+    setActiveCategory(getCategoryForTab(tab));
   };
 
   const handleCategoryChange = (category: ManagerCategory) => {
     setActiveCategory(category);
-    // Switch to first tab of the category
-    if (category === 'inventory' && !inventoryTabs.includes(activeTab)) {
+    // Switch to first tab of the category using type-safe logic
+    if (category === 'inventory' && !isInventoryTab(activeTab)) {
       setActiveTab('overview');
-    } else if (category === 'hr' && !hrTabs.includes(activeTab)) {
+    } else if (category === 'hr' && activeTab !== 'hr') {
       setActiveTab('hr');
-    } else if (category === 'operations' && !operationsTabs.includes(activeTab)) {
+    } else if (category === 'operations' && activeTab !== 'operations') {
       setActiveTab('operations');
     }
   };

@@ -1,9 +1,7 @@
 // Manager Navigation Component - Handles category and tab navigation
 import { useAuth } from '../../contexts/AuthContext';
 import { InventoryCountEntry, Transaction, ItemMaster } from '../../types';
-
-type ManagerTab = 'overview' | 'checked' | 'expected' | 'transaction' | 'yesterday' | 'itemmaster' | 'hr' | 'operations';
-type ManagerCategory = 'inventory' | 'hr' | 'operations';
+import { ManagerTab, ManagerCategory } from '../../types/manager';
 
 interface ManagerNavigationProps {
   activeTab: ManagerTab;
