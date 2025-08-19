@@ -355,7 +355,9 @@ export function ManagerView({ user, onBack, inventoryCounts, onClearCounts, tran
       console.log(`✅ Successfully imported ${data.length} items to ${importType} table`);
       
       // Switch to the imported table view
-      setActiveTab(importType);
+      if (importType !== 'checked' && importType !== 'expected' && importType !== 'yesterday') return;
+      setActiveTab('inventory');
+      setActiveInventoryTab(importType);
       
     } catch (error) {
       console.error('❌ Failed to import CSV data:', error);
