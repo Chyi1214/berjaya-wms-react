@@ -26,6 +26,8 @@ export function TransactionReceiveView({
   );
 
   const handleConfirm = async (transactionId: string) => {
+    console.log('📱 Mobile Debug - Confirm button clicked:', { transactionId, otpInput, isProcessing });
+    
     if (!otpInput.trim()) {
       alert('Please enter the OTP');
       return;
@@ -33,12 +35,14 @@ export function TransactionReceiveView({
 
     setIsProcessing(true);
     try {
+      console.log('📱 Mobile Debug - Calling onConfirmTransaction...');
       await onConfirmTransaction(transactionId, otpInput.trim());
+      console.log('📱 Mobile Debug - Transaction confirmed successfully');
       setSelectedTransaction(null);
       setOtpInput('');
     } catch (error) {
-      console.error('Failed to confirm transaction:', error);
-      alert('Failed to confirm transaction. Please check the OTP and try again.');
+      console.error('📱 Mobile Debug - Failed to confirm transaction:', error);
+      alert(`Failed to confirm transaction: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsProcessing(false);
     }
@@ -174,9 +178,17 @@ export function TransactionReceiveView({
                       maxLength={4}
                     />
                     <button
-                      onClick={() => handleConfirm(transaction.id)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleConfirm(transaction.id);
+                      }}
+                      onTouchEnd={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }}
                       disabled={isProcessing || otpInput.length !== 4}
-                      className="bg-green-500 hover:bg-green-600 disabled:bg-green-300 text-white px-6 py-2 rounded-lg font-medium disabled:cursor-not-allowed"
+                      className="bg-green-500 hover:bg-green-600 disabled:bg-green-300 text-white px-6 py-2 rounded-lg font-medium disabled:cursor-not-allowed touch-manipulation"
                     >
                       {isProcessing ? '...' : '✅ Confirm'}
                     </button>

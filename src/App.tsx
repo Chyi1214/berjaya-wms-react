@@ -15,6 +15,8 @@ import { UserRole, AppSection, InventoryCountEntry, Transaction, TransactionStat
 const ManagerView = lazy(() => import('./components/ManagerView').then(module => ({ default: module.ManagerView })));
 import { inventoryService } from './services/inventory';
 import { transactionService } from './services/transactions';
+import { mockDataService } from './services/mockData';
+import { tableStateService } from './services/tableState';
 
 // Main app content (wrapped inside AuthProvider)
 function AppContent() {
@@ -163,6 +165,27 @@ function AppContent() {
 
     // Remove OTP after successful confirmation
     await transactionService.deleteOTP(transactionId);
+
+    // 🔄 CRITICAL FIX: Update expected inventory after transaction confirmation
+    try {
+      // Get updated transactions list (including this newly completed one)
+      const allTransactions = await transactionService.getAllTransactions();
+      const completedTransactions = allTransactions.filter(t => t.status === TransactionStatus.COMPLETED);
+      
+      // Recalculate expected inventory based on current inventory + completed transactions
+      const calculatedExpected = mockDataService.calculateExpectedInventory(
+        inventoryCounts, // Current inventory as baseline
+        completedTransactions
+      );
+      
+      // Save updated expected inventory to Firebase
+      await tableStateService.saveExpectedInventory(calculatedExpected);
+      
+      console.log('✅ Expected inventory updated after transaction confirmation');
+    } catch (error) {
+      console.error('⚠️ Failed to update expected inventory:', error);
+      // Don't throw - transaction was still confirmed successfully
+    }
 
     console.log('✅ Transaction confirmed in Firebase:', transactionId);
   };
