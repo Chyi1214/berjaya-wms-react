@@ -4,10 +4,9 @@ import { ScanResult } from '../../types';
 interface ScanResultDisplayProps {
   result: ScanResult;
   onNewScan: () => void;
-  onBack: () => void;
 }
 
-export function ScanResultDisplay({ result, onNewScan, onBack }: ScanResultDisplayProps) {
+export function ScanResultDisplay({ result, onNewScan }: ScanResultDisplayProps) {
   const { scannedCode, lookup, timestamp } = result;
   
   // Debug logging for iPhone issue
@@ -122,12 +121,6 @@ export function ScanResultDisplay({ result, onNewScan, onBack }: ScanResultDispl
           🔍 Scan Another Item
         </button>
         
-        <button
-          onClick={onBack}
-          className="w-full bg-gray-500 hover:bg-gray-600 text-white font-medium py-3 px-4 rounded-lg transition-colors"
-        >
-          ← Back to Logistics Dashboard
-        </button>
       </div>
 
       {/* Quick Reference */}

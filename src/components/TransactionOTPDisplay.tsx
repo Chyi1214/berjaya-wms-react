@@ -1,15 +1,33 @@
 // Transaction OTP Display - Shows OTP after transaction creation
 import { useState } from 'react';
-import { Transaction } from '../types';
+import { Transaction, TransactionStatus } from '../types';
 
 interface TransactionOTPDisplayProps {
   transaction: Transaction;
   otp: string;
   onClose: () => void;
+  allTransactions?: Transaction[];
 }
 
-export function TransactionOTPDisplay({ transaction, otp, onClose }: TransactionOTPDisplayProps) {
+export function TransactionOTPDisplay({ transaction, otp, onClose, allTransactions }: TransactionOTPDisplayProps) {
   const [copied, setCopied] = useState(false);
+  
+  // Check if this transaction has been updated in real-time
+  const currentTransaction = allTransactions?.find(t => t.id === transaction.id) || transaction;
+  const isCompleted = currentTransaction.status === TransactionStatus.COMPLETED;
+  const isRejected = currentTransaction.status === TransactionStatus.CANCELLED;
+
+  // 🔍 DEBUG: Log status information for troubleshooting desktop/mobile differences
+  console.log('🖥️📱 TransactionOTPDisplay Debug:', {
+    transactionId: transaction.id,
+    originalStatus: transaction.status,
+    currentStatus: currentTransaction.status,
+    isCompleted,
+    isRejected,
+    isPending: !isCompleted && !isRejected,
+    userAgent: navigator.userAgent.includes('Mobile') ? 'Mobile' : 'Desktop',
+    screenWidth: window.innerWidth
+  });
 
   const handleCopyOTP = async () => {
     try {
@@ -42,20 +60,104 @@ export function TransactionOTPDisplay({ transaction, otp, onClose }: Transaction
   return (
     <div className="bg-white rounded-lg p-6 max-w-md mx-auto">
       
-      {/* Success Header */}
+      {/* Dynamic Status Header */}
       <div className="text-center mb-6">
-        <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <svg className="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-          </svg>
-        </div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">
-          ✅ Transaction Created!
-        </h3>
-        <p className="text-gray-600 text-sm">
-          Items sent to production zone for confirmation
-        </p>
+        {isCompleted ? (
+          <>
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              ✅ Transaction Completed!
+            </h3>
+            <div className="bg-green-100 border border-green-200 rounded-full px-3 py-1 inline-block mb-2">
+              <span className="text-green-800 text-sm font-medium">STATUS: COMPLETED</span>
+            </div>
+            <p className="text-gray-600 text-sm">
+              Production worker has confirmed and received the items
+            </p>
+          </>
+        ) : isRejected ? (
+          <>
+            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              ❌ Transaction Rejected
+            </h3>
+            <div className="bg-red-100 border border-red-200 rounded-full px-3 py-1 inline-block mb-2">
+              <span className="text-red-800 text-sm font-medium">STATUS: REJECTED</span>
+            </div>
+            <p className="text-gray-600 text-sm">
+              Production worker has rejected this transaction
+            </p>
+          </>
+        ) : (
+          <>
+            {/* Enhanced Pending Status - More visible on all devices */}
+            <div className="w-20 h-20 bg-gradient-to-br from-orange-100 to-orange-200 rounded-full flex items-center justify-center mx-auto mb-4 ring-4 ring-orange-300 ring-opacity-30 animate-pulse">
+              <svg className="w-10 h-10 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h3 className="text-xl font-bold text-gray-900 mb-3">
+              ⏳ Transaction Awaiting Confirmation
+            </h3>
+            <div className="bg-gradient-to-r from-orange-100 to-yellow-100 border-2 border-orange-300 rounded-full px-4 py-2 inline-block mb-3 shadow-md">
+              <span className="text-orange-900 font-bold text-base">🟠 STATUS: PENDING</span>
+            </div>
+            <p className="text-gray-700 font-medium">
+              Production worker must confirm with OTP to complete this transaction
+            </p>
+            <div className="mt-2 text-sm text-orange-600 font-medium">
+              🖥️📱 Debug: This should be visible on both desktop and mobile
+            </div>
+          </>
+        )}
       </div>
+
+      {/* Critical Instructions - Only show when pending */}
+      {!isCompleted && !isRejected && (
+        <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4 mb-6">
+          <h4 className="font-bold text-red-900 mb-2">🚨 TRANSACTION NOT COMPLETE:</h4>
+          <ul className="text-red-700 text-sm space-y-2 font-medium">
+            <li>• 🔄 <strong>PENDING until production worker confirms</strong></li>
+            <li>• 📱 Give this OTP to the worker in {transaction.toLocation?.replace('production_zone_', 'Zone ')}</li>
+            <li>• ⏰ Keep monitoring - you'll know when it's confirmed</li>
+            <li>• ❌ Items are NOT transferred yet</li>
+          </ul>
+        </div>
+      )}
+      
+      {/* Success/Completion Message */}
+      {isCompleted && (
+        <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4 mb-6">
+          <h4 className="font-bold text-green-900 mb-2">🎉 TRANSACTION COMPLETED:</h4>
+          <ul className="text-green-700 text-sm space-y-2 font-medium">
+            <li>• ✅ <strong>Production worker has confirmed receipt</strong></li>
+            <li>• 📦 Items have been successfully transferred</li>
+            <li>• 📝 Transaction is now complete and recorded</li>
+            <li>• 🔄 Inventory levels have been updated</li>
+          </ul>
+        </div>
+      )}
+      
+      {/* Rejection Message */}
+      {isRejected && (
+        <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4 mb-6">
+          <h4 className="font-bold text-red-900 mb-2">❌ TRANSACTION REJECTED:</h4>
+          <ul className="text-red-700 text-sm space-y-2 font-medium">
+            <li>• 🚫 <strong>Production worker has rejected this transaction</strong></li>
+            <li>• 📋 Reason: {currentTransaction.notes || 'No reason provided'}</li>
+            <li>• 🔄 Items remain in logistics inventory</li>
+            <li>• 💬 Contact production zone for details</li>
+          </ul>
+        </div>
+      )}
 
       {/* Transaction Summary */}
       <div className="bg-gray-50 rounded-lg p-4 mb-6">
@@ -123,23 +225,23 @@ export function TransactionOTPDisplay({ transaction, otp, onClose }: Transaction
         </button>
       </div>
 
-      {/* Important Instructions */}
-      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-        <h4 className="font-medium text-yellow-900 mb-2">⚠️ Important:</h4>
-        <ul className="text-yellow-700 text-sm space-y-1">
-          <li>• Give this OTP to the worker in {transaction.toLocation?.replace('production_zone_', 'Zone ')}</li>
-          <li>• Transaction is PENDING until confirmed</li>
-          <li>• OTP expires after confirmation or rejection</li>
-          <li>• Keep this window open until confirmed</li>
-        </ul>
-      </div>
-
       {/* Close Button */}
       <button
         onClick={onClose}
-        className="w-full btn-primary"
+        className={`w-full font-medium py-3 px-4 rounded-lg transition-colors ${
+          isCompleted 
+            ? 'bg-green-500 hover:bg-green-600 text-white' 
+            : isRejected
+              ? 'bg-red-500 hover:bg-red-600 text-white'
+              : 'bg-orange-500 hover:bg-orange-600 text-white'
+        }`}
       >
-        📱 Continue Working
+        {isCompleted 
+          ? '✅ Transaction Complete - Close' 
+          : isRejected
+            ? '❌ Transaction Rejected - Close'
+            : '📋 I\'ve Shared the OTP (Transaction Still Pending)'
+        }
       </button>
     </div>
   );

@@ -1,4 +1,5 @@
 // Manager Navigation Component - Handles category and tab navigation
+import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { InventoryCountEntry, Transaction, ItemMaster } from '../../types';
 import { ManagerTab, ManagerCategory } from '../../types/manager';
@@ -26,6 +27,7 @@ export function ManagerNavigation({
   onCategoryChange,
   onTabChange
 }: ManagerNavigationProps) {
+  const { t } = useLanguage();
   const { isDevAdmin, hasPermission } = useAuth();
 
   return (
@@ -41,7 +43,7 @@ export function ManagerNavigation({
                 : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
             }`}
           >
-            📦 Inventory
+            📦 {t('manager.tabs.inventory')}
           </button>
 
           {/* HR Category - DevAdmin or HR permission required */}
@@ -54,7 +56,7 @@ export function ManagerNavigation({
                   : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
               }`}
             >
-              👥 HR
+              👥 {t('manager.tabs.hr')}
             </button>
           )}
 
@@ -67,7 +69,7 @@ export function ManagerNavigation({
                 : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
             }`}
           >
-            🚀 Operations
+            🚀 {t('manager.tabs.operations')}
           </button>
         </nav>
       </div>
@@ -87,7 +89,7 @@ export function ManagerNavigation({
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
-                <span className="hidden sm:inline">📊 Overview</span>
+                <span className="hidden sm:inline">📊 {t('manager.subTabs.overview')}</span>
                 <span className="sm:hidden">📊</span>
               </button>
               <button
@@ -98,7 +100,7 @@ export function ManagerNavigation({
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
-                <span className="hidden sm:inline">📋 Checked ({tableData.checked.length})</span>
+                <span className="hidden sm:inline">📋 {t('manager.subTabs.checked')} ({tableData.checked.length})</span>
                 <span className="sm:hidden">📋 ({tableData.checked.length})</span>
               </button>
               <button
@@ -109,7 +111,7 @@ export function ManagerNavigation({
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
-                <span className="hidden sm:inline">📊 Expected ({tableData.expected.length})</span>
+                <span className="hidden sm:inline">📊 {t('manager.subTabs.expected')} ({tableData.expected.length})</span>
                 <span className="sm:hidden">📊 ({tableData.expected.length})</span>
               </button>
               <button
@@ -120,7 +122,7 @@ export function ManagerNavigation({
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
-                <span className="hidden sm:inline">🔄 Transactions ({transactions.length})</span>
+                <span className="hidden sm:inline">🔄 {t('manager.subTabs.transactions')} ({transactions.length})</span>
                 <span className="sm:hidden">🔄 ({transactions.length})</span>
               </button>
               <button
@@ -131,7 +133,7 @@ export function ManagerNavigation({
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
-                <span className="hidden sm:inline">🗓️ Yesterday ({tableData.yesterday.length})</span>
+                <span className="hidden sm:inline">🗓️ {t('manager.subTabs.yesterday')} ({tableData.yesterday.length})</span>
                 <span className="sm:hidden">🗓️ ({tableData.yesterday.length})</span>
               </button>
               <button
@@ -142,7 +144,7 @@ export function ManagerNavigation({
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
-                <span className="hidden sm:inline">📦 Item Master ({items.length})</span>
+                <span className="hidden sm:inline">📦 {t('manager.subTabs.itemMaster')} ({items.length})</span>
                 <span className="sm:hidden">📦 ({items.length})</span>
               </button>
             </>
@@ -158,7 +160,7 @@ export function ManagerNavigation({
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
-              <span className="hidden sm:inline">👥 User Management</span>
+              <span className="hidden sm:inline">👥 {t('manager.subTabs.userManagement')}</span>
               <span className="sm:hidden">👥 Users</span>
             </button>
           )}
@@ -173,7 +175,7 @@ export function ManagerNavigation({
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
-              <span className="hidden sm:inline">🚀 Scanner & Operations</span>
+              <span className="hidden sm:inline">🚀 {t('manager.subTabs.scannerOperations')}</span>
               <span className="sm:hidden">🚀 Ops</span>
             </button>
           )}

@@ -1,6 +1,7 @@
 // Transaction Receive View - For production workers to confirm incoming transactions
 import { useState } from 'react';
 import { Transaction, TransactionStatus } from '../types';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface TransactionReceiveViewProps {
   pendingTransactions: Transaction[];
@@ -15,10 +16,15 @@ export function TransactionReceiveView({
   onConfirmTransaction, 
   onRejectTransaction
 }: TransactionReceiveViewProps) {
+  const { t } = useLanguage();
   const [selectedTransaction, setSelectedTransaction] = useState<string | null>(null);
   const [otpInput, setOtpInput] = useState('');
   const [rejectReason, setRejectReason] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showSuccess, setShowSuccess] = useState<{transactionId: string, details: any} | null>(null);
+
+  // Debug logging
+  console.log('📱 Mobile Debug - TransactionReceiveView render:', { showSuccess, currentZone, pendingTransactionsCount: pendingTransactions.length });
 
   // Filter transactions for current zone
   const zoneTransactions = pendingTransactions.filter(
@@ -29,20 +35,40 @@ export function TransactionReceiveView({
     console.log('📱 Mobile Debug - Confirm button clicked:', { transactionId, otpInput, isProcessing });
     
     if (!otpInput.trim()) {
-      alert('Please enter the OTP');
+      alert(t('transactions.pleaseEnterOTP'));
       return;
     }
 
     setIsProcessing(true);
     try {
+      // Find transaction details before confirming
+      const transaction = pendingTransactions.find(t => t.id === transactionId);
+      
       console.log('📱 Mobile Debug - Calling onConfirmTransaction...');
       await onConfirmTransaction(transactionId, otpInput.trim());
       console.log('📱 Mobile Debug - Transaction confirmed successfully');
+      
+      // Show success message
+      if (transaction) {
+        console.log('📱 Mobile Debug - Setting success message:', transaction);
+        setShowSuccess({
+          transactionId,
+          details: {
+            sku: transaction.sku,
+            itemName: transaction.itemName,
+            amount: transaction.amount,
+            fromUser: transaction.performedBy
+          }
+        });
+        
+        // No auto-hide - user controls when to close
+      }
+      
       setSelectedTransaction(null);
       setOtpInput('');
     } catch (error) {
       console.error('📱 Mobile Debug - Failed to confirm transaction:', error);
-      alert(`Failed to confirm transaction: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      alert(`${t('transactions.failedToConfirm')}: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsProcessing(false);
     }
@@ -50,7 +76,7 @@ export function TransactionReceiveView({
 
   const handleReject = async (transactionId: string) => {
     if (!rejectReason.trim()) {
-      alert('Please provide a reason for rejection');
+      alert(t('transactions.pleaseProvideReason'));
       return;
     }
 
@@ -61,7 +87,7 @@ export function TransactionReceiveView({
       setRejectReason('');
     } catch (error) {
       console.error('Failed to reject transaction:', error);
-      alert('Failed to reject transaction. Please try again.');
+      alert(t('transactions.failedToReject'));
     } finally {
       setIsProcessing(false);
     }
@@ -76,22 +102,92 @@ export function TransactionReceiveView({
     }).format(new Date(timestamp));
   };
 
-  if (zoneTransactions.length === 0) {
+  // Show full-page processing screen while confirming transaction
+  if (isProcessing && selectedTransaction) {
     return (
-      <div className="bg-white rounded-lg p-6">
-        <div className="text-center py-8">
-          <div className="text-4xl mb-4">📭</div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">
-            No Pending Transactions
-          </h3>
-          <p className="text-gray-600 mb-4">
-            No items are being sent to Zone {currentZone} right now.
-          </p>
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4 max-w-md mx-auto">
-            <p className="text-green-700 text-sm">
-              ✨ When logistics sends items to your zone, they'll appear here with an OTP for confirmation.
+      <div className="fixed inset-0 bg-white z-50 flex items-center justify-center">
+        <div className="text-center max-w-md mx-auto p-8">
+          
+          {/* Processing Animation */}
+          <div className="w-32 h-32 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-8">
+            <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+          </div>
+          
+          {/* Processing Title */}
+          <h1 className="text-3xl font-bold text-blue-900 mb-4">
+            {t('transactions.waitingForConfirmation').toUpperCase()}
+          </h1>
+          
+          <h2 className="text-xl font-semibold text-gray-800 mb-6">
+            {t('transactions.confirmTransaction')}
+          </h2>
+          
+          <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-6 mb-8">
+            <p className="text-blue-800 font-medium text-lg mb-2">
+              📱 {t('transactions.waitingForConfirmation')}
+            </p>
+            <p className="text-blue-700">
+              🔄 {t('transactions.waitingForConfirmation')}
+            </p>
+            <p className="text-blue-600 text-sm mt-4">
+              {t('transactions.waitingForConfirmation')}
             </p>
           </div>
+          
+        </div>
+      </div>
+    );
+  }
+
+  // Show full-page success screen if success message is active
+  if (showSuccess) {
+    return (
+      <div className="fixed inset-0 bg-white z-50 flex items-center justify-center">
+        <div className="text-center max-w-md mx-auto p-8">
+          
+          {/* Large Success Animation */}
+          <div className="w-32 h-32 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-8 animate-bounce">
+            <svg className="w-16 h-16 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          
+          {/* Success Title */}
+          <h1 className="text-4xl font-bold text-green-900 mb-4">
+            {t('transactions.transactionConfirmed').toUpperCase()}!
+          </h1>
+          
+          <h2 className="text-xl font-semibold text-gray-800 mb-6">
+            {t('transactions.transactionConfirmed')}
+          </h2>
+          
+          {/* Transaction Details */}
+          <div className="bg-green-50 border-2 border-green-200 rounded-lg p-6 mb-8">
+            <h3 className="font-bold text-green-900 mb-4 text-lg">📦 {t('transactions.transactionConfirmed')}:</h3>
+            <div className="space-y-2">
+              <p className="text-green-800 font-medium text-lg">
+                {showSuccess.details.amount} units of {showSuccess.details.sku}
+              </p>
+              <p className="text-green-700">
+                {showSuccess.details.itemName}
+              </p>
+              <p className="text-green-600 text-sm mt-4">
+                📨 {t('transactions.fromLocation')}: {showSuccess.details.fromUser}
+              </p>
+              <p className="text-green-600 text-sm">
+                📍 {t('production.zone')} {currentZone}
+              </p>
+            </div>
+          </div>
+          
+          {/* Large OK Button */}
+          <button
+            onClick={() => setShowSuccess(null)}
+            className="w-full bg-green-500 hover:bg-green-600 text-white font-bold text-xl py-4 px-8 rounded-lg transition-colors shadow-lg"
+          >
+            ✅ {t('common.confirm')} - {t('common.back')}
+          </button>
+          
         </div>
       </div>
     );
@@ -99,16 +195,38 @@ export function TransactionReceiveView({
 
   return (
     <div className="bg-white rounded-lg p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h3 className="text-lg font-semibold text-gray-900">
-          📥 Incoming Transactions - Zone {currentZone}
-        </h3>
-        <div className="bg-yellow-100 border border-yellow-200 rounded-lg px-3 py-1">
-          <span className="text-yellow-800 text-sm font-medium">
-            {zoneTransactions.length} pending
-          </span>
+      
+      {/* No Pending Transactions Message */}
+      {zoneTransactions.length === 0 && !showSuccess && (
+        <div className="text-center py-8">
+          <div className="text-4xl mb-4">📭</div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">
+            {t('transactions.noPendingTransactions')}
+          </h3>
+          <p className="text-gray-600 mb-4">
+            {t('transactions.noItemsBeingSent', { zone: currentZone })}
+          </p>
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4 max-w-md mx-auto">
+            <p className="text-green-700 text-sm">
+              ✨ {t('transactions.whenLogisticsSends')}
+            </p>
+          </div>
         </div>
-      </div>
+      )}
+      
+      {/* Transactions List Header and Content */}
+      {zoneTransactions.length > 0 && (
+        <>
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-lg font-semibold text-gray-900">
+              📥 {t('transactions.confirmIncoming')} - {t('production.zone')} {currentZone}
+            </h3>
+            <div className="bg-yellow-100 border border-yellow-200 rounded-lg px-3 py-1">
+              <span className="text-yellow-800 text-sm font-medium">
+                {zoneTransactions.length} {t('transactions.pending')}
+              </span>
+            </div>
+          </div>
 
       <div className="space-y-4">
         {zoneTransactions.map((transaction) => (
@@ -121,11 +239,11 @@ export function TransactionReceiveView({
                   📦 {transaction.sku} - {transaction.itemName}
                 </h4>
                 <p className="text-sm text-gray-600">
-                  From: {transaction.performedBy} • {formatTimestamp(transaction.timestamp)}
+                  {t('transactions.fromLocation')}: {transaction.performedBy} • {formatTimestamp(transaction.timestamp)}
                 </p>
               </div>
               <div className="bg-yellow-100 border border-yellow-200 rounded px-2 py-1">
-                <span className="text-yellow-800 text-xs font-medium">PENDING</span>
+                <span className="text-yellow-800 text-xs font-medium">{t('transactions.pending').toUpperCase()}</span>
               </div>
             </div>
 
@@ -133,16 +251,16 @@ export function TransactionReceiveView({
             <div className="bg-gray-50 rounded-lg p-3 mb-4">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
                 <div>
-                  <span className="text-gray-500">Amount:</span>
+                  <span className="text-gray-500">{t('transactions.amount')}:</span>
                   <div className="font-medium">{transaction.amount}</div>
                 </div>
                 <div>
-                  <span className="text-gray-500">From:</span>
-                  <div className="font-medium">Logistics</div>
+                  <span className="text-gray-500">{t('transactions.fromLocation')}:</span>
+                  <div className="font-medium">{t('roles.logistics')}</div>
                 </div>
                 <div>
-                  <span className="text-gray-500">To:</span>
-                  <div className="font-medium">Zone {currentZone}</div>
+                  <span className="text-gray-500">{t('transactions.toLocation')}:</span>
+                  <div className="font-medium">{t('production.zone')} {currentZone}</div>
                 </div>
                 <div>
                   <span className="text-gray-500">ID:</span>
@@ -152,7 +270,7 @@ export function TransactionReceiveView({
               
               {transaction.notes && (
                 <div className="mt-3">
-                  <span className="text-gray-500 text-sm">Notes:</span>
+                  <span className="text-gray-500 text-sm">{t('transactions.notes')}:</span>
                   <div className="text-sm">{transaction.notes}</div>
                 </div>
               )}
@@ -164,9 +282,9 @@ export function TransactionReceiveView({
                 
                 {/* OTP Confirmation */}
                 <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                  <h5 className="font-medium text-green-900 mb-3">🔐 Enter OTP to Confirm</h5>
+                  <h5 className="font-medium text-green-900 mb-3">🔐 {t('transactions.enterOTP')}</h5>
                   <p className="text-green-700 text-sm mb-3">
-                    The sender should have provided you with a 4-digit OTP code.
+                    {t('transactions.enterOTP')}
                   </p>
                   <div className="flex gap-3">
                     <input
@@ -190,28 +308,28 @@ export function TransactionReceiveView({
                       disabled={isProcessing || otpInput.length !== 4}
                       className="bg-green-500 hover:bg-green-600 disabled:bg-green-300 text-white px-6 py-2 rounded-lg font-medium disabled:cursor-not-allowed touch-manipulation"
                     >
-                      {isProcessing ? '...' : '✅ Confirm'}
+                      {isProcessing ? '...' : '✅ ' + t('common.confirm')}
                     </button>
                   </div>
                 </div>
 
                 {/* Rejection Form */}
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                  <h5 className="font-medium text-red-900 mb-3">❌ Or Reject Transaction</h5>
+                  <h5 className="font-medium text-red-900 mb-3">❌ {t('transactions.transactionRejected')}</h5>
                   <div className="flex gap-3">
                     <input
                       type="text"
                       value={rejectReason}
                       onChange={(e) => setRejectReason(e.target.value)}
                       className="flex-1 px-3 py-2 border border-red-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
-                      placeholder="Reason for rejection..."
+                      placeholder={t('transactions.pleaseProvideReason')}
                     />
                     <button
                       onClick={() => handleReject(transaction.id)}
                       disabled={isProcessing || !rejectReason.trim()}
                       className="bg-red-500 hover:bg-red-600 disabled:bg-red-300 text-white px-6 py-2 rounded-lg font-medium disabled:cursor-not-allowed"
                     >
-                      {isProcessing ? '...' : '❌ Reject'}
+                      {isProcessing ? '...' : '❌ ' + t('transactions.transactionRejected')}
                     </button>
                   </div>
                 </div>
@@ -225,7 +343,7 @@ export function TransactionReceiveView({
                   }}
                   className="w-full btn-secondary"
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </button>
               </div>
             ) : (
@@ -233,23 +351,25 @@ export function TransactionReceiveView({
                 onClick={() => setSelectedTransaction(transaction.id)}
                 className="w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-3 px-4 rounded-lg transition-colors"
               >
-                🔐 Confirm with OTP
+                🔐 {t('transactions.confirmTransaction')}
               </button>
             )}
           </div>
         ))}
       </div>
 
-      {/* Instructions */}
-      <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <h4 className="font-medium text-blue-900 mb-2">📋 How to Confirm Transactions:</h4>
-        <ul className="text-blue-700 text-sm space-y-1">
-          <li>1. Check the transaction details carefully</li>
-          <li>2. Get the 4-digit OTP from the sender (logistics worker)</li>
-          <li>3. Enter the OTP and click "Confirm" to accept the items</li>
-          <li>4. Or provide a reason and "Reject" if there's an issue</li>
-        </ul>
-      </div>
+          {/* Instructions */}
+          <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <h4 className="font-medium text-blue-900 mb-2">📋 {t('transactions.confirmTransaction')}:</h4>
+            <ul className="text-blue-700 text-sm space-y-1">
+              <li>1. {t('transactions.confirmTransaction')}</li>
+              <li>2. {t('transactions.enterOTP')}</li>
+              <li>3. {t('transactions.confirmTransaction')}</li>
+              <li>4. {t('transactions.transactionRejected')}</li>
+            </ul>
+          </div>
+        </>
+      )}
     </div>
   );
 }

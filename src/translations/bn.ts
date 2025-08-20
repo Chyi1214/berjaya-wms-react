@@ -33,7 +33,7 @@ const bengaliTranslations: Translation = {
   // Roles
   roles: {
     selectRole: 'আপনার ভূমিকা নির্বাচন করুন',
-    logistics: 'লজিস্টিক্স',
+    logistics: 'লজিস্টিকস',
     production: 'উৎপাদন',
     manager: 'ম্যানেজার',
     transaction: 'লেনদেন',
@@ -51,29 +51,38 @@ const bengaliTranslations: Translation = {
 
   // Inventory
   inventory: {
-    sku: 'এসকেইউ',
+    sku: 'SKU',
     itemName: 'পণ্যের নাম',
     partName: 'যন্ত্রাংশের নাম',
     amount: 'পরিমাণ',
     location: 'অবস্থান',
     quantity: 'পরিমাণ',
-    countInventory: 'ইনভেন্টরি পরীক্ষা',
+    countInventory: 'ইনভেন্টরি গণনা করুন',
+    checkInventory: 'ইনভেন্টরি পরীক্ষা করুন',
     inventoryCount: 'ইনভেন্টরি গণনা',
     recentCounts: 'সাম্প্রতিক গণনা',
     noItems: 'এখনও কোনো পণ্য গণনা করা হয়নি',
     enterAmount: 'পরিমাণ প্রবেশ করান',
-    selectSKU: 'এসকেইউ নির্বাচন করুন বা টাইপ করুন',
-    searchSKU: 'এসকেইউ বা যন্ত্রাংশের নাম খুঁজুন...',
+    selectSKU: 'SKU নির্বাচন করুন',
+    searchSKU: 'SKU বা যন্ত্রাংশের নাম খুঁজুন...',
     countDetails: 'গণনার বিস্তারিত',
     countedBy: 'গণনাকারী',
     selectedItem: 'নির্বাচিত পণ্য',
     startCounting: 'ইনভেন্টরি গণনা শুরু করতে উপরের ফর্ম ব্যবহার করুন',
-    pieces: 'টি'
+    pieces: 'টি',
+    overview: 'সংক্ষিপ্ত বিবরণ',
+    checkedItems: 'পরীক্ষিত পণ্য',
+    expected: 'প্রত্যাশিত',
+    itemsCountedToday: 'আজ গণনা করা পণ্য',
+    calculatedExpected: 'গণনাকৃত প্রত্যাশিত',
+    totalTransactions: 'মোট লেনদেন',
+    previousPeriod: 'পূর্ববর্তী সময়কাল',
+    itemsInCatalog: 'ক্যাটালগে পণ্য'
   },
 
-  // BOM (Bill of Materials) - উপকরণের তালিকা
+  // BOM (Bill of Materials)
   bom: {
-    title: 'উপকরণের তালিকা',
+    title: 'উপকরণের তালিকা (BOM)',
     bomCode: 'BOM কোড',
     bomName: 'BOM নাম',
     bomSelected: 'নির্বাচিত BOM',
@@ -94,9 +103,36 @@ const bengaliTranslations: Translation = {
 
   // Logistics
   logistics: {
-    title: 'লজিস্টিক্স - ইনভেন্টরি গণনা',
-    description: 'লজিস্টিক্স এলাকায় ইনভেন্টরি পণ্য গণনা এবং ট্র্যাক করুন',
-    role: 'লজিস্টিক্স ভূমিকা'
+    title: 'লজিস্টিকস - ইনভেন্টরি গণনা',
+    description: 'লজিস্টিকস এলাকায় ইনভেন্টরি পণ্য গণনা এবং ট্র্যাক করুন',
+    role: 'লজিস্টিকস ভূমিকা',
+    checkDescription: 'ইনভেন্টরি গণনা এবং ব্যবস্থাপনা',
+    inboundScanner: 'ইনবাউন্ড স্ক্যানার',
+    scanDescription: 'লক্ষ্য অঞ্চল খুঁজে পেতে বারকোড স্ক্যান করুন'
+  },
+
+  // Scanner
+  scanner: {
+    inboundScanner: 'ইনবাউন্ড স্ক্যানার',
+    cameraScanner: 'ক্যামেরা স্ক্যানার',
+    startScanner: 'স্ক্যানার চালু করুন',
+    stopScanner: 'স্ক্যানার বন্ধ করুন',
+    scanning: 'স্ক্যান করা হচ্ছে...',
+    cameraWillAppearHere: 'ক্যামেরা এখানে প্রদর্শিত হবে',
+    cameraNotAvailable: 'এই ডিভাইসে ক্যামেরা উপলব্ধ নেই',
+    cameraPermissionDenied: 'ক্যামেরা অনুমতি প্রত্যাখ্যান করা হয়েছে। অনুগ্রহ করে ক্যামেরা অ্যাক্সেস সক্ষম করুন এবং আবার চেষ্টা করুন।',
+    cameraAccessRequired: 'ক্যামেরা অ্যাক্সেস প্রয়োজন। অনুগ্রহ করে আপনার ব্রাউজার সেটিংসে ক্যামেরা অনুমতি সক্ষম করুন।',
+    failedToStartCamera: 'ক্যামেরা চালু করতে ব্যর্থ। অনুগ্রহ করে আবার চেষ্টা করুন।',
+    scannerError: 'স্ক্যানার ত্রুটি',
+    logisticsWorker: 'লজিস্টিকস কর্মী',
+    manualEntry: 'ম্যানুয়াল এন্ট্রি',
+    enterSKU: 'SKU প্রবেশ করান বা পরীক্ষার জন্য সম্পূর্ণ QR কোড পেস্ট করুন',
+    enterSKUPlaceholder: 'SKU (A001) প্রবেশ করান বা পরীক্ষার জন্য QR কোড পেস্ট করুন',
+    exampleQR: 'QR উদাহরণ: 10#F16-1301P05AA$11#2CR$17#2$18#25469-CX70P250401$19#3',
+    processSKU: 'প্রক্রিয়া করুন (SKU বা QR কোড)',
+    error: 'ত্রুটি',
+    failedToProcessEntry: 'প্রবেশ করানো পাঠ্য প্রক্রিয়া করতে ব্যর্থ',
+    noValidSKUFound: 'কোনো বৈধ SKU পাওয়া যায়নি। চেষ্টা করা হয়েছে: {attempts}'
   },
 
   // Production
@@ -114,11 +150,13 @@ const bengaliTranslations: Translation = {
   // Manager
   manager: {
     title: 'ম্যানেজার ড্যাশবোর্ড',
-    description: 'রিয়েল-টাইম ইনভেন্টরি ওভারভিউ এবং অ্যানালিটিক্স',
+    header: 'ম্যানেজার ড্যাশবোর্ড',
+    description: 'গুদাম অপারেশনের ব্যাপক দৃশ্য',
     role: 'ম্যানেজার ভূমিকা',
     inventoryDashboard: 'উন্নত ইনভেন্টরি ড্যাশবোর্ড',
-    activeSKUs: 'সক্রিয় এসকেইউ',
-    logisticsTotal: 'লজিস্টিক্স মোট',
+    fullDashboard: 'সম্পূর্ণ ড্যাশবোর্ড',
+    activeSKUs: 'সক্রিয় SKU',
+    logisticsTotal: 'লজিস্টিকস মোট',
     productionTotal: 'উৎপাদন মোট',
     activeZones: 'সক্রিয় জোন',
     lastUpdated: 'শেষ আপডেট',
@@ -132,14 +170,32 @@ const bengaliTranslations: Translation = {
     noResults: '"{searchTerm}" এর সাথে মেলে এমন কোনো পণ্য পাওয়া যায়নি',
     zoneDetails: 'জোনের বিস্তারিত',
     hideZoneDetails: 'জোনের বিস্তারিত লুকান',
-    showZoneDetails: 'জোনের বিস্তারিত দেখান'
-  },
-
-  // Statistics
-  stats: {
-    countRecords: '{count} গণনার রেকর্ড',
-    zones: '{count} জোন',
-    items: '{count} পণ্য'
+    showZoneDetails: 'জোনের বিস্তারিত দেখান',
+    itemManagement: {
+      title: 'আইটেম ম্যানেজমেন্ট',
+      subtitle: 'আইটেম ম্যানেজমেন্ট কিভাবে কাজ করে',
+      itemMasterListTitle: 'আইটেম মাস্টার তালিকা',
+      itemMasterListDesc: 'SKU এবং নাম সহ সমস্ত আইটেমের কেন্দ্রীয় ক্যাটালগ',
+      bomsTitle: 'BOMs',
+      bomsDesc: 'পরিমাণ সহ একাধিক উপাদান ধারণকারী রেসিপি',
+      workflowTitle: 'কর্মপ্রবাহ',
+      workflowDesc: 'কর্মীরা ইনভেন্টরি গণনা করার সময় পৃথক আইটেম বা পুরো BOM নির্বাচন করতে পারেন'
+    },
+    tabs: {
+      inventory: 'ইনভেন্টরি',
+      hr: 'এইচআর',
+      operations: 'অপারেশনস'
+    },
+    subTabs: {
+      overview: 'সংক্ষিপ্ত বিবরণ',
+      checked: 'পরীক্ষিত',
+      expected: 'প্রত্যাশিত',
+      transactions: 'লেনদেন',
+      yesterday: 'গতকাল',
+      itemMaster: 'আইটেম মাস্টার',
+      userManagement: 'ব্যবহারকারী ব্যবস্থাপনা',
+      scannerOperations: 'স্ক্যানার ও অপারেশনস'
+    }
   },
 
   // Messages
@@ -149,7 +205,7 @@ const bengaliTranslations: Translation = {
     dataCleared: 'সমস্ত ইনভেন্টরি ডেটা পরিষ্কার করা হয়েছে',
     clearFailed: 'ইনভেন্টরি ডেটা পরিষ্কার করতে ব্যর্থ',
     productionTip: 'উৎপাদন পরিবেশে, এই গণনাগুলি আপনাআপনি Firebase এ সিঙ্ক হবে',
-    pleaseSelectSKU: 'অনুগ্রহ করে একটি এসকেইউ নির্বাচন করুন',
+    pleaseSelectSKU: 'অনুগ্রহ করে একটি SKU নির্বাচন করুন',
     pleaseEnterValidAmount: 'অনুগ্রহ করে একটি বৈধ পরিমাণ প্রবেশ করান',
     selectedItemNotFound: 'নির্বাচিত পণ্য পাওয়া যায়নি'
   },
@@ -159,6 +215,31 @@ const bengaliTranslations: Translation = {
     title: 'লেনদেন ব্যবস্থাপনা',
     description: 'ইনভেন্টরি লেনদেন ট্র্যাক এবং পরিচালনা করুন',
     role: 'লেনদেন ব্যবস্থাপনা',
+    logisticsDescription: 'লেনদেন ব্যবস্থাপনা এবং অডিট ট্রেইল',
+    sendItemsToProduction: 'উৎপাদনের জন্য আইটেম পাঠান',
+    sendInventoryToProduction: 'OTP নিশ্চিতকরণের মাধ্যমে উৎপাদন জোনে ইনভেন্টরি পাঠান',
+    itemSKU: 'আইটেম (SKU)',
+    amount: 'পরিমাণ',
+    maxAmount: '(সর্বোচ্চ: {max})',
+    sendToProductionZone: 'উৎপাদন জোনে পাঠান',
+    selectDestinationZone: 'গন্তব্য জোন নির্বাচন করুন...',
+    notesOptional: 'নোট (ঐচ্ছিক)',
+    addNotesAboutTransfer: 'এই স্থানান্তর সম্পর্কে কোনো নোট যোগ করুন...',
+    referenceOptional: 'রেফারেন্স (ঐচ্ছিক)',
+    workOrderBatchNumber: 'ওয়ার্ক অর্ডার, ব্যাচ নম্বর, ইত্যাদি',
+    transactionSummary: 'লেনদেনের সারসংক্ষেপ',
+    item: 'আইটেম',
+    available: 'উপলব্ধ',
+    remainingAfterSend: 'পাঠানোর পরে অবশিষ্ট',
+    units: 'একক',
+    inStock: 'স্টকে আছে',
+    outOfStock: 'স্টক নেই',
+    noItemsAvailable: 'ইনভেন্টরিতে কোনো আইটেম উপলব্ধ নেই। প্রথমে ইনভেন্টরি গণনা যোগ করুন।',
+    cannotSendMoreThan: '{max} এককের বেশি পাঠানো যাবে না (উপলব্ধ পরিমাণ)',
+    youCanSendUpTo: 'আপনি {sku}-এর {max} একক পর্যন্ত পাঠাতে পারেন',
+    sendAndGenerateOTP: 'পাঠান এবং OTP তৈরি করুন',
+    pleaseFillAllFields: 'অনুগ্রহ করে সমস্ত প্রয়োজনীয় ক্ষেত্র পূরণ করুন',
+    failedToCreateTransaction: 'লেনদেন তৈরি করতে ব্যর্থ। অনুগ্রহ করে আবার চেষ্টা করুন।',
     newTransaction: 'নতুন লেনদেন',
     transactionHistory: 'লেনদেন ইতিহাস',
     transactionType: 'লেনদেনের ধরন',
@@ -171,25 +252,33 @@ const bengaliTranslations: Translation = {
     previousAmount: 'আগের পরিমাণ',
     newAmount: 'নতুন পরিমাণ',
     transactionDate: 'লেনদেনের তারিখ',
-    filterTransactions: 'লেনদেন ফিল্টার করুন',
-    noTransactions: 'কোনো লেনদেন পাওয়া যায়নি',
-    createTransaction: 'লেনদেন তৈরি করুন',
-    viewDetails: 'বিস্তারিত দেখুন',
-    approve: 'অনুমোদন',
-    cancel: 'বাতিল',
+    transactionStatus: 'স্থিতি',
     pending: 'বিচারাধীন',
     completed: 'সম্পন্ন',
     cancelled: 'বাতিল',
-    count: 'স্টক গণনা',
-    transferIn: 'স্থানান্তর ইন',
-    transferOut: 'স্থানান্তর আউট',
-    adjustment: 'সমন্বয়',
-    initialStock: 'প্রারম্ভিক স্টক'
+    noTransactions: 'কোনো লেনদেন পাওয়া যায়নি',
+    confirmTransaction: 'লেনদেন নিশ্চিত করুন',
+    enterOTP: '4-সংখ্যার OTP লিখুন',
+    otpRequired: 'OTP আবশ্যক',
+    otpInvalid: 'অবৈধ OTP',
+    transactionConfirmed: 'লেনদেন সফলভাবে নিশ্চিত হয়েছে',
+    transactionRejected: 'লেনদেন প্রত্যাখ্যান করা হয়েছে',
+    waitingForConfirmation: 'নিশ্চিতকরণের জন্য অপেক্ষা করা হচ্ছে...',
+    sendTransaction: 'লেনদেন পাঠান',
+    confirmTransactions: 'লেনদেন নিশ্চিত করুন',
+    confirmIncoming: 'OTP দিয়ে লজিস্টিক্স থেকে আগত পণ্য নিশ্চিত করুন',
+    noPendingTransactions: 'কোনো বিচারাধীন লেনদেন নেই',
+    noItemsBeingSent: 'এই মুহূর্তে জোন {zone} এ কোনো পণ্য পাঠানো হচ্ছে না।',
+    whenLogisticsSends: 'যখন লজিস্টিক্স আপনার জোনে পণ্য পাঠাবে, তখন সেগুলি এখানে OTP সহ নিশ্চিতকরণের জন্য দেখা যাবে।',
+    pleaseEnterOTP: 'অনুগ্রহ করে OTP লিখুন',
+    pleaseProvideReason: 'অনুগ্রহ করে প্রত্যাখ্যানের কারণ দিন',
+    failedToConfirm: 'লেনদেন নিশ্চিত করতে ব্যর্থ',
+    failedToReject: 'লেনদেন প্রত্যাখ্যান করতে ব্যর্থ। অনুগ্রহ করে আবার চেষ্টা করুন।'
   },
 
   // Footer
   footer: {
-    copyright: '© 2025 বর্জয়া অটোটেক - গুদাম ব্যবস্থাপনা সিস্টেম',
+    copyright: '© 2025 Berjaya Autotech - গুদাম ব্যবস্থাপনা সিস্টেম',
     version: 'v{version} - {feature}'
   }
 };

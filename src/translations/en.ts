@@ -4,7 +4,7 @@ import { Translation } from '../contexts/LanguageContext';
 const englishTranslations: Translation = {
   // Common
   common: {
-    loading: 'Loading...',
+    loading: 'Loading...', 
     back: 'Back',
     submit: 'Submit',
     clear: 'Clear',
@@ -58,17 +58,26 @@ const englishTranslations: Translation = {
     location: 'Location',
     quantity: 'Quantity',
     countInventory: 'Count Inventory',
+    checkInventory: 'Check Inventory',
     inventoryCount: 'Inventory Count',
     recentCounts: 'Recent Counts',
     noItems: 'No items have been counted yet',
     enterAmount: 'Enter amount',
     selectSKU: 'Select SKU',
-    searchSKU: 'Search SKU or part name...',
+    searchSKU: 'Search SKU or part name...', 
     countDetails: 'Count Details',
     countedBy: 'Counted by',
     selectedItem: 'Selected Item',
     startCounting: 'Use the form above to start counting inventory',
-    pieces: 'pcs'
+    pieces: 'pcs',
+    overview: 'Overview',
+    checkedItems: 'Checked Items',
+    expected: 'Expected',
+    itemsCountedToday: 'Items counted today',
+    calculatedExpected: 'Calculated expected',
+    totalTransactions: 'Total transactions',
+    previousPeriod: 'Previous period',
+    itemsInCatalog: 'Items in catalog'
   },
 
   // BOM (Bill of Materials)
@@ -83,7 +92,7 @@ const englishTranslations: Translation = {
     components: 'components',
     componentCount: '{count} components',
     willBeAdded: '{count} components will be added',
-    searchItems: 'Search items or BOMs...',
+    searchItems: 'Search items or BOMs...', 
     searchItemsBOMs: 'Search items (A001, B002) or BOMs (BOM001)...',
     howManySets: 'How many sets?',
     setsOf: 'This will create {count} set(s) of {name}',
@@ -96,7 +105,34 @@ const englishTranslations: Translation = {
   logistics: {
     title: 'Logistics - Inventory Count',
     description: 'Count and track inventory items in the logistics area',
-    role: 'Logistics Role'
+    role: 'Logistics Role',
+    checkDescription: 'Inventory counting and management',
+    inboundScanner: 'Inbound Scanner',
+    scanDescription: 'Scan barcodes to find target zones'
+  },
+
+  // Scanner
+  scanner: {
+    inboundScanner: 'Inbound Scanner',
+    cameraScanner: 'Camera Scanner',
+    startScanner: 'Start Scanner',
+    stopScanner: 'Stop Scanner',
+    scanning: 'Scanning...', 
+    cameraWillAppearHere: 'Camera will appear here',
+    cameraNotAvailable: 'Camera not available on this device',
+    cameraPermissionDenied: 'Camera permission denied. Please enable camera access and try again.',
+    cameraAccessRequired: 'Camera access required. Please enable camera permissions in your browser settings.',
+    failedToStartCamera: 'Failed to start camera. Please try again.',
+    scannerError: 'Scanner error',
+    logisticsWorker: 'Logistics Worker',
+    manualEntry: 'Manual Entry',
+    enterSKU: 'Enter SKU or paste full QR code for testing',
+    enterSKUPlaceholder: 'Enter SKU (A001) or paste QR code for testing',
+    exampleQR: 'Example QR: 10#F16-1301P05AA$11#2CR$17#2$18#25469-CX70P250401$19#3',
+    processSKU: 'Process (SKU or QR Code)',
+    error: 'Error',
+    failedToProcessEntry: 'Failed to process entered text',
+    noValidSKUFound: 'No valid SKU found. Tried: {attempts}'
   },
 
   // Production
@@ -114,9 +150,11 @@ const englishTranslations: Translation = {
   // Manager
   manager: {
     title: 'Manager Dashboard',
+    header: 'Manager Dashboard',
     description: 'Comprehensive view of warehouse operations',
     role: 'Manager Role',
     inventoryDashboard: 'Enhanced Inventory Dashboard',
+    fullDashboard: 'Full Dashboard',
     activeSKUs: 'Active SKUs',
     logisticsTotal: 'Logistics Total',
     productionTotal: 'Production Total',
@@ -132,7 +170,32 @@ const englishTranslations: Translation = {
     noResults: 'No items found matching "{searchTerm}"',
     zoneDetails: 'Zone Details',
     hideZoneDetails: 'Hide Zone Details',
-    showZoneDetails: 'Show Zone Details'
+    showZoneDetails: 'Show Zone Details',
+    itemManagement: {
+      title: 'Item Management',
+      subtitle: 'How Item Management Works',
+      itemMasterListTitle: 'Item Master List',
+      itemMasterListDesc: 'Central catalog of all items with SKU and name',
+      bomsTitle: 'BOMs',
+      bomsDesc: 'Recipes that contain multiple components with quantities',
+      workflowTitle: 'Workflow',
+      workflowDesc: 'Workers can select individual items or entire BOMs when counting inventory'
+    },
+    tabs: {
+      inventory: 'Inventory',
+      hr: 'HR',
+      operations: 'Operations'
+    },
+    subTabs: {
+      overview: 'Overview',
+      checked: 'Checked',
+      expected: 'Expected',
+      transactions: 'Transactions',
+      yesterday: 'Yesterday',
+      itemMaster: 'Item Master',
+      userManagement: 'User Management',
+      scannerOperations: 'Scanner & Operations'
+    }
   },
 
   // Messages
@@ -152,6 +215,31 @@ const englishTranslations: Translation = {
     title: 'Transaction Management',
     description: 'Track and manage inventory transactions',
     role: 'Transaction Management',
+    logisticsDescription: 'Transaction management and audit trail',
+    sendItemsToProduction: 'Send Items to Production',
+    sendInventoryToProduction: 'Send inventory to production zones with OTP confirmation',
+    itemSKU: 'Item (SKU)',
+    amount: 'Amount',
+    maxAmount: '(Max: {max})',
+    sendToProductionZone: 'Send to Production Zone',
+    selectDestinationZone: 'Select destination zone...', 
+    notesOptional: 'Notes (Optional)',
+    referenceOptional: 'Reference (Optional)',
+    addNotesAboutTransfer: 'Add any notes about this transfer...',
+    workOrderBatchNumber: 'Work order, batch number, etc.',
+    transactionSummary: 'Transaction Summary',
+    item: 'Item',
+    available: 'Available',
+    remainingAfterSend: 'Remaining after send',
+    units: 'units',
+    inStock: 'In Stock',
+    outOfStock: 'Out of Stock',
+    noItemsAvailable: 'No items available in inventory. Please add inventory counts first.',
+    cannotSendMoreThan: 'Cannot send more than {max} units (available quantity)',
+    youCanSendUpTo: 'You can send up to {max} units of {sku}',
+    sendAndGenerateOTP: 'Send & Generate OTP',
+    pleaseFillAllFields: 'Please fill in all required fields',
+    failedToCreateTransaction: 'Failed to create transaction. Please try again.',
     newTransaction: 'New Transaction',
     transactionHistory: 'Transaction History',
     transactionType: 'Transaction Type',
@@ -176,7 +264,20 @@ const englishTranslations: Translation = {
     transactionConfirmed: 'Transaction confirmed successfully',
     transactionRejected: 'Transaction rejected',
     waitingForConfirmation: 'Waiting for confirmation...',
-    sendTransaction: 'Send Transaction'
+    sendTransaction: 'Send Transaction',
+    confirmTransactions: 'Confirm Transactions',
+    confirmIncoming: 'Confirm incoming items from logistics with OTP',
+    noPendingTransactions: 'No Pending Transactions',
+    noItemsBeingSent: 'No items are being sent to Zone {zone} right now.',
+    whenLogisticsSends: 'When logistics sends items to your zone, they\'ll appear here with an OTP for confirmation.',
+    pleaseEnterOTP: 'Please enter the OTP',
+    pleaseProvideReason: 'Please provide a reason for rejection',
+    failedToConfirm: 'Failed to confirm transaction',
+    failedToReject: 'Failed to reject transaction. Please try again.'
+  },
+  footer: {
+    copyright: '© 2025 Berjaya Autotech - Warehouse Management System',
+    version: 'v{version} - {feature}'
   }
 };
 

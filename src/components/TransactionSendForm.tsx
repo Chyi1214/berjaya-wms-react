@@ -1,6 +1,7 @@
 // Transaction Send Form - For logistics to send items to production zones
 import { useState, useMemo } from 'react';
 import { TransactionType, TransactionFormData, InventoryCountEntry } from '../types';
+import { useLanguage } from '../contexts/LanguageContext';
 import { SearchAutocomplete } from './common/SearchAutocomplete';
 
 interface TransactionSendFormProps {
@@ -12,14 +13,15 @@ interface TransactionSendFormProps {
 
 // Create available inventory items grouped by SKU with totals
 
-// Production zones 1-23
-const PRODUCTION_ZONES = Array.from({ length: 23 }, (_, i) => ({
-  id: i + 1,
-  name: `Zone ${i + 1}`,
-  value: `production_zone_${i + 1}`
-}));
-
 export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventoryCounts }: TransactionSendFormProps) {
+  const { t } = useLanguage();
+
+  // Production zones 1-23
+  const PRODUCTION_ZONES = useMemo(() => Array.from({ length: 23 }, (_, i) => ({
+    id: i + 1,
+    name: `${t('production.zone')} ${i + 1}`,
+    value: `production_zone_${i + 1}`
+  })), [t]);
   const [formData, setFormData] = useState<TransactionFormData>({
     sku: '',
     amount: 1,
@@ -67,7 +69,7 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
     e.preventDefault();
     
     if (!formData.sku || !formData.toLocation || formData.amount <= 0) {
-      alert('Please fill in all required fields');
+      alert(t('transactions.pleaseFillAllFields'));
       return;
     }
 
@@ -78,7 +80,7 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
       await onSubmit({ ...formData, otp });
     } catch (error) {
       console.error('Failed to create transaction:', error);
-      alert('Failed to create transaction. Please try again.');
+      alert(t('transactions.failedToCreateTransaction'));
     } finally {
       setIsSubmitting(false);
     }
@@ -93,7 +95,7 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
     <div className="bg-white rounded-lg p-6">
       <div className="flex justify-between items-center mb-6">
         <h3 className="text-lg font-semibold text-gray-900">
-          📤 Send Items to Production
+          📤 {t('transactions.sendItemsToProduction')}
         </h3>
         <button
           onClick={onCancel}
@@ -110,10 +112,10 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
         {/* SKU Selection */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            📦 Item (SKU) *
+            📦 {t('transactions.itemSKU')} *
           </label>
           <SearchAutocomplete
-            placeholder="Search items in inventory..."
+            placeholder={t('inventory.searchSKU')}
             onSelect={handleItemSelect}
           />
           
@@ -124,7 +126,7 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
                 <div>
                   <p className="font-medium text-blue-900">{selectedItem.sku} - {selectedItem.name}</p>
                   <p className="text-sm text-blue-700">
-                    Available: {selectedItem.totalQuantity} units
+                    {t('transactions.available')}: {selectedItem.totalQuantity} {t('transactions.units')}
                   </p>
                 </div>
                 <div className="text-right">
@@ -133,7 +135,7 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
                       ? 'bg-green-100 text-green-800' 
                       : 'bg-red-100 text-red-800'
                   }`}>
-                    {selectedItem.totalQuantity > 0 ? 'In Stock' : 'Out of Stock'}
+                    {selectedItem.totalQuantity > 0 ? t('transactions.inStock') : t('transactions.outOfStock')}
                   </span>
                 </div>
               </div>
@@ -144,7 +146,7 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
           {availableItems.length === 0 && (
             <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
               <p className="text-sm text-yellow-800">
-                💡 No items available in inventory. Please add inventory counts first.
+                💡 {t('transactions.noItemsAvailable')}
               </p>
             </div>
           )}
@@ -153,7 +155,7 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
         {/* Amount */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            🔢 Amount * {selectedItem && `(Max: ${maxAvailableQuantity})`}
+            🔢 {t('transactions.amount')} * {selectedItem && `(${t('transactions.maxAmount', { max: maxAvailableQuantity })})`}
           </label>
           <input
             type="number"
@@ -170,7 +172,7 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
             className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 ${
               formData.amount > maxAvailableQuantity ? 'border-red-300 bg-red-50' : 'border-gray-300'
             }`}
-            placeholder="Enter amount"
+            placeholder={t('inventory.enterAmount')}
             disabled={!selectedItem || maxAvailableQuantity === 0}
             required
           />
@@ -178,14 +180,14 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
           {/* Show validation error */}
           {formData.amount > maxAvailableQuantity && selectedItem && (
             <p className="mt-1 text-sm text-red-600">
-              Cannot send more than {maxAvailableQuantity} units (available quantity)
+              {t('transactions.cannotSendMoreThan', { max: maxAvailableQuantity })}
             </p>
           )}
           
           {/* Show helper text */}
           {selectedItem && maxAvailableQuantity > 0 && (
             <p className="mt-1 text-sm text-gray-500">
-              You can send up to {maxAvailableQuantity} units of {selectedItem.sku}
+              {t('transactions.youCanSendUpTo', { max: maxAvailableQuantity, sku: selectedItem.sku })}
             </p>
           )}
         </div>
@@ -193,7 +195,7 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
         {/* Destination Zone */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            🏭 Send to Production Zone *
+            🏭 {t('transactions.sendToProductionZone')} *
           </label>
           <select
             value={formData.toLocation}
@@ -201,7 +203,7 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
             required
           >
-            <option value="">Select destination zone...</option>
+            <option value="">{t('transactions.selectDestinationZone')}</option>
             {PRODUCTION_ZONES.map((zone) => (
               <option key={zone.id} value={zone.value}>
                 {zone.name}
@@ -213,43 +215,43 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
         {/* Notes */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            📝 Notes (Optional)
+            📝 {t('transactions.notesOptional')}
           </label>
           <textarea
             value={formData.notes}
             onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
             rows={3}
-            placeholder="Add any notes about this transfer..."
+            placeholder={t('transactions.addNotesAboutTransfer')}
           />
         </div>
 
         {/* Reference */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            🏷️ Reference (Optional)
+            🏷️ {t('transactions.referenceOptional')}
           </label>
           <input
             type="text"
             value={formData.reference}
             onChange={(e) => setFormData(prev => ({ ...prev, reference: e.target.value }))}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-            placeholder="Work order, batch number, etc."
+            placeholder={t('transactions.workOrderBatchNumber')}
           />
         </div>
 
         {/* Summary */}
         {formData.sku && formData.toLocation && formData.amount > 0 && selectedItem && (
           <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-            <h4 className="font-medium text-purple-900 mb-2">📋 Transaction Summary:</h4>
+            <h4 className="font-medium text-purple-900 mb-2">📋 {t('transactions.transactionSummary')}:</h4>
             <ul className="text-purple-700 text-sm space-y-1">
-              <li><strong>Item:</strong> {selectedItem.sku} - {selectedItem.name}</li>
-              <li><strong>Amount:</strong> {formData.amount} units</li>
-              <li><strong>Available:</strong> {selectedItem.totalQuantity} units</li>
-              <li><strong>Remaining after send:</strong> {selectedItem.totalQuantity - formData.amount} units</li>
-              <li><strong>From:</strong> Logistics</li>
-              <li><strong>To:</strong> {PRODUCTION_ZONES.find(z => z.value === formData.toLocation)?.name}</li>
-              <li><strong>Sender:</strong> {senderEmail}</li>
+              <li><strong>{t('transactions.item')}:</strong> {selectedItem.sku} - {selectedItem.name}</li>
+              <li><strong>{t('transactions.amount')}:</strong> {formData.amount} {t('transactions.units')}</li>
+              <li><strong>{t('transactions.available')}:</strong> {selectedItem.totalQuantity} {t('transactions.units')}</li>
+              <li><strong>{t('transactions.remainingAfterSend')}:</strong> {selectedItem.totalQuantity - formData.amount} {t('transactions.units')}</li>
+              <li><strong>{t('transactions.fromLocation')}:</strong> {t('roles.logistics')}</li>
+              <li><strong>{t('transactions.toLocation')}:</strong> {PRODUCTION_ZONES.find(z => z.value === formData.toLocation)?.name}</li>
+              <li><strong>{t('transactions.performedBy')}:</strong> {senderEmail}</li>
             </ul>
           </div>
         )}
@@ -261,7 +263,7 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
             onClick={onCancel}
             className="btn-secondary"
           >
-            Cancel
+            {t('common.cancel')}
           </button>
           
           <button
@@ -280,11 +282,11 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
             {isSubmitting ? (
               <>
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                Sending...
+                {t('transactions.waitingForConfirmation')}
               </>
             ) : (
               <>
-                📤 Send & Generate OTP
+                📤 {t('transactions.sendAndGenerateOTP')}
               </>
             )}
           </button>

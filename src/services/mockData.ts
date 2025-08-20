@@ -415,7 +415,7 @@ class MockDataService {
     }
   }
 
-  // Calculate expected inventory by applying transactions to a baseline
+  // Calculate expected inventory by applying transactions to a baseline (FULL RECALCULATION)
   calculateExpectedInventory(
     baselineInventory: InventoryCountEntry[], 
     completedTransactions: Transaction[]
@@ -472,6 +472,65 @@ class MockDataService {
     const results = Array.from(countMap.values());
     console.log(`📋 Calculated ${results.length} expected inventory entries from baseline + ${completedTransactions.length} transactions`);
     return results;
+  }
+
+  // INCREMENTAL UPDATE: Only update SKUs affected by a specific transaction (SCALABLE FOR 100 WORKERS)
+  calculateIncrementalExpectedUpdate(
+    currentExpected: InventoryCountEntry[],
+    newTransaction: Transaction
+  ): InventoryCountEntry[] {
+    console.log(`🎯 Incremental update for transaction: ${newTransaction.sku} from ${newTransaction.location} to ${newTransaction.toLocation}`);
+
+    // Only update affected locations for this specific SKU
+    const updatedExpected = currentExpected.map(entry => {
+      const sourceKey = `${newTransaction.sku}-${newTransaction.location}`;
+      const destKey = `${newTransaction.sku}-${newTransaction.toLocation}`;
+      const entryKey = `${entry.sku}-${entry.location}`;
+      
+      // Update source location (subtract)
+      if (entryKey === sourceKey) {
+        return {
+          ...entry,
+          amount: Math.max(0, entry.amount - newTransaction.amount),
+          countedBy: 'system.incremental',
+          timestamp: new Date()
+        };
+      }
+      
+      // Update destination location (add)
+      if (entryKey === destKey) {
+        return {
+          ...entry,
+          amount: entry.amount + newTransaction.amount,
+          countedBy: 'system.incremental',
+          timestamp: new Date()
+        };
+      }
+      
+      // All other entries remain unchanged
+      return entry;
+    });
+
+    // Check if destination location exists, create if needed
+    const destKey = `${newTransaction.sku}-${newTransaction.toLocation}`;
+    const destExists = currentExpected.some(entry => 
+      `${entry.sku}-${entry.location}` === destKey
+    );
+    
+    if (!destExists && newTransaction.toLocation) {
+      updatedExpected.push({
+        sku: newTransaction.sku,
+        itemName: newTransaction.itemName,
+        amount: newTransaction.amount,
+        location: newTransaction.toLocation,
+        countedBy: 'system.incremental',
+        timestamp: new Date()
+      });
+      console.log(`✨ Created new expected entry for ${newTransaction.sku} in ${newTransaction.toLocation}`);
+    }
+
+    console.log(`⚡ Incremental update complete: Only ${newTransaction.sku} locations updated (vs full recalculation)`);
+    return updatedExpected;
   }
 }
 

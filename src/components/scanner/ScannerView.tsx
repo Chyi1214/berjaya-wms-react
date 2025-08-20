@@ -1,6 +1,7 @@
 // Scanner View - Main barcode scanning interface for logistics workers
 import { useState, useRef, useEffect } from 'react';
 import { User, ScanResult } from '../../types';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { scannerService } from '../../services/scannerService';
 import { scanLookupService } from '../../services/scanLookupService';
 import { ScanResultDisplay } from './ScanResultDisplay';
@@ -11,6 +12,7 @@ interface ScannerViewProps {
 }
 
 export function ScannerView({ user, onBack }: ScannerViewProps) {
+  const { t } = useLanguage();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
@@ -29,7 +31,7 @@ export function ScannerView({ user, onBack }: ScannerViewProps) {
   const checkCameraSupport = async () => {
     const isAvailable = await scannerService.isCameraAvailable();
     if (!isAvailable) {
-      setError('Camera not available on this device');
+      setError(t('scanner.cameraNotAvailable'));
     }
   };
 
@@ -44,7 +46,7 @@ export function ScannerView({ user, onBack }: ScannerViewProps) {
       const hasPermission = await scannerService.requestCameraPermission();
       if (!hasPermission) {
         setCameraPermission('denied');
-        setError('Camera permission denied. Please enable camera access and try again.');
+        setError(t('scanner.cameraPermissionDenied'));
         return;
       }
 
@@ -60,7 +62,7 @@ export function ScannerView({ user, onBack }: ScannerViewProps) {
 
     } catch (err) {
       console.error('Failed to start scanner:', err);
-      setError('Failed to start camera. Please try again.');
+      setError(t('scanner.failedToStartCamera'));
       setIsScanning(false);
     }
   };
@@ -88,12 +90,12 @@ export function ScannerView({ user, onBack }: ScannerViewProps) {
         // Show what was tried in the error message
         setScanResult(null); // Clear any previous results
         const attemptsList = result.attemptedLookups.join(', ');
-        setError(`No valid SKU found. Tried: ${attemptsList}`);
+        setError(t('scanner.noValidSKUFound', { attempts: attemptsList }));
         console.log('❌ All lookup attempts failed:', result.attemptedLookups);
       }
     } catch (error) {
       console.error('Failed to process scanned code:', error);
-      setError('Failed to process scanned item');
+      setError(t('scanner.failedToProcessEntry'));
     }
   };
 
@@ -222,7 +224,7 @@ export function ScannerView({ user, onBack }: ScannerViewProps) {
 
   const handleScanError = (err: Error) => {
     console.error('Scan error:', err);
-    setError(`Scanner error: ${err.message}`);
+    setError(`${t('scanner.scannerError')}: ${err.message}`);
     setIsScanning(false);
   };
 
@@ -243,12 +245,12 @@ export function ScannerView({ user, onBack }: ScannerViewProps) {
         // Show what was tried in the error message
         setScanResult(null); // Clear any previous results
         const attemptsList = result.attemptedLookups.join(', ');
-        setError(`No valid SKU found. Tried: ${attemptsList}`);
+        setError(t('scanner.noValidSKUFound', { attempts: attemptsList }));
         console.log('❌ All manual entry lookup attempts failed:', result.attemptedLookups);
       }
     } catch (error) {
       console.error('Failed to process manual entry:', error);
-      setError('Failed to process entered text');
+      setError(t('scanner.failedToProcessEntry'));
     }
   };
 
@@ -274,7 +276,7 @@ export function ScannerView({ user, onBack }: ScannerViewProps) {
               </button>
               <div className="text-2xl">📱</div>
               <h1 className="text-xl font-semibold text-gray-900">
-                Inbound Scanner
+                {t('scanner.inboundScanner')}
               </h1>
             </div>
             
@@ -282,7 +284,7 @@ export function ScannerView({ user, onBack }: ScannerViewProps) {
               <p className="text-sm font-medium text-gray-900">
                 {user.displayName || user.email}
               </p>
-              <p className="text-xs text-gray-500">Logistics Worker</p>
+              <p className="text-xs text-gray-500">{t('scanner.logisticsWorker')}</p>
             </div>
           </div>
         </div>
@@ -295,25 +297,11 @@ export function ScannerView({ user, onBack }: ScannerViewProps) {
         {!scanResult && (
           <div className="space-y-6">
             
-            {/* Instructions */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <div className="flex items-start">
-                <div className="text-blue-600 text-lg mr-3">ℹ️</div>
-                <div>
-                  <h3 className="text-sm font-medium text-blue-900 mb-1">How to use the scanner:</h3>
-                  <p className="text-sm text-blue-700">
-                    1. Point your camera at a barcode<br/>
-                    2. Wait for the scan (you'll hear a beep)<br/>
-                    3. View the target zone information
-                  </p>
-                </div>
-              </div>
-            </div>
 
             {/* Camera View */}
             <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
               <div className="p-4 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900">📷 Camera Scanner</h3>
+                <h3 className="text-lg font-semibold text-gray-900">📷 {t('scanner.cameraScanner')}</h3>
               </div>
               
               <div className="p-6">
@@ -331,7 +319,7 @@ export function ScannerView({ user, onBack }: ScannerViewProps) {
                     <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50">
                       <div className="text-center text-white">
                         <div className="text-4xl mb-2">📷</div>
-                        <p>Camera will appear here</p>
+                        <p>{t('scanner.cameraWillAppearHere')}</p>
                       </div>
                     </div>
                   )}
@@ -339,7 +327,7 @@ export function ScannerView({ user, onBack }: ScannerViewProps) {
                   {/* Scanning indicator */}
                   {isScanning && (
                     <div className="absolute top-4 left-4 bg-green-500 text-white px-3 py-1 rounded-full text-sm">
-                      🔍 Scanning...
+                      🔍 {t('scanner.scanning')}
                     </div>
                   )}
                 </div>
@@ -351,14 +339,14 @@ export function ScannerView({ user, onBack }: ScannerViewProps) {
                       onClick={startScanning}
                       className="w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-3 px-4 rounded-lg transition-colors text-lg"
                     >
-                      📱 Start Scanner
+                      📱 {t('scanner.startScanner')}
                     </button>
                   ) : (
                     <button
                       onClick={stopScanning}
                       className="w-full bg-red-500 hover:bg-red-600 text-white font-medium py-3 px-4 rounded-lg transition-colors text-lg"
                     >
-                      ⏹️ Stop Scanner
+                      ⏹️ {t('scanner.stopScanner')}
                     </button>
                   )}
 
@@ -366,7 +354,7 @@ export function ScannerView({ user, onBack }: ScannerViewProps) {
                   {cameraPermission === 'denied' && (
                     <div className="bg-red-50 border border-red-200 rounded-lg p-3">
                       <p className="text-red-700 text-sm">
-                        📱 Camera access required. Please enable camera permissions in your browser settings.
+                        📱 {t('scanner.cameraAccessRequired')}
                       </p>
                     </div>
                   )}
@@ -377,8 +365,8 @@ export function ScannerView({ user, onBack }: ScannerViewProps) {
             {/* Manual Entry Fallback */}
             <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
               <div className="p-4 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900">⌨️ Manual Entry</h3>
-                <p className="text-sm text-gray-500">Enter SKU or paste full QR code for testing</p>
+                <h3 className="text-lg font-semibold text-gray-900">⌨️ {t('scanner.manualEntry')}</h3>
+                <p className="text-sm text-gray-500">{t('scanner.enterSKU')}</p>
               </div>
               
               <div className="p-6">
@@ -386,7 +374,7 @@ export function ScannerView({ user, onBack }: ScannerViewProps) {
                   <textarea
                     value={manualEntry}
                     onChange={(e) => setManualEntry(e.target.value)}
-                    placeholder="Enter SKU (A001) or paste QR code for testing&#10;Example QR: 10#F16-1301P05AA$11#2CR$17#2$18#25469-CX70P250401$19#3"
+                    placeholder={`${t('scanner.enterSKUPlaceholder')}\n${t('scanner.exampleQR')}`}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
                     rows={3}
                     onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleManualEntry()}
@@ -396,7 +384,7 @@ export function ScannerView({ user, onBack }: ScannerViewProps) {
                     disabled={!manualEntry.trim()}
                     className="w-full bg-green-500 hover:bg-green-600 disabled:bg-gray-300 text-white font-medium py-3 px-4 rounded-lg transition-colors"
                   >
-                    🔍 Process (SKU or QR Code)
+                    🔍 {t('scanner.processSKU')}
                   </button>
                 </div>
               </div>
@@ -408,7 +396,7 @@ export function ScannerView({ user, onBack }: ScannerViewProps) {
                 <div className="flex items-start">
                   <div className="text-red-600 text-lg mr-3">⚠️</div>
                   <div>
-                    <h3 className="text-sm font-medium text-red-900 mb-1">Error</h3>
+                    <h3 className="text-sm font-medium text-red-900 mb-1">{t('scanner.error')}</h3>
                     <p className="text-sm text-red-700">{error}</p>
                   </div>
                 </div>
@@ -422,7 +410,6 @@ export function ScannerView({ user, onBack }: ScannerViewProps) {
           <ScanResultDisplay
             result={scanResult}
             onNewScan={clearResult}
-            onBack={onBack}
           />
         )}
 

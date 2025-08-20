@@ -166,22 +166,31 @@ function AppContent() {
     // Remove OTP after successful confirmation
     await transactionService.deleteOTP(transactionId);
 
-    // 🔄 CRITICAL FIX: Update expected inventory after transaction confirmation
+    // 🔄 FIXED BASELINE: Use incremental update approach (scalable for 100 workers)
     try {
-      // Get updated transactions list (including this newly completed one)
-      const allTransactions = await transactionService.getAllTransactions();
-      const completedTransactions = allTransactions.filter(t => t.status === TransactionStatus.COMPLETED);
+      // Get current expected inventory from Firebase
+      const currentExpected = await tableStateService.getExpectedInventory();
       
-      // Recalculate expected inventory based on current inventory + completed transactions
-      const calculatedExpected = mockDataService.calculateExpectedInventory(
-        inventoryCounts, // Current inventory as baseline
-        completedTransactions
-      );
-      
-      // Save updated expected inventory to Firebase
-      await tableStateService.saveExpectedInventory(calculatedExpected);
-      
-      console.log('✅ Expected inventory updated after transaction confirmation');
+      if (currentExpected.length > 0) {
+        // Find the confirmed transaction
+        const confirmedTransaction = await transactionService.getTransactionById(transactionId);
+        
+        if (confirmedTransaction) {
+          // Apply INCREMENTAL update (only affects specific SKU locations)
+          const updatedExpected = mockDataService.calculateIncrementalExpectedUpdate(
+            currentExpected,
+            confirmedTransaction
+          );
+          
+          // Save updated expected inventory to Firebase
+          await tableStateService.saveExpectedInventory(updatedExpected);
+          
+          console.log('⚡ Expected inventory updated incrementally after transaction confirmation');
+        }
+      } else {
+        // Fallback to full calculation only if expected table is empty
+        console.log('⚠️ Expected table empty, skipping update (will be handled by manager view)');
+      }
     } catch (error) {
       console.error('⚠️ Failed to update expected inventory:', error);
       // Don't throw - transaction was still confirmed successfully
@@ -267,6 +276,7 @@ function AppContent() {
           counts={inventoryCounts}
           onClearCounts={handleClearCounts}
           onTransactionCreate={handleTransactionCreate}
+          transactions={transactions}
         />
       ) : <Login />;
       

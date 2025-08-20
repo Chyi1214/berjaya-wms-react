@@ -15,9 +15,10 @@ interface LogisticsViewProps {
   counts: InventoryCountEntry[];
   onClearCounts: () => void;
   onTransactionCreate: (transactionData: TransactionFormData & { otp: string }) => Promise<{ transaction: Transaction, otp: string }>;
+  transactions: Transaction[];
 }
 
-export function LogisticsView({ user, onBack, onCountSubmit, counts, onClearCounts, onTransactionCreate }: LogisticsViewProps) {
+export function LogisticsView({ user, onBack, onCountSubmit, counts, onClearCounts, onTransactionCreate, transactions }: LogisticsViewProps) {
   const { t } = useLanguage();
   const [selectedAction, setSelectedAction] = useState<'menu' | 'check' | 'transaction' | 'scanner'>('menu');
   const [transactionResult, setTransactionResult] = useState<{ transaction: Transaction, otp: string } | null>(null);
@@ -34,6 +35,17 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onClearCoun
     setTransactionResult(null);
   };
 
+  // Context-aware back button handler
+  const handleBackButton = () => {
+    if (selectedAction === 'menu') {
+      // From main menu -> go to role selection
+      onBack();
+    } else {
+      // From any sub-screen -> go back to menu
+      handleBackToMenu();
+    }
+  };
+
   // Handle transaction submission
   const handleTransactionSubmit = async (transactionData: TransactionFormData & { otp: string }) => {
     try {
@@ -46,30 +58,40 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onClearCoun
   };
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
+      {/* Header - Eugene's redesigned upper panel */}
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-3">
+            {/* Upper Left: "Last Page" - Context-aware Back Button */}
+            <div className="flex items-center">
               <button
-                onClick={onBack}
+                onClick={handleBackButton}
                 className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-                aria-label="Go back"
+                aria-label={selectedAction === 'menu' ? 'Back to role selection' : 'Back to menu'}
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
               </button>
-              <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
-                <span className="text-white font-bold text-sm">B</span>
-              </div>
-              <h1 className="text-xl font-semibold text-gray-900">
-                {t('logistics.title')}
-              </h1>
             </div>
-            
-            <div className="flex items-center space-x-4">
-              <div className="text-right">
+
+            {/* Middle: Role Selection Home Page - Navigation Home */}
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={onBack}
+                className="flex items-center space-x-2 p-2 text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                aria-label="Go to role selection"
+              >
+                <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+                  <span className="text-white font-bold text-sm">🏠</span>
+                </div>
+                <span className="text-sm font-medium hidden sm:block">Role Selection</span>
+              </button>
+            </div>
+
+            {/* Upper Right: Menu */}
+            <div className="flex items-center space-x-3">
+              <div className="text-right hidden sm:block">
                 <p className="text-sm font-medium text-gray-900">
                   {user.displayName || user.email}
                 </p>
@@ -77,6 +99,14 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onClearCoun
                   {t('logistics.role')}
                 </p>
               </div>
+              <button
+                className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                aria-label="Menu"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
             </div>
           </div>
         </div>
@@ -105,17 +135,17 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onClearCoun
                 {/* Check Inventory Button */}
                 <button
                   onClick={() => setSelectedAction('check')}
-                  className="p-6 bg-white rounded-xl border-2 border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-all duration-200 text-center group"
+                  className="p-4 md:p-6 bg-white rounded-xl border-2 border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-all duration-200 text-center group"
                 >
-                  <div className="text-4xl mb-3">📋</div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  <div className="text-3xl md:text-4xl mb-2 md:mb-3">📋</div>
+                  <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-1 md:mb-2">
                     {t('inventory.checkInventory')}
                   </h3>
-                  <p className="text-gray-600 text-sm">
+                  <p className="text-gray-600 text-xs md:text-sm">
                     {t('logistics.checkDescription')}
                   </p>
-                  <div className="mt-4 text-blue-500 group-hover:text-blue-600">
-                    <svg className="w-6 h-6 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="mt-3 md:mt-4 text-blue-500 group-hover:text-blue-600">
+                    <svg className="w-5 h-5 md:w-6 md:h-6 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
                   </div>
@@ -124,17 +154,17 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onClearCoun
                 {/* Transaction Button */}
                 <button
                   onClick={() => setSelectedAction('transaction')}
-                  className="p-6 bg-white rounded-xl border-2 border-gray-200 hover:border-purple-500 hover:bg-purple-50 transition-all duration-200 text-center group"
+                  className="p-4 md:p-6 bg-white rounded-xl border-2 border-gray-200 hover:border-purple-500 hover:bg-purple-50 transition-all duration-200 text-center group"
                 >
-                  <div className="text-4xl mb-3">🔄</div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  <div className="text-3xl md:text-4xl mb-2 md:mb-3">🔄</div>
+                  <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-1 md:mb-2">
                     {t('transactions.title')}
                   </h3>
-                  <p className="text-gray-600 text-sm">
+                  <p className="text-gray-600 text-xs md:text-sm">
                     {t('transactions.logisticsDescription')}
                   </p>
-                  <div className="mt-4 text-purple-500 group-hover:text-purple-600">
-                    <svg className="w-6 h-6 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="mt-3 md:mt-4 text-purple-500 group-hover:text-purple-600">
+                    <svg className="w-5 h-5 md:w-6 md:h-6 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
                   </div>
@@ -143,17 +173,17 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onClearCoun
                 {/* Scanner Button - NEW v3.2.0 */}
                 <button
                   onClick={() => setSelectedAction('scanner')}
-                  className="p-6 bg-white rounded-xl border-2 border-gray-200 hover:border-green-500 hover:bg-green-50 transition-all duration-200 text-center group"
+                  className="p-4 md:p-6 bg-white rounded-xl border-2 border-gray-200 hover:border-green-500 hover:bg-green-50 transition-all duration-200 text-center group"
                 >
-                  <div className="text-4xl mb-3">📱</div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                    Inbound Scanner
+                  <div className="text-3xl md:text-4xl mb-2 md:mb-3">📱</div>
+                  <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-1 md:mb-2">
+                    {t('scanner.inboundScanner')}
                   </h3>
-                  <p className="text-gray-600 text-sm">
-                    Scan barcodes to find target zones
+                  <p className="text-gray-600 text-xs md:text-sm">
+                    {t('logistics.scanDescription')}
                   </p>
-                  <div className="mt-4 text-green-500 group-hover:text-green-600">
-                    <svg className="w-6 h-6 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="mt-3 md:mt-4 text-green-500 group-hover:text-green-600">
+                    <svg className="w-5 h-5 md:w-6 md:h-6 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
                   </div>
@@ -246,6 +276,7 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onClearCoun
                     transaction={transactionResult.transaction}
                     otp={transactionResult.otp}
                     onClose={handleBackToMenu}
+                    allTransactions={transactions}
                   />
                 </>
               ) : (
@@ -257,7 +288,7 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onClearCoun
                       Send Items - {t('roles.logistics')}
                     </h2>
                     <p className="text-gray-600">
-                      Send inventory to production zones with OTP confirmation
+                      {t('transactions.sendInventoryToProduction')}
                     </p>
                   </div>
 

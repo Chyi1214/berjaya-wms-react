@@ -45,6 +45,20 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
   const handleBackToMenu = () => {
     setSelectedAction('menu');
   };
+
+  // Context-aware back button handler
+  const handleBackButton = () => {
+    if (!selectedZone) {
+      // From zone selection -> go to role selection
+      onBack();
+    } else if (selectedAction === 'menu') {
+      // From zone menu -> go back to zone selection
+      handleBackToZones();
+    } else {
+      // From any sub-screen -> go back to zone menu
+      handleBackToMenu();
+    }
+  };
   
   // Handle inventory count submission (supports both single items and BOM expansion)
   const handleCountSubmit = async (entries: InventoryCountEntry[]) => {
@@ -171,35 +185,45 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
   // Zone-specific inventory counting view
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
+      {/* Header - Eugene's redesigned upper panel */}
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-3">
+            {/* Upper Left: "Last Page" - Context-aware Back Button */}
+            <div className="flex items-center">
               <button
-                onClick={handleBackToZones}
+                onClick={handleBackButton}
                 className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-                aria-label="Back to zones"
+                aria-label={!selectedZone ? 'Back to role selection' : selectedAction === 'menu' ? 'Back to zones' : 'Back to menu'}
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
               </button>
-              <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
-                <span className="text-white font-bold text-sm">{selectedZone}</span>
-              </div>
-              <h1 className="text-xl font-semibold text-gray-900">
-                {t('production.zoneTitle', { zone: selectedZone })}
-              </h1>
             </div>
-            
-            <div className="flex items-center space-x-4">
-              <div className="bg-green-100 border border-green-200 rounded-lg px-3 py-1">
-                <span className="text-green-800 text-sm font-medium">
-                  {t('production.zone')} {selectedZone}
+
+            {/* Middle: Role Selection Home Page - Navigation Home */}
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={onBack}
+                className="flex items-center space-x-2 p-2 text-gray-700 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                aria-label="Go to role selection"
+              >
+                <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
+                  <span className="text-white font-bold text-sm">🏠</span>
+                </div>
+                <span className="text-sm font-medium hidden sm:block">Zone {selectedZone}</span>
+              </button>
+            </div>
+
+            {/* Upper Right: Menu */}
+            <div className="flex items-center space-x-3">
+              <div className="bg-green-100 border border-green-200 rounded-lg px-2 py-1">
+                <span className="text-green-800 text-xs font-medium">
+                  Zone {selectedZone}
                 </span>
               </div>
-              <div className="text-right">
+              <div className="text-right hidden sm:block">
                 <p className="text-sm font-medium text-gray-900">
                   {user.displayName || user.email}
                 </p>
@@ -207,6 +231,14 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
                   {t('production.role')}
                 </p>
               </div>
+              <button
+                className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                aria-label="Menu"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
             </div>
           </div>
         </div>
@@ -235,17 +267,17 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
                 {/* Check Inventory Button */}
                 <button
                   onClick={() => setSelectedAction('check')}
-                  className="p-6 bg-white rounded-xl border-2 border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-all duration-200 text-center group"
+                  className="p-4 md:p-6 bg-white rounded-xl border-2 border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-all duration-200 text-center group"
                 >
-                  <div className="text-4xl mb-3">📋</div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  <div className="text-3xl md:text-4xl mb-2 md:mb-3">📋</div>
+                  <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-1 md:mb-2">
                     {t('inventory.checkInventory')}
                   </h3>
-                  <p className="text-gray-600 text-sm">
+                  <p className="text-gray-600 text-xs md:text-sm">
                     {t('production.checkDescription')}
                   </p>
-                  <div className="mt-4 text-blue-500 group-hover:text-blue-600">
-                    <svg className="w-6 h-6 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="mt-3 md:mt-4 text-blue-500 group-hover:text-blue-600">
+                    <svg className="w-5 h-5 md:w-6 md:h-6 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
                   </div>
@@ -254,17 +286,17 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
                 {/* Transaction Button */}
                 <button
                   onClick={() => setSelectedAction('transaction')}
-                  className="p-6 bg-white rounded-xl border-2 border-gray-200 hover:border-purple-500 hover:bg-purple-50 transition-all duration-200 text-center group"
+                  className="p-4 md:p-6 bg-white rounded-xl border-2 border-gray-200 hover:border-purple-500 hover:bg-purple-50 transition-all duration-200 text-center group"
                 >
-                  <div className="text-4xl mb-3">🔄</div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  <div className="text-3xl md:text-4xl mb-2 md:mb-3">🔄</div>
+                  <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-1 md:mb-2">
                     {t('transactions.title')}
                   </h3>
-                  <p className="text-gray-600 text-sm">
+                  <p className="text-gray-600 text-xs md:text-sm">
                     {t('transactions.productionDescription')}
                   </p>
-                  <div className="mt-4 text-purple-500 group-hover:text-purple-600">
-                    <svg className="w-6 h-6 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="mt-3 md:mt-4 text-purple-500 group-hover:text-purple-600">
+                    <svg className="w-5 h-5 md:w-6 md:h-6 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
                   </div>

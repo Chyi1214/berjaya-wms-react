@@ -80,25 +80,47 @@ export function useTableData(
         tableData.yesterday.length > 0 && 
         transactions.length > previousTransactionCount.current) {
       
-      console.log('🔄 New transaction detected, recalculating Expected table...');
+      console.log('🔄 New transaction detected, using INCREMENTAL update...');
       
+      // Find the newly completed transactions
       const completedTransactions = transactions.filter(t => t.status === TransactionStatus.COMPLETED);
+      const previousCompleted = completedTransactions.slice(0, previousTransactionCount.current);
+      const newCompletedTransactions = completedTransactions.slice(previousCompleted.length);
       
-      if (completedTransactions.length > 0) {
-        // Recalculate expected based on yesterday + transactions
+      if (newCompletedTransactions.length > 0 && tableData.expected.length > 0) {
+        console.log(`⚡ Processing ${newCompletedTransactions.length} new transactions incrementally...`);
+        
+        let updatedExpected = [...tableData.expected];
+        
+        // Apply each new transaction incrementally (SCALABLE APPROACH)
+        newCompletedTransactions.forEach(transaction => {
+          updatedExpected = mockDataService.calculateIncrementalExpectedUpdate(
+            updatedExpected,
+            transaction
+          );
+        });
+        
+        // Save updated expected to Firebase for cross-device sync
+        tableStateService.saveExpectedInventory(updatedExpected);
+        
+        console.log(`🚀 Incremental update complete! Updated only affected SKUs instead of all ${tableData.expected.length} entries`);
+        
+      } else if (completedTransactions.length > 0 && tableData.expected.length === 0) {
+        // Fallback to full calculation only if expected table is empty (initial sync)
+        console.log('🔄 Expected table empty, doing initial full calculation...');
+        
         const calculatedExpected = mockDataService.calculateExpectedInventory(
           tableData.yesterday, 
           completedTransactions
         );
         
-        // Save to Firebase for cross-device sync
         tableStateService.saveExpectedInventory(calculatedExpected);
       }
       
       // Update the count to prevent unnecessary recalculations
       previousTransactionCount.current = transactions.length;
     }
-  }, [transactions, tableData.yesterday, initialLoadComplete]);
+  }, [transactions, tableData.yesterday, tableData.expected, initialLoadComplete]);
 
   // Clean synchronization function - single source of truth
   const syncAllTables = async (baseData: InventoryCountEntry[]): Promise<number> => {
