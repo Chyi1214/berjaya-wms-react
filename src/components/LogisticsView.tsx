@@ -11,7 +11,7 @@ import ScannerView from './scanner/ScannerView';
 interface LogisticsViewProps {
   user: User;
   onBack: () => void;
-  onCountSubmit: (entry: InventoryCountEntry) => void;
+  onCountSubmit: (entries: InventoryCountEntry[]) => void;
   counts: InventoryCountEntry[];
   onClearCounts: () => void;
   onTransactionCreate: (transactionData: TransactionFormData & { otp: string }) => Promise<{ transaction: Transaction, otp: string }>;
@@ -22,10 +22,10 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onClearCoun
   const [selectedAction, setSelectedAction] = useState<'menu' | 'check' | 'transaction' | 'scanner'>('menu');
   const [transactionResult, setTransactionResult] = useState<{ transaction: Transaction, otp: string } | null>(null);
   
-  // Handle new count submission (now just passes up to App)
-  const handleCountSubmit = async (entry: InventoryCountEntry) => {
-    await onCountSubmit(entry);
-    console.log('Count submitted and passed to App:', entry);
+  // Handle new count submission (now supports both single items and BOM expansion)
+  const handleCountSubmit = async (entries: InventoryCountEntry[]) => {
+    await onCountSubmit(entries);
+    console.log(`Count submitted and passed to App: ${entries.length} entries`, entries);
   };
 
   // Handle back to menu

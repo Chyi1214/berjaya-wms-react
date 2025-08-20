@@ -71,6 +71,27 @@ const bengaliTranslations: Translation = {
     pieces: 'টি'
   },
 
+  // BOM (Bill of Materials) - উপকরণের তালিকা
+  bom: {
+    title: 'উপকরণের তালিকা',
+    bomCode: 'BOM কোড',
+    bomName: 'BOM নাম',
+    bomSelected: 'নির্বাচিত BOM',
+    bomQuantity: 'BOM পরিমাণ',
+    bomPreview: 'BOM পূর্বরূপ',
+    bomExpansion: 'BOM সম্প্রসারণ',
+    components: 'উপাদানসমূহ',
+    componentCount: '{count}টি উপাদান',
+    willBeAdded: '{count}টি উপাদান যোগ করা হবে',
+    searchItems: 'আইটেম বা BOM খুঁজুন...',
+    searchItemsBOMs: 'আইটেম (A001, B002) বা BOM (BOM001) খুঁজুন...',
+    howManySets: 'কয়টি সেট?',
+    setsOf: 'এটি {name} এর {count}টি সেট তৈরি করবে',
+    addBOM: 'BOM যোগ করুন ({count}টি আইটেম)',
+    expandedFrom: 'BOM থেকে সম্প্রসারিত: {name}',
+    viaBoM: 'BOM এর মাধ্যমে: {code}'
+  },
+
   // Logistics
   logistics: {
     title: 'লজিস্টিক্স - ইনভেন্টরি গণনা',

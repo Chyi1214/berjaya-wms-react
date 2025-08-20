@@ -1,5 +1,5 @@
 // Language Context - Multi-language support for 5 languages
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from 'react';
 
 // Supported languages
 export type Language = 'en' | 'ms' | 'zh' | 'my' | 'bn';
@@ -105,6 +105,27 @@ const defaultTranslations: Translation = {
     selectedItem: 'Selected Item',
     startCounting: 'Use the form above to start counting inventory',
     pieces: 'pcs'
+  },
+
+  // BOM (Bill of Materials)
+  bom: {
+    title: 'Bill of Materials',
+    bomCode: 'BOM Code',
+    bomName: 'BOM Name', 
+    bomSelected: 'BOM Selected',
+    bomQuantity: 'BOM Quantity',
+    bomPreview: 'BOM Preview',
+    bomExpansion: 'BOM Expansion',
+    components: 'components',
+    componentCount: '{count} components',
+    willBeAdded: '{count} components will be added',
+    searchItems: 'Search items or BOMs...',
+    searchItemsBOMs: 'Search items (A001, B002) or BOMs (BOM001)...',
+    howManySets: 'How many sets?',
+    setsOf: 'This will create {count} set(s) of {name}',
+    addBOM: 'Add BOM ({count} items)',
+    expandedFrom: 'Expanded from BOM: {name}',
+    viaBoM: 'via BOM: {code}'
   },
 
   // Logistics
@@ -247,14 +268,14 @@ export function LanguageProvider({ children }: LanguageProviderProps) {
     loadTranslations();
   }, [currentLanguage]);
 
-  // Set language and save to localStorage
-  const setLanguage = (language: Language) => {
+  // Set language and save to localStorage (memoized)
+  const setLanguage = useCallback((language: Language) => {
     setCurrentLanguage(language);
     localStorage.setItem('berjaya-wms-language', language);
-  };
+  }, []);
 
-  // Translation function
-  const t = (key: string, params?: Record<string, string | number>): string => {
+  // Translation function (memoized for performance)
+  const t = useCallback((key: string, params?: Record<string, string | number>): string => {
     const keys = key.split('.');
     let value: any = translations;
 
@@ -278,14 +299,14 @@ export function LanguageProvider({ children }: LanguageProviderProps) {
     }
 
     return result;
-  };
+  }, [translations]);
 
-  const contextValue: LanguageContextType = {
+  const contextValue = useMemo<LanguageContextType>(() => ({
     currentLanguage,
     setLanguage,
     t,
     languages: LANGUAGES
-  };
+  }), [currentLanguage, setLanguage, t]);
 
   return (
     <LanguageContext.Provider value={contextValue}>

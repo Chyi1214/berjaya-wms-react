@@ -116,7 +116,13 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail }: Transac
             type="number"
             min="1"
             value={formData.amount}
-            onChange={(e) => setFormData(prev => ({ ...prev, amount: parseInt(e.target.value) || 0 }))}
+            onChange={(e) => {
+              const value = e.target.value;
+              const parsedValue = value === '' ? 0 : parseInt(value);
+              if (!isNaN(parsedValue) && parsedValue >= 0) {
+                setFormData(prev => ({ ...prev, amount: parsedValue }));
+              }
+            }}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
             placeholder="Enter amount"
             required

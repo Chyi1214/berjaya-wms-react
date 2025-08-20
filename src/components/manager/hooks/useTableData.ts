@@ -1,5 +1,5 @@
 // Custom hook for managing inventory table data (checked, expected, yesterday)
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { InventoryCountEntry, Transaction, TransactionStatus } from '../../../types';
 import { tableStateService } from '../../../services/tableState';
 import { mockDataService } from '../../../services/mockData';
@@ -60,9 +60,28 @@ export function useTableData(
     return unsubscribe;
   }, []);
 
-  // Auto-recalculate Expected when transactions change (and save to Firebase)
+  // Auto-recalculate Expected when NEW transactions are added (but not on page reload)
+  // We use a ref to track if this is initial load or actual change
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+  const previousTransactionCount = useRef(0);
+  
   useEffect(() => {
-    if (tableData.yesterday.length > 0) {
+    if (tableData.yesterday.length > 0 && tableData.expected.length > 0) {
+      setInitialLoadComplete(true);
+      previousTransactionCount.current = transactions.length;
+    }
+  }, [tableData.yesterday.length, tableData.expected.length, transactions.length]);
+
+  useEffect(() => {
+    // Only recalculate if:
+    // 1. Initial load is complete (we have yesterday & expected data)
+    // 2. Transaction count actually increased (new transaction added)
+    if (initialLoadComplete && 
+        tableData.yesterday.length > 0 && 
+        transactions.length > previousTransactionCount.current) {
+      
+      console.log('🔄 New transaction detected, recalculating Expected table...');
+      
       const completedTransactions = transactions.filter(t => t.status === TransactionStatus.COMPLETED);
       
       if (completedTransactions.length > 0) {
@@ -74,12 +93,12 @@ export function useTableData(
         
         // Save to Firebase for cross-device sync
         tableStateService.saveExpectedInventory(calculatedExpected);
-      } else {
-        // No transactions: Expected = Yesterday
-        tableStateService.saveExpectedInventory(tableData.yesterday);
       }
+      
+      // Update the count to prevent unnecessary recalculations
+      previousTransactionCount.current = transactions.length;
     }
-  }, [transactions, tableData.yesterday]);
+  }, [transactions, tableData.yesterday, initialLoadComplete]);
 
   // Clean synchronization function - single source of truth
   const syncAllTables = async (baseData: InventoryCountEntry[]): Promise<number> => {

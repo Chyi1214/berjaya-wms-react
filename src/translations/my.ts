@@ -71,6 +71,27 @@ const myanmarTranslations: Translation = {
     pieces: 'လုံး'
   },
 
+  // BOM (Bill of Materials) - ပစ္စည်းစာရင်း
+  bom: {
+    title: 'ပစ္စည်းစာရင်း',
+    bomCode: 'BOM ကုတ်',
+    bomName: 'BOM အမည်',
+    bomSelected: 'ရွေးချယ်ထားသော BOM',
+    bomQuantity: 'BOM အရေအတွက်',
+    bomPreview: 'BOM အစမ်းကြည့်ခြင်း',
+    bomExpansion: 'BOM ချဲ့ပြခြင်း',
+    components: 'အစိတ်အပိုင်းများ',
+    componentCount: '{count} အစိတ်အပိုင်း',
+    willBeAdded: '{count} အစိတ်အပိုင်းများ ထည့်မည်',
+    searchItems: 'ပစ္စည်းများ သို့မဟုတ် BOM များ ရှာရန်...',
+    searchItemsBOMs: 'ပစ္စည်းများ (A001, B002) သို့မဟုတ် BOM (BOM001) ရှာရန်...',
+    howManySets: 'မည်မျှ အစုံ?',
+    setsOf: 'ဤသည် {name} ၏ {count} အစုံ ဖန်တီးမည်',
+    addBOM: 'BOM ထည့်ရန် ({count} ပစ္စည်း)',
+    expandedFrom: 'BOM မှ ချဲ့ပြခြင်း: {name}',
+    viaBoM: 'BOM မှတဆင့်: {code}'
+  },
+
   // Logistics
   logistics: {
     title: 'ထောက်ပံ့ရေး - ကုန်ပစ္စည်း ရေတွက်ခြင်း',

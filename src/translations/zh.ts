@@ -71,6 +71,27 @@ const chineseTranslations: Translation = {
     pieces: '件'
   },
 
+  // BOM (Bill of Materials) - 物料清单
+  bom: {
+    title: '物料清单',
+    bomCode: 'BOM代码',
+    bomName: 'BOM名称',
+    bomSelected: '已选BOM',
+    bomQuantity: 'BOM数量',
+    bomPreview: 'BOM预览',
+    bomExpansion: 'BOM展开',
+    components: '组件',
+    componentCount: '{count}个组件',
+    willBeAdded: '将添加{count}个组件',
+    searchItems: '搜索物品或BOM...',
+    searchItemsBOMs: '搜索物品 (A001, B002) 或 BOM (BOM001)...',
+    howManySets: '多少套？',
+    setsOf: '这将创建 {count} 套 {name}',
+    addBOM: '添加BOM ({count}项)',
+    expandedFrom: '从BOM展开: {name}',
+    viaBoM: '通过BOM: {code}'
+  },
+
   // Logistics
   logistics: {
     title: '物流 - 库存盘点',

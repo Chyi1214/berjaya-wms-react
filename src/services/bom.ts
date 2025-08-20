@@ -237,43 +237,6 @@ class BOMService {
     console.log('✅ BOM deleted:', bomCode);
   }
 
-  // Expand BOM to individual inventory entries
-  async expandBOMToInventoryEntries(
-    bomCode: string, 
-    bomQuantity: number,
-    location: string,
-    countedBy: string
-  ): Promise<InventoryCountEntry[]> {
-    console.log(`🔄 Expanding BOM ${bomCode} (qty: ${bomQuantity}) to inventory entries`);
-    
-    // Get the BOM
-    const bom = await this.getBOMByCode(bomCode);
-    if (!bom) {
-      throw new Error(`BOM "${bomCode}" not found`);
-    }
-    
-    const entries: InventoryCountEntry[] = [];
-    const timestamp = new Date();
-    
-    // Create inventory entry for each component
-    for (const component of bom.components) {
-      const totalQuantity = component.quantity * bomQuantity;
-      
-      const entry: InventoryCountEntry = {
-        sku: component.sku,
-        itemName: component.name,
-        amount: totalQuantity,
-        location,
-        countedBy: `${countedBy} (BOM: ${bomCode})`,
-        timestamp
-      };
-      
-      entries.push(entry);
-    }
-    
-    console.log(`✅ Expanded BOM ${bomCode} to ${entries.length} inventory entries`);
-    return entries;
-  }
 
   // Bulk import BOMs (for CSV import)
   async bulkImportBOMs(boms: Omit<BOM, 'createdAt' | 'updatedAt' | 'totalComponents'>[]): Promise<{
@@ -357,6 +320,95 @@ class BOMService {
     
     await Promise.all(deletePromises);
     console.log(`✅ Cleared ${deletePromises.length} BOMs`);
+  }
+
+  // Expand BOM to individual inventory entries (Phase 3)
+  async expandBOMToInventoryEntries(
+    bomCode: string, 
+    bomQuantity: number,
+    location: string,
+    countedBy: string,
+    additionalNotes?: string
+  ): Promise<InventoryCountEntry[]> {
+    console.log(`🔄 Expanding BOM ${bomCode} (qty: ${bomQuantity}) to inventory entries`);
+    
+    // Get the BOM
+    const bom = await this.getBOMByCode(bomCode);
+    if (!bom) {
+      throw new Error(`BOM "${bomCode}" not found`);
+    }
+    
+    const entries: InventoryCountEntry[] = [];
+    const timestamp = new Date();
+    
+    // Create inventory entry for each component
+    for (const component of bom.components) {
+      const totalQuantity = component.quantity * bomQuantity;
+      
+      const entry: InventoryCountEntry = {
+        sku: component.sku,
+        itemName: component.name,
+        amount: totalQuantity,
+        location,
+        countedBy: `${countedBy} (via BOM: ${bomCode})`,
+        timestamp,
+        bomOrigin: {
+          bomCode: bom.bomCode,
+          bomName: bom.name,
+          bomQuantity: bomQuantity,
+          componentOriginalQty: component.quantity
+        },
+        notes: additionalNotes
+      };
+      
+      entries.push(entry);
+    }
+    
+    console.log(`✅ Expanded BOM ${bomCode} to ${entries.length} inventory entries`);
+    return entries;
+  }
+
+  // Preview BOM expansion without creating entries (for UI preview)
+  async previewBOMExpansion(bomCode: string, quantity: number = 1): Promise<{
+    bom: BOM;
+    previewEntries: Array<{
+      sku: string;
+      itemName: string;
+      originalQty: number;
+      expandedQty: number;
+    }>;
+    totalEntries: number;
+  }> {
+    const bom = await this.getBOMByCode(bomCode);
+    if (!bom) {
+      throw new Error(`BOM "${bomCode}" not found`);
+    }
+
+    const previewEntries = bom.components.map(component => ({
+      sku: component.sku,
+      itemName: component.name,
+      originalQty: component.quantity,
+      expandedQty: component.quantity * quantity
+    }));
+
+    return {
+      bom,
+      previewEntries,
+      totalEntries: previewEntries.length
+    };
+  }
+
+  // Get all BOMs that contain a specific component SKU
+  async getBOMsContainingSKU(sku: string): Promise<BOM[]> {
+    try {
+      const allBOMs = await this.getAllBOMs();
+      return allBOMs.filter(bom => 
+        bom.components.some(component => component.sku === sku)
+      );
+    } catch (error) {
+      console.error('❌ Error finding BOMs containing SKU:', error);
+      return [];
+    }
   }
 
   // Get BOM usage statistics

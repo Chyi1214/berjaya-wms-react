@@ -71,6 +71,27 @@ const malayTranslations: Translation = {
     pieces: 'keping'
   },
 
+  // BOM (Bill of Materials) - Senarai Bahan
+  bom: {
+    title: 'Senarai Bahan',
+    bomCode: 'Kod BOM',
+    bomName: 'Nama BOM',
+    bomSelected: 'BOM Dipilih',
+    bomQuantity: 'Kuantiti BOM',
+    bomPreview: 'Pratonton BOM',
+    bomExpansion: 'Pengembangan BOM',
+    components: 'komponen',
+    componentCount: '{count} komponen',
+    willBeAdded: '{count} komponen akan ditambah',
+    searchItems: 'Cari barang atau BOM...',
+    searchItemsBOMs: 'Cari barang (A001, B002) atau BOM (BOM001)...',
+    howManySets: 'Berapa set?',
+    setsOf: 'Ini akan membuat {count} set {name}',
+    addBOM: 'Tambah BOM ({count} barang)',
+    expandedFrom: 'Dikembangkan daripada BOM: {name}',
+    viaBoM: 'melalui BOM: {code}'
+  },
+
   // Logistics
   logistics: {
     title: 'Logistik - Kiraan Inventori',

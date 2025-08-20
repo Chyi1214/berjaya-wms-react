@@ -9,7 +9,7 @@ import TransactionReceiveView from './TransactionReceiveView';
 interface ProductionViewProps {
   user: User;
   onBack: () => void;
-  onCountSubmit: (entry: InventoryCountEntry) => void;
+  onCountSubmit: (entries: InventoryCountEntry[]) => void;
   counts: InventoryCountEntry[];
   onClearCounts: () => void;
   transactions: Transaction[];
@@ -46,17 +46,17 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
     setSelectedAction('menu');
   };
   
-  // Handle inventory count submission
-  const handleCountSubmit = async (entry: InventoryCountEntry) => {
+  // Handle inventory count submission (supports both single items and BOM expansion)
+  const handleCountSubmit = async (entries: InventoryCountEntry[]) => {
     if (!selectedZone) return;
     
-    // Create entry with production zone location
-    const productionEntry: InventoryCountEntry = {
+    // Update all entries with production zone location
+    const productionEntries: InventoryCountEntry[] = entries.map(entry => ({
       ...entry,
       location: `production_zone_${selectedZone}`
-    };
+    }));
     
-    await onCountSubmit(productionEntry);
+    await onCountSubmit(productionEntries);
   };
   
   // Filter counts for current zone

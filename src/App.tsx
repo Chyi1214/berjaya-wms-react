@@ -2,10 +2,13 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { LanguageProvider } from './contexts/LanguageContext';
+import ErrorBoundary from './components/ErrorBoundary';
 import Login from './components/Login';
 import RoleSelection from './components/RoleSelection';
 import LogisticsView from './components/LogisticsView';
-import ProductionView from './components/ProductionView';
+
+// Lazy load heavy components for better performance
+const ProductionView = lazy(() => import('./components/ProductionView'));
 import { UserRole, AppSection, InventoryCountEntry, Transaction, TransactionStatus, TransactionFormData } from './types';
 
 // Lazy load the heavy ManagerView component for better performance
@@ -94,11 +97,14 @@ function AppContent() {
     setSelectedRole(null);
   };
 
-  // Handle new inventory count (save to Firebase)
-  const handleInventoryCount = async (entry: InventoryCountEntry) => {
+  // Handle new inventory count (save to Firebase) - supports both single items and BOM expansion
+  const handleInventoryCount = async (entries: InventoryCountEntry[]) => {
     try {
-      await inventoryService.saveInventoryCount(entry);
-      console.log('✅ Inventory count saved to Firebase:', entry);
+      // Save all entries to Firebase (for BOMs, this will be multiple entries)
+      for (const entry of entries) {
+        await inventoryService.saveInventoryCount(entry);
+      }
+      console.log(`✅ ${entries.length} inventory count(s) saved to Firebase:`, entries);
     } catch (error) {
       console.error('❌ Failed to save inventory count:', error);
       alert('Failed to save count. Please try again.');
@@ -243,16 +249,25 @@ function AppContent() {
       
     case AppSection.PRODUCTION:
       return user ? (
-        <ProductionView 
-          user={user} 
-          onBack={handleBackToRoles}
-          onCountSubmit={handleInventoryCount}
-          counts={inventoryCounts}
-          onClearCounts={handleClearCounts}
-          transactions={transactions}
-          onTransactionConfirm={handleTransactionConfirm}
-          onTransactionReject={handleTransactionReject}
-        />
+        <Suspense fallback={
+          <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+            <div className="text-center">
+              <div className="w-12 h-12 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+              <p className="text-gray-600">Loading Production Dashboard...</p>
+            </div>
+          </div>
+        }>
+          <ProductionView 
+            user={user} 
+            onBack={handleBackToRoles}
+            onCountSubmit={handleInventoryCount}
+            counts={inventoryCounts}
+            onClearCounts={handleClearCounts}
+            transactions={transactions}
+            onTransactionConfirm={handleTransactionConfirm}
+            onTransactionReject={handleTransactionReject}
+          />
+        </Suspense>
       ) : <Login />;
       
     case AppSection.MANAGER:
@@ -283,11 +298,13 @@ function AppContent() {
 // Main App component with providers
 function App() {
   return (
-    <LanguageProvider>
-      <AuthProvider>
-        <AppContent />
-      </AuthProvider>
-    </LanguageProvider>
+    <ErrorBoundary>
+      <LanguageProvider>
+        <AuthProvider>
+          <AppContent />
+        </AuthProvider>
+      </LanguageProvider>
+    </ErrorBoundary>
   );
 }
 

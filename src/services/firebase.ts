@@ -1,5 +1,5 @@
 // Firebase configuration and initialization
-import { initializeApp } from 'firebase/app';
+import { initializeApp, FirebaseApp } from 'firebase/app';
 import { 
   getAuth, 
   GoogleAuthProvider, 
@@ -8,9 +8,10 @@ import {
   getRedirectResult,
   signOut,
   onAuthStateChanged,
-  User as FirebaseUser
+  User as FirebaseUser,
+  Auth
 } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { getFirestore, Firestore } from 'firebase/firestore';
 import type { User, FirebaseError } from '../types';
 
 // Firebase configuration object
@@ -40,9 +41,9 @@ const validateFirebaseConfig = () => {
 };
 
 // Initialize Firebase
-let app: any;
-let auth: any;
-let db: any;
+let app: FirebaseApp;
+let auth: Auth;
+let db: Firestore;
 
 try {
   validateFirebaseConfig();

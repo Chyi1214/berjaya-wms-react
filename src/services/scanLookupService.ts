@@ -1,6 +1,7 @@
 // Scan Lookup Service - Manage barcode to zone lookup data
 import { collection, doc, getDoc, setDoc, updateDoc, deleteDoc, getDocs, query, orderBy, where } from 'firebase/firestore';
 import { db } from './firebase';
+import { prepareForFirestore } from '../utils/firestore';
 import { ScanLookup } from '../types';
 
 class ScanLookupService {
@@ -39,27 +40,21 @@ class ScanLookupService {
       
       // Check if document exists
       const existing = await getDoc(docRef);
-      const now = new Date();
       
-      // Clean data - remove undefined fields for Firestore
-      const cleanData = Object.fromEntries(
-        Object.entries({ ...lookup, sku }).filter(([_, value]) => value !== undefined)
-      );
-
       if (existing.exists()) {
         // Update existing
-        await updateDoc(docRef, {
-          ...cleanData,
-          updatedAt: now
+        const updateData = prepareForFirestore({ ...lookup, sku }, { 
+          addUpdatedAt: true 
         });
+        await updateDoc(docRef, updateData);
         console.log('✅ Updated lookup for SKU:', sku);
       } else {
         // Create new
-        await setDoc(docRef, {
-          ...cleanData,
-          createdAt: now,
-          updatedAt: now
+        const createData = prepareForFirestore({ ...lookup, sku }, { 
+          addCreatedAt: true, 
+          addUpdatedAt: true 
         });
+        await setDoc(docRef, createData);
         console.log('✅ Created lookup for SKU:', sku);
       }
     } catch (error) {

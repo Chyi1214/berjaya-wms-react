@@ -45,9 +45,11 @@ export function RoleSelection({ user, onRoleSelect, onLogout }: RoleSelectionPro
         {/* Header */}
         <div className="text-center mb-8">
           <div className="mb-4 relative">
-            <div className="w-16 h-16 bg-primary-500 rounded-full flex items-center justify-center mx-auto mb-4">
-              <span className="text-white text-2xl font-bold">B</span>
-            </div>
+            <img 
+              src="/assets/Berjaya_AutotechLogo.png" 
+              alt="Berjaya Autotech" 
+              className="w-20 h-20 mx-auto mb-4 object-contain"
+            />
             {/* Language Switcher */}
             <div className="absolute top-0 right-0">
               <LanguageSwitcher size="sm" />

@@ -30,10 +30,11 @@ export function Login() {
         {/* Logo/Header Section */}
         <div className="text-center mb-8">
           <div className="mb-4">
-            {/* You can replace this with your actual logo */}
-            <div className="w-16 h-16 bg-primary-500 rounded-full flex items-center justify-center mx-auto mb-4">
-              <span className="text-white text-2xl font-bold">B</span>
-            </div>
+            <img 
+              src="/assets/Berjaya_AutotechLogo.png" 
+              alt="Berjaya Autotech" 
+              className="w-24 h-24 mx-auto mb-4 object-contain"
+            />
           </div>
           
           <h1 className="text-3xl font-bold text-gray-900 mb-2">

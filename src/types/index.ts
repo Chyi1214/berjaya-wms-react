@@ -205,6 +205,13 @@ export interface InventoryCountEntry {
   location: string;
   countedBy: string;
   timestamp: Date;
+  notes?: string;
+  bomOrigin?: {
+    bomCode: string;
+    bomName: string;
+    bomQuantity: number;
+    componentOriginalQty: number;
+  };
 }
 
 // Simple count form data
