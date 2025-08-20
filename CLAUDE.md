@@ -1,5 +1,8 @@
 # CLAUDE.md - React Migration Project
 
+**🚨 CRITICAL: BEFORE ANY CODE CHANGES, READ TYPE_REFERENCE.md FIRST! 🚨**
+**Previous vanilla JS project died from compilation errors. This prevents that.**
+
 This file provides guidance to Claude Code (claude.ai/code) when working with the Berjaya WMS React project.
 
 ## 🎯 PROJECT PHILOSOPHY - CRITICAL
@@ -224,6 +227,62 @@ src/
 - User will change to: `v3.3.0` or `v4.0.0` when appropriate
 
 **❌ DO NOT increment major/minor versions without user approval**
+
+## 🚨 **CRITICAL: PREVENTING CODE COMPILATION EXPLOSIONS**
+
+**⚠️ THE PREVIOUS VANILLA JS PROJECT DIED FROM COMPILATION ERRORS**
+
+### **🚨 MANDATORY CHECKLIST - NO EXCEPTIONS:**
+
+**⚠️ FAILURE TO FOLLOW = COMPILATION EXPLOSION (like previous project)**
+
+#### **STEP 1: READ TYPE_REFERENCE.md (MANDATORY)**
+```bash
+# ALWAYS read this first - it contains real error examples from v3.2.2
+cat TYPE_REFERENCE.md
+```
+
+#### **STEP 2: CHECK EXISTING TYPES BEFORE CODING**
+```bash
+# Check what properties actually exist:
+grep -n "interface.*Entry\|interface.*Data\|interface.*Result" src/types/index.ts
+```
+
+#### **STEP 3: BUILD AFTER EVERY SMALL CHANGE**
+```bash
+npm run build  # MANDATORY after each file edit
+# If it fails, fix immediately before continuing
+```
+
+#### **STEP 4: UPDATE TYPE_REFERENCE.md (MANDATORY)**
+**When you encounter ANY compilation error:**
+1. Add the exact error message to TYPE_REFERENCE.md
+2. Add the working fix 
+3. Commit the updated reference immediately
+
+**When you add new types:**
+1. Document them in TYPE_REFERENCE.md immediately
+2. Include property names and common mistake examples
+3. Test with npm run build before committing
+
+#### **STEP 5: DEPLOYMENT CHECKLIST UPDATE**
+```bash
+# 1. Update TYPE_REFERENCE.md (if types changed)
+# 2. Update VersionFooter.tsx with new version
+# 3. Update package.json (increment patch number only) 
+# 4. npm run build (verify no errors)
+# 5. git add -A && git commit
+# 6. firebase deploy --only hosting:berjaya-autotech-4b4f4
+# 7. git push origin main
+```
+
+### **Why This Matters:**
+- Previous project had 145+ event listeners with no type safety
+- Changed property names without documentation → explosion
+- React + TypeScript catches errors at compile time
+- But only if we use the correct property names!
+
+**🎯 Success depends on maintaining type accuracy**
 
 ### Debugging Issues:
 - Check browser console for TypeScript errors
