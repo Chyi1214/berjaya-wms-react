@@ -188,6 +188,43 @@ src/
 # 5. Deploy: firebase deploy --only hosting:berjaya-autotech-4b4f4
 ```
 
+## 🚨 **CRITICAL DEPLOYMENT CHECKLIST - FOR ALL FUTURE AI**
+
+**⚠️ MANDATORY STEPS FOR EVERY DEPLOYMENT:**
+
+1. **📊 Update Version Footer** - `src/components/VersionFooter.tsx`
+   - ALWAYS update the version number displayed to users
+   - This shows users which version they're using
+
+2. **📈 Version Number Rules** - `package.json`
+   - **ONLY increment the third number** (patch version): `3.2.1` → `3.2.2`
+   - **Never change first two numbers** - user will handle major.minor versions
+   - Example: `3.2.1` → `3.2.2` → `3.2.3` (patch increments only)
+
+3. **📝 Documentation Updates**
+   - Update CLAUDE.md with changes
+   - Document what was fixed/added
+   - Update current status version number
+
+4. **🔄 Full Deployment Sequence**
+   ```bash
+   # 1. Update VersionFooter.tsx with new version
+   # 2. Update package.json (increment patch number only)
+   # 3. Update CLAUDE.md current status  
+   # 4. npm run build (verify no errors)
+   # 5. git add -A && git commit
+   # 6. firebase deploy --only hosting:berjaya-autotech-4b4f4
+   # 7. git push origin main
+   ```
+
+**🎯 Example Version Progression:**
+- Current: `v3.2.1`
+- Next deployment: `v3.2.2` 
+- After that: `v3.2.3`
+- User will change to: `v3.3.0` or `v4.0.0` when appropriate
+
+**❌ DO NOT increment major/minor versions without user approval**
+
 ### Debugging Issues:
 - Check browser console for TypeScript errors
 - Use React DevTools for component state

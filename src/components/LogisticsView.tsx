@@ -265,6 +265,7 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onClearCoun
                     onSubmit={handleTransactionSubmit}
                     onCancel={handleBackToMenu}
                     senderEmail={user.email}
+                    inventoryCounts={counts}
                   />
                 </>
               )}
