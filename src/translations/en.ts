@@ -35,10 +35,12 @@ const englishTranslations: Translation = {
     selectRole: 'Select Your Role',
     logistics: 'Logistics',
     production: 'Production',
+    qa: 'Quality Assurance',
     manager: 'Manager',
     transaction: 'Transactions',
     logisticsDesc: 'Inventory counting and management',
     productionDesc: 'Zone-based production management',
+    qaDesc: 'Quality control and inspection',
     managerDesc: 'Dashboard and reporting',
     transactionDesc: 'Transaction management and audit trail'
   },
@@ -145,6 +147,34 @@ const englishTranslations: Translation = {
     backToZones: 'Back to Zone Selection',
     zone: 'Zone',
     role: 'Production Role'
+  },
+
+  // Quality Assurance
+  qa: {
+    title: 'Quality Assurance',
+    description: 'Inspect cars and ensure quality standards',
+    role: 'Quality Assurance Role',
+    carsForInspection: 'Cars for Inspection',
+    notInspected: 'Not Inspected',
+    inspectionInProgress: 'In Progress',
+    inspectionPassed: 'Passed',
+    inspectionFailed: 'Failed',
+    inspectCar: 'Inspect Car',
+    startInspection: 'Start Inspection',
+    completeInspection: 'Complete Inspection',
+    inspectionStatus: 'Inspection Status',
+    checklist: 'Checklist',
+    checksPassed: 'Checks Passed',
+    checksFailed: 'Checks Failed',
+    requiredChecks: 'Required Checks',
+    optionalChecks: 'Optional Checks',
+    passCheck: 'Pass',
+    failCheck: 'Fail',
+    skipCheck: 'Skip',
+    addNotes: 'Add notes (optional)',
+    noCarsAvailable: 'No cars available for inspection',
+    inspectionComplete: 'Inspection Complete',
+    noChecklistAvailable: 'No quality checklist available for this car type'
   },
 
   // Manager

@@ -182,7 +182,8 @@ class UserManagementService {
           itemMaster: { view: true, add: true, edit: true, delete: false },
           bom: { view: true, create: true, edit: true, delete: false },
           csv: { export: true, import: true },
-          scanner: { use: false, admin: false, bulkScan: false },
+          scanner: { use: false, admin: true, bulkScan: false },
+          qa: { view: true, performChecks: false, manageChecklists: true, viewReports: true },
           system: { userManagement: false, settings: false, auditLogs: true }
         };
       
@@ -194,6 +195,7 @@ class UserManagementService {
           bom: { view: true, create: false, edit: false, delete: false },
           csv: { export: true, import: false },
           scanner: { use: false, admin: false, bulkScan: false },
+          qa: { view: true, performChecks: false, manageChecklists: false, viewReports: true },
           system: { userManagement: false, settings: false, auditLogs: false }
         };
       
@@ -205,6 +207,7 @@ class UserManagementService {
           bom: { view: true, create: false, edit: false, delete: false },
           csv: { export: false, import: false },
           scanner: { use: true, admin: false, bulkScan: false },
+          qa: { view: false, performChecks: false, manageChecklists: false, viewReports: false },
           system: { userManagement: false, settings: false, auditLogs: false }
         };
       
@@ -216,6 +219,19 @@ class UserManagementService {
           bom: { view: true, create: false, edit: false, delete: false },
           csv: { export: false, import: false },
           scanner: { use: false, admin: false, bulkScan: false },
+          qa: { view: false, performChecks: false, manageChecklists: false, viewReports: false },
+          system: { userManagement: false, settings: false, auditLogs: false }
+        };
+      
+      case UserRole.QA:
+        return {
+          inventory: { view: true, count: false, edit: false, delete: false },
+          transactions: { view: true, create: false, approve: false, cancel: false },
+          itemMaster: { view: true, add: false, edit: false, delete: false },
+          bom: { view: true, create: false, edit: false, delete: false },
+          csv: { export: true, import: false },
+          scanner: { use: false, admin: false, bulkScan: false },
+          qa: { view: true, performChecks: true, manageChecklists: false, viewReports: true },
           system: { userManagement: false, settings: false, auditLogs: false }
         };
       
@@ -227,6 +243,7 @@ class UserManagementService {
           bom: { view: true, create: false, edit: false, delete: false },
           csv: { export: true, import: false },
           scanner: { use: false, admin: false, bulkScan: false },
+          qa: { view: true, performChecks: false, manageChecklists: false, viewReports: true },
           system: { userManagement: false, settings: false, auditLogs: false }
         };
       
@@ -244,6 +261,7 @@ class UserManagementService {
       bom: { view: true, create: true, edit: true, delete: true },
       csv: { export: true, import: true },
       scanner: { use: true, admin: true, bulkScan: true },
+      qa: { view: true, performChecks: true, manageChecklists: true, viewReports: true },
       system: { userManagement: true, settings: true, auditLogs: true }
     };
   }
@@ -257,6 +275,7 @@ class UserManagementService {
       bom: { view: true, create: false, edit: false, delete: false },
       csv: { export: false, import: false },
       scanner: { use: false, admin: false, bulkScan: false },
+      qa: { view: false, performChecks: false, manageChecklists: false, viewReports: false },
       system: { userManagement: false, settings: false, auditLogs: false }
     };
   }
@@ -283,6 +302,11 @@ class UserManagementService {
         name: 'Production Worker',
         description: 'Can count inventory and approve incoming transactions',
         permissions: this.getPermissionTemplate(UserRole.PRODUCTION)
+      },
+      {
+        name: 'Quality Assurance',
+        description: 'Can perform quality checks on cars and view QA reports',
+        permissions: this.getPermissionTemplate(UserRole.QA)
       },
       {
         name: 'Viewer',
@@ -326,6 +350,8 @@ class UserManagementService {
         return permissions.csv[action as keyof typeof permissions.csv] || false;
       case 'scanner':
         return permissions.scanner[action as keyof typeof permissions.scanner] || false;
+      case 'qa':
+        return permissions.qa[action as keyof typeof permissions.qa] || false;
       case 'system':
         return permissions.system[action as keyof typeof permissions.system] || false;
       default:

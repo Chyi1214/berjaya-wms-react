@@ -21,6 +21,13 @@ const getRoles = (t: (key: string) => string): RoleInfo[] => [
     color: 'bg-green-500 hover:bg-green-600'
   },
   {
+    id: UserRole.QA,
+    name: t('roles.qa'),
+    description: t('roles.qaDesc'),
+    icon: '✅',
+    color: 'bg-orange-500 hover:bg-orange-600'
+  },
+  {
     id: UserRole.MANAGER,
     name: t('roles.manager'),
     description: t('roles.managerDesc'),

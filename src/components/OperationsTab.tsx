@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { scanLookupService } from '../services/scanLookupService';
+import { qualityAssuranceService } from '../services/qualityAssuranceService';
 
 interface OperationsTabProps {
   onRefresh?: () => void;
@@ -13,6 +14,7 @@ export function OperationsTab({ onRefresh }: OperationsTabProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState<{success: number; errors: string[]} | null>(null);
   const [replaceMode, setReplaceMode] = useState(false);
+  const [qaStatus, setQaStatus] = useState<'idle' | 'initializing' | 'ready' | 'error'>('idle');
 
   // Check permissions for different operations
   const canViewSystemHealth = isDevAdmin || hasPermission('system.settings');
@@ -183,6 +185,36 @@ export function OperationsTab({ onRefresh }: OperationsTabProps) {
     } catch (error) {
       console.error('Failed to download CSV:', error);
       alert('Failed to download scanner data');
+    }
+  };
+
+  // Initialize QA checklist
+  const handleInitializeQA = async () => {
+    if (!user?.email) return;
+    
+    setQaStatus('initializing');
+    try {
+      const checklistId = await qualityAssuranceService.createDefaultChecklist(user.email);
+      setQaStatus('ready');
+      console.log('✅ QA checklist initialized:', checklistId);
+    } catch (error) {
+      console.error('Failed to initialize QA checklist:', error);
+      setQaStatus('error');
+    }
+  };
+
+  // Check QA checklists
+  const handleCheckQAData = async () => {
+    try {
+      console.log('🔍 Checking QA data...');
+      const checklists = await qualityAssuranceService.getAllChecklists();
+      const inspections = await qualityAssuranceService.getTodayInspections();
+      console.log(`📊 Found ${checklists.length} checklists and ${inspections.length} inspections today:`, { checklists, inspections });
+      
+      alert(`QA system has ${checklists.length} checklists and ${inspections.length} inspections today. Check console for details.`);
+    } catch (error) {
+      console.error('Failed to check QA data:', error);
+      alert('Failed to check QA data. Check console for errors.');
     }
   };
 
@@ -357,26 +389,63 @@ export function OperationsTab({ onRefresh }: OperationsTabProps) {
           </div>
         </div>
 
-        {/* Bulk Operations */}
-        <div className="bg-white border-2 border-dashed border-gray-300 rounded-lg p-6">
+        {/* QA Management - v4.1.0 */}
+        <div className="bg-white border-2 border-orange-200 rounded-lg p-6">
           <div className="text-center">
-            <div className="text-4xl mb-4">⚡</div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Bulk Operations</h3>
+            <div className="text-4xl mb-4">✅</div>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">QA Management</h3>
             <p className="text-sm text-gray-500 mb-4">
-              Mass data operations and batch processing
+              Quality assurance checklists and inspection setup
             </p>
-            <div className="space-y-2 text-xs text-gray-400">
-              <div>📊 Bulk inventory updates</div>
-              <div>🔄 Mass transaction processing</div>
-              <div>📥 Batch CSV imports</div>
-              <div>🧹 Data cleanup tools</div>
+            <div className="space-y-2 text-xs text-gray-600">
+              <div>✅ Available in v4.1.0</div>
+              <div>📋 Quality checklists</div>
+              <div>🔍 Car inspections</div>
+              <div>📊 Quality reports</div>
             </div>
-            <button
-              disabled
-              className="mt-4 px-4 py-2 bg-gray-100 text-gray-400 rounded-lg cursor-not-allowed"
-            >
-              Future Feature
-            </button>
+            
+            {/* QA Status */}
+            <div className="mt-4 space-y-2">
+              {qaStatus === 'idle' && (
+                <div className="text-sm text-gray-500">Ready to initialize QA system</div>
+              )}
+              {qaStatus === 'initializing' && (
+                <div className="text-sm text-orange-600">⏳ Setting up QA checklists...</div>
+              )}
+              {qaStatus === 'ready' && (
+                <div className="text-sm text-green-600">✅ QA system ready! Default checklist created.</div>
+              )}
+              {qaStatus === 'error' && (
+                <div className="text-sm text-red-600">❌ Failed to initialize QA system</div>
+              )}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="space-y-2">
+              <button
+                onClick={handleInitializeQA}
+                disabled={qaStatus === 'initializing'}
+                className={`w-full px-4 py-2 rounded-lg transition-colors ${
+                  qaStatus === 'ready' 
+                    ? 'bg-green-100 text-green-700 border border-green-300'
+                    : qaStatus === 'error'
+                    ? 'bg-red-100 text-red-700 border border-red-300 hover:bg-red-200'
+                    : 'bg-orange-500 text-white hover:bg-orange-600'
+                }`}
+              >
+                {qaStatus === 'initializing' && '⏳ Initializing...'}
+                {qaStatus === 'ready' && '✅ QA Ready'}
+                {qaStatus === 'error' && '🔄 Retry Setup'}
+                {qaStatus === 'idle' && '✅ Initialize QA'}
+              </button>
+              
+              <button
+                onClick={handleCheckQAData}
+                className="w-full px-4 py-2 bg-gray-100 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors text-sm"
+              >
+                🔍 Check QA Data
+              </button>
+            </div>
           </div>
         </div>
 
@@ -485,9 +554,11 @@ export function OperationsTab({ onRefresh }: OperationsTabProps) {
           <div>
             <h4 className="text-sm font-medium text-blue-900 mb-1">Development Roadmap</h4>
             <p className="text-sm text-blue-700">
-              <strong>✅ New:</strong> Scanner functionality (v3.2.0) - Barcode scanning is now available in Logistics role!
+              <strong>✅ New:</strong> Quality Assurance (v4.1.0) - QA car inspections now available with quality checklists!
               <br />
-              <strong>Next Up:</strong> Scanner data management and CSV import for lookup table configuration.
+              <strong>Previous:</strong> Scanner functionality (v3.2.0) - Barcode scanning available in Logistics role.
+              <br />
+              <strong>Next Up:</strong> Advanced QA reporting and analytics dashboard.
             </p>
           </div>
         </div>

@@ -262,6 +262,30 @@ class CarTrackingService {
     return this.getCars({ currentZone: zoneId });
   }
 
+  // Get today's cars (in production + completed today) for QA
+  async getTodayCars(): Promise<Car[]> {
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+
+      // Get all cars and filter by date in memory (Firestore limitation)
+      const allCars = await this.getCars();
+      
+      return allCars.filter(car => {
+        // Include cars created today or completed today
+        const createdToday = car.createdAt >= today && car.createdAt < tomorrow;
+        const completedToday = car.completedAt && car.completedAt >= today && car.completedAt < tomorrow;
+        
+        return createdToday || completedToday || car.status === CarStatus.IN_PRODUCTION;
+      });
+    } catch (error) {
+      console.error('Failed to get today cars:', error);
+      return [];
+    }
+  }
+
   // Get car movements for audit trail
   async getCarMovements(vin?: string, limit: number = 50): Promise<CarMovement[]> {
     try {

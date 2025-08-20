@@ -9,6 +9,7 @@ import CarScanView from './production/CarScanView';
 import CarCompleteView from './production/CarCompleteView';
 import WorkerCheckInView from './production/WorkerCheckInView';
 import ZoneStatusDisplay from './production/ZoneStatusDisplay';
+import ProductionLineView from './production/ProductionLineView';
 
 interface ProductionViewProps {
   user: User;
@@ -21,12 +22,7 @@ interface ProductionViewProps {
   onTransactionReject: (transactionId: string, reason: string) => void;
 }
 
-// Generate zones 1-23
-const PRODUCTION_ZONES = Array.from({ length: 23 }, (_, i) => ({
-  id: i + 1,
-  name: `Zone ${i + 1}`,
-  description: `Production Zone ${i + 1}`
-}));
+// Note: Zone generation moved to ProductionLineView component
 
 export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCounts, transactions, onTransactionConfirm, onTransactionReject }: ProductionViewProps) {
   const { t } = useLanguage();
@@ -148,70 +144,8 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
           </div>
         </header>
 
-        {/* Main Content - Zone Selection */}
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="max-w-4xl mx-auto">
-            
-            {/* Welcome Section */}
-            <div className="text-center mb-8">
-              <div className="text-4xl mb-2">🏭</div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                {t('production.selectZone')}
-              </h2>
-              <p className="text-gray-600">
-                {t('production.selectZoneDesc')}
-              </p>
-            </div>
-
-            {/* Zone Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-8">
-              {PRODUCTION_ZONES.map((zone) => (
-                <button
-                  key={zone.id}
-                  onClick={() => handleZoneSelect(zone.id)}
-                  className="bg-white border border-gray-300 rounded-lg p-4 hover:bg-green-50 hover:border-green-300 transition-all duration-200 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
-                >
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-green-600 mb-1">
-                      {zone.id}
-                    </div>
-                    <div className="text-sm text-gray-600">
-                      {t('production.zone')} {zone.id}
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-
-            {/* Back Button */}
-            <div className="text-center">
-              <button
-                onClick={onBack}
-                className="btn-secondary"
-              >
-                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-                {t('nav.backToRoles')}
-              </button>
-            </div>
-
-            {/* Development Status */}
-            <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h3 className="text-blue-800 font-medium mb-2">🚀 v4.0.0 Features:</h3>
-              <ul className="text-blue-700 text-sm space-y-1">
-                <li>✅ Production zone selection (1-23)</li>
-                <li>✅ Car VIN scanning and tracking</li>
-                <li>✅ Worker clock in/out system</li>
-                <li>✅ Real-time zone status monitoring</li>
-                <li>✅ Work completion tracking</li>
-                <li>✅ Zone-specific inventory counting</li>
-                <li>✅ Transaction management</li>
-                <li>🚧 Next: Manager production dashboard</li>
-              </ul>
-            </div>
-          </div>
-        </main>
+        {/* Main Content - Production Line View */}
+        <ProductionLineView onZoneSelect={handleZoneSelect} />
       </div>
     );
   }

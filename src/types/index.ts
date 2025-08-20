@@ -14,13 +14,14 @@ export interface AuthState {
   error: string | null;
 }
 
-// Application Roles - Enhanced for v3.2.0 Scanner Integration
+// Application Roles - Enhanced for v4.1.0 Quality Assurance
 export enum UserRole {
   DEV_ADMIN = 'devAdmin',
   MANAGER = 'manager',
   SUPERVISOR = 'supervisor',
   LOGISTICS = 'logistics',
   PRODUCTION = 'production',
+  QA = 'qa',
   VIEWER = 'viewer'
 }
 
@@ -83,6 +84,14 @@ export interface UserPermissions {
     bulkScan: boolean;
   };
   
+  // Quality Assurance permissions (v4.1)
+  qa: {
+    view: boolean;
+    performChecks: boolean;
+    manageChecklists: boolean;
+    viewReports: boolean;
+  };
+  
   // System permissions
   system: {
     userManagement: boolean;
@@ -127,7 +136,8 @@ export enum AppSection {
   ROLE_SELECTION = 'role_selection',
   LOGISTICS = 'logistics',
   PRODUCTION = 'production',
-  MANAGER = 'manager'
+  MANAGER = 'manager',
+  QA = 'qa'
 }
 
 // Inventory Types
@@ -501,4 +511,132 @@ export interface ProductionLineTabProps {
   productionStats: ProductionStats;
   onCarSelect: (vin: string) => void;
   onRefresh: () => void;
+}
+
+// Quality Assurance Types - v4.1.0
+
+// QA Check Item Status
+export enum QACheckStatus {
+  NOT_CHECKED = 'not_checked',
+  PASSED = 'passed',
+  FAILED = 'failed',
+  SKIPPED = 'skipped'
+}
+
+// Individual QA Check Item
+export interface QACheckItem {
+  id: string;                   // Unique check item ID
+  name: string;                 // Check description (e.g., "Engine properly mounted")
+  category: string;             // Group checks (e.g., "Engine", "Body", "Electrical")
+  isRequired: boolean;          // Must pass to complete QA
+  instructions?: string;        // Detailed check instructions
+  order: number;               // Display order
+}
+
+// QA Checklist Template
+export interface QAChecklist {
+  id: string;                   // Template ID (e.g., "checklist_basic_car")
+  name: string;                 // Template name (e.g., "Basic Car Quality Checklist")
+  description?: string;         // Template description
+  carTypes: string[];           // Which car types use this checklist
+  version: number;              // Template version for tracking changes
+  items: QACheckItem[];         // All check items in this template
+  totalItems: number;           // Count of items
+  requiredItems: number;        // Count of required items
+  createdAt: Date;
+  updatedAt: Date;
+  createdBy: string;            // User who created template
+}
+
+// Individual Check Result
+export interface QACheckResult {
+  itemId: string;               // References QACheckItem.id
+  status: QACheckStatus;        // Check result
+  notes?: string;               // Optional notes from inspector
+  checkedAt: Date;              // When this item was checked
+  checkedBy: string;            // User who performed check
+}
+
+// Complete QA Inspection Record
+export interface QAInspection {
+  id: string;                   // Unique inspection ID
+  vin: string;                  // Car being inspected
+  checklistId: string;          // Template used
+  checklistName: string;        // Template name (cached for display)
+  
+  // Inspection status
+  status: 'in_progress' | 'completed' | 'failed';
+  overallResult: 'pass' | 'fail' | 'pending';
+  
+  // Progress tracking
+  totalItems: number;           // Total items in checklist
+  checkedItems: number;         // Items completed
+  passedItems: number;          // Items that passed
+  failedItems: number;          // Items that failed
+  requiredItemsPassed: number;  // Required items that passed
+  
+  // Check results
+  results: QACheckResult[];     // Individual check results
+  
+  // Metadata
+  startedAt: Date;              // When inspection started
+  completedAt?: Date;           // When inspection finished
+  inspectorEmail: string;       // QA inspector
+  inspectorName: string;        // Display name
+  
+  // Car context (cached for display)
+  carType: string;
+  carColor: string;
+  carSeries: string;
+  currentZone?: number;         // Where car was when inspected
+}
+
+// QA Statistics for Manager Dashboard
+export interface QAStats {
+  date: string;                 // YYYY-MM-DD
+  
+  // Daily totals
+  inspectionsStarted: number;
+  inspectionsCompleted: number;
+  inspectionsPassed: number;
+  inspectionsFailed: number;
+  
+  // Quality metrics
+  overallPassRate: number;      // Percentage of cars passing QA
+  averageInspectionTime: number; // Minutes per inspection
+  
+  // Check item analysis
+  mostFailedChecks: Array<{
+    itemName: string;
+    failureCount: number;
+    failureRate: number;
+  }>;
+  
+  // Inspector performance
+  inspectorStats: Array<{
+    email: string;
+    name: string;
+    inspectionsCompleted: number;
+    averageTime: number;
+  }>;
+  
+  lastCalculated: Date;
+}
+
+// QA Dashboard Props
+export interface QAViewProps {
+  onBack: () => void;
+}
+
+export interface QACarListProps {
+  cars: Car[];
+  onCarSelect: (vin: string) => void;
+  onRefresh: () => void;
+}
+
+export interface QAInspectionProps {
+  car: Car;
+  checklist: QAChecklist;
+  onComplete: (inspection: QAInspection) => void;
+  onBack: () => void;
 }

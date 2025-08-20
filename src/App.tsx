@@ -9,6 +9,7 @@ import LogisticsView from './components/LogisticsView';
 
 // Lazy load heavy components for better performance
 const ProductionView = lazy(() => import('./components/ProductionView'));
+const QAView = lazy(() => import('./components/QAView'));
 import { UserRole, AppSection, InventoryCountEntry, Transaction, TransactionStatus, TransactionFormData } from './types';
 
 // Lazy load the heavy ManagerView component for better performance
@@ -78,6 +79,9 @@ function AppContent() {
         break;
       case UserRole.PRODUCTION:
         setCurrentSection(AppSection.PRODUCTION);
+        break;
+      case UserRole.QA:
+        setCurrentSection(AppSection.QA);
         break;
       case UserRole.MANAGER:
         setCurrentSection(AppSection.MANAGER);
@@ -299,6 +303,22 @@ function AppContent() {
             transactions={transactions}
             onTransactionConfirm={handleTransactionConfirm}
             onTransactionReject={handleTransactionReject}
+          />
+        </Suspense>
+      ) : <Login />;
+      
+    case AppSection.QA:
+      return user ? (
+        <Suspense fallback={
+          <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+            <div className="text-center">
+              <div className="w-12 h-12 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+              <p className="text-gray-600">Loading Quality Assurance...</p>
+            </div>
+          </div>
+        }>
+          <QAView 
+            onBack={handleBackToRoles}
           />
         </Suspense>
       ) : <Login />;
