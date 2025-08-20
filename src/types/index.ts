@@ -327,3 +327,178 @@ export interface ScannerConfig {
   autoFocus: boolean;
   flashMode: 'auto' | 'on' | 'off';
 }
+
+// Version 4.0 Types - Car Tracking and Production Line Management
+
+// Car Status Enum
+export enum CarStatus {
+  IN_PRODUCTION = 'in_production',
+  COMPLETED = 'completed',
+  ON_HOLD = 'on_hold'
+}
+
+// Zone History Entry - tracks car movement through zones
+export interface ZoneEntry {
+  zoneId: number;           // Zone 1-23
+  enteredAt: Date;
+  exitedAt?: Date;          // null if still in zone
+  enteredBy: string;        // User email who scanned car into zone
+  completedBy?: string;     // User email who completed work
+  timeSpent?: number;       // Minutes spent in zone (calculated)
+  notes?: string;
+}
+
+// Car - Primary entity for production tracking
+export interface Car {
+  vin: string;              // Primary key - Standard 17-character VIN
+  type: string;             // e.g., "Basic", "Premium", "Series3"
+  color: string;            // e.g., "Red", "Blue", "Silver"
+  series: string;           // Product series/model
+  status: CarStatus;
+  currentZone: number | null; // Current zone (1-23) or null if not in production
+  
+  // Timeline tracking
+  zoneHistory: ZoneEntry[];   // Complete journey through production line
+  createdAt: Date;           // When car entered production system
+  completedAt?: Date;        // When car completed all production steps
+  
+  // Metadata
+  totalProductionTime?: number; // Total minutes in production
+  estimatedCompletion?: Date;   // Based on historical data
+}
+
+// Work Station Status - Real-time zone information
+export interface WorkStation {
+  zoneId: number;           // Zone 1-23
+  currentCar?: {            // Car currently being worked on
+    vin: string;
+    type: string;
+    color: string;
+    enteredAt: Date;
+    timeElapsed: number;    // Minutes since car entered zone
+  };
+  
+  // Worker information
+  currentWorker?: {
+    email: string;
+    displayName: string;
+    checkedInAt: Date;
+    timeWorking: number;    // Minutes checked in
+  };
+  
+  // Zone statistics
+  carsProcessedToday: number;
+  averageProcessingTime: number; // Minutes per car
+  lastUpdated: Date;
+}
+
+// Worker Activity - Clock in/out tracking
+export interface WorkerActivity {
+  id: string;               // Unique activity record ID
+  workerEmail: string;      // Worker identifier
+  workerName: string;       // Display name
+  zoneId: number;          // Zone where activity occurred
+  
+  // Time tracking
+  checkedInAt: Date;
+  checkedOutAt?: Date;      // null if still checked in
+  totalMinutes?: number;    // Calculated when checked out
+  
+  // Car association
+  workedOnCar?: {
+    vin: string;
+    carType: string;
+    workCompleted: boolean; // Did they complete work on this car?
+  };
+  
+  // Activity metadata
+  createdAt: Date;
+  notes?: string;
+}
+
+// Car Movement Log - Audit trail for all car movements
+export interface CarMovement {
+  id: string;               // Unique movement ID
+  vin: string;             // Car identifier
+  
+  // Movement details
+  fromZone: number | null;  // Previous zone (null if entering production)
+  toZone: number | null;    // Next zone (null if completing production)
+  movedAt: Date;
+  movedBy: string;          // User email who performed scan/action
+  
+  // Movement type
+  movementType: 'scan_in' | 'complete' | 'transfer' | 'hold';
+  
+  // Metadata
+  timeInPreviousZone?: number; // Minutes spent in previous zone
+  notes?: string;
+}
+
+// Production Statistics - For manager dashboard
+export interface ProductionStats {
+  date: string;             // YYYY-MM-DD format
+  
+  // Daily totals
+  carsStarted: number;      // Cars that entered production
+  carsCompleted: number;    // Cars that finished production
+  carsInProgress: number;   // Cars currently in zones
+  
+  // Time metrics
+  averageProductionTime: number;    // Minutes per completed car
+  totalProductionMinutes: number;   // All time spent on cars
+  
+  // Zone breakdown
+  zoneStats: Array<{
+    zoneId: number;
+    carsProcessed: number;
+    averageTimePerCar: number;
+    currentlyOccupied: boolean;
+  }>;
+  
+  // Worker metrics  
+  workerStats: Array<{
+    email: string;
+    displayName: string;
+    hoursWorked: number;
+    carsWorkedOn: number;
+  }>;
+  
+  lastCalculated: Date;
+}
+
+// Form Data Types for V4.0
+export interface CarScanFormData {
+  vin: string;
+  type: string;
+  color: string; 
+  series: string;
+  status: CarStatus;
+  currentZone: number | null;
+}
+
+export interface WorkerCheckInData {
+  zoneId: number;
+  workerEmail: string;
+  workerName: string;
+  checkInTime: Date;
+}
+
+// Component Props for V4.0
+export interface CarScanViewProps {
+  zoneId: number;
+  onCarScanned: (car: Car) => void;
+  onBack: () => void;
+}
+
+export interface ZoneStatusProps {
+  workStation: WorkStation;
+  onRefresh: () => void;
+}
+
+export interface ProductionLineTabProps {
+  cars: Car[];
+  productionStats: ProductionStats;
+  onCarSelect: (vin: string) => void;
+  onRefresh: () => void;
+}

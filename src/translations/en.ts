@@ -278,6 +278,107 @@ const englishTranslations: Translation = {
   footer: {
     copyright: '© 2025 Berjaya Autotech - Warehouse Management System',
     version: 'v{version} - {feature}'
+  },
+
+  // Version 4.0 - Production Line Management
+  productionLine: {
+    scanCar: 'Scan Car',
+    scanCarDescription: 'Scan VIN to register car in zone',
+    complete: 'Complete',
+    completeDescription: 'Mark work complete',
+    clockIn: 'Clock In',
+    clockOut: 'Clock Out',
+    clockInDescription: 'Track work time',
+    checkedIn: 'Checked In',
+    checkedInDescription: 'Manage time',
+    
+    // Car scanning
+    scanCarTitle: 'Scan Car VIN',
+    scanCarVinDescription: 'Scan the car\'s VIN barcode or QR code to register it in Zone {zone}',
+    enterVinManually: 'Enter VIN Manually',
+    processVin: 'Process VIN',
+    invalidVinFormat: 'Invalid VIN format. VINs must be 17 characters.',
+    carSuccessfullyScanned: 'Car {vin} successfully scanned into Zone {zone}',
+    carAlreadyInZone: 'Car {vin} is already in zone {zone}',
+    
+    // Car details form
+    newCarDetails: 'New Car Details - VIN: {vin}',
+    carType: 'Car Type',
+    selectType: 'Select Type',
+    color: 'Color',
+    selectColor: 'Select Color',
+    series: 'Series',
+    selectSeries: 'Select Series',
+    createCarAndScan: 'Create Car & Scan Into Zone',
+    
+    // Work completion
+    completeCarWork: 'Complete Car Work',
+    markWorkComplete: 'Mark your work as complete on the current car in Zone {zone}',
+    currentCarInZone: 'Current Car in Zone {zone}',
+    carInformation: 'Car Information',
+    timeTracking: 'Time Tracking',
+    timeInZone: 'Time in Zone',
+    scannedBy: 'Scanned by',
+    enteredAt: 'Entered at',
+    completionNotes: 'Completion Notes (Optional)',
+    completionNotesPlaceholder: 'Add any notes about the work completed, issues encountered, or quality checks performed...',
+    completeWork: 'Complete Work',
+    completing: 'Completing Work...',
+    workCompleted: 'Work completed on car {vin} in Zone {zone}',
+    noCarInZone: 'No Car in Zone {zone}',
+    noCarInZoneDescription: 'There is no car currently being worked on in this zone. You need to scan a car into the zone first.',
+    
+    // Worker check-in/out
+    workerCheckIn: 'Clock Into Zone {zone}',
+    workerCheckInDescription: 'Track your work time and productivity by checking in to this zone',
+    workerInformation: 'Worker Information',
+    checkInToZone: 'Check In to Zone {zone}',
+    currentlyCheckedIn: 'Currently Checked In',
+    currentlyCheckedInDescription: 'You are currently working in Zone {zone}',
+    currentSession: 'Current Session',
+    timeWorking: 'Time working',
+    currentCar: 'Current car',
+    checkOutNotes: 'Check-Out Notes (Optional)',
+    checkOutNotesPlaceholder: 'Add any notes about work completed, issues encountered, or handover information...',
+    checkOut: 'Check Out',
+    checkingOut: 'Checking Out...',
+    checkingIn: 'Checking In...',
+    continueWorking: 'Continue Working',
+    
+    // Zone status
+    zoneStatus: 'Zone {zone} Status',
+    zoneStatusDescription: 'Real-time zone information',
+    workerStatus: 'Worker Status',
+    todaysStatistics: 'Today\'s Statistics',
+    carsProcessed: 'Cars processed',
+    averageTimePerCar: 'Avg. time per car',
+    refreshStatus: 'Refresh status',
+    none: 'None',
+    available: 'Available',
+    
+    // Manager dashboard
+    productionLineOverview: 'Production Line Overview',
+    productionStatistics: 'Production Statistics',
+    realTimeMonitoring: 'Real-time production monitoring and analytics',
+    carsToday: 'Cars Today',
+    completed: 'Completed',
+    inProgress: 'In Progress',
+    averageTime: 'Avg Time',
+    zoneStatusOverview: 'Zone Status Overview',
+    recentCars: 'Recent Cars',
+    workerPerformanceToday: 'Worker Performance Today',
+    worker: 'Worker',
+    hoursWorked: 'Hours Worked',
+    carsWorkedOn: 'Cars Worked On',
+    zonePerformance: 'Zone Performance',
+    occupied: 'Occupied',
+    carDetails: 'Car Details',
+    zoneHistory: 'Zone History',
+    
+    // Test data
+    productionTestData: 'Production Line Test Data',
+    productionTestDescription: 'Creates test cars, work stations, and worker activities',
+    generateProductionTest: 'Generate Production Test'
   }
 };
 

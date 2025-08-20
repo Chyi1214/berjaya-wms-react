@@ -218,6 +218,11 @@ class ScannerService {
   get isActive(): boolean {
     return this.isScanning;
   }
+
+  // Public method to trigger feedback (beep + vibration)
+  triggerFeedback(): void {
+    this.playFeedback();
+  }
 }
 
 export const scannerService = new ScannerService();

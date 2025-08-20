@@ -113,6 +113,69 @@ service cloud.firestore {
       allow write: if isDevAdmin() || hasRole('manager');  // Only managers can modify lookup table
     }
     
+    // Version 4.0 Collections - Car Tracking and Production Line Management
+    
+    // Cars collection - Production line car tracking
+    match /cars/{vin} {
+      allow read: if isActiveUser();  // All authenticated users can read car data
+      allow create: if isActiveUser() && (
+        hasRole('production') || hasRole('logistics') || 
+        hasRole('supervisor') || hasRole('manager')
+      );
+      allow update: if isActiveUser() && (
+        hasRole('production') || hasRole('logistics') || 
+        hasRole('supervisor') || hasRole('manager')
+      );
+      allow delete: if isDevAdmin() || hasRole('manager');
+    }
+    
+    // Car movements - Audit trail for car movements
+    match /carMovements/{document} {
+      allow read: if isActiveUser();  // All users can read movement history
+      allow create: if isActiveUser() && (
+        hasRole('production') || hasRole('logistics') || 
+        hasRole('supervisor') || hasRole('manager')
+      );
+      allow update, delete: if isDevAdmin() || hasRole('manager');  // Only managers can modify audit trail
+    }
+    
+    // Work stations - Zone status and real-time info
+    match /workStations/{zoneId} {
+      allow read: if isActiveUser();  // All users can read station status
+      allow create, update: if isActiveUser() && (
+        hasRole('production') || hasRole('logistics') || 
+        hasRole('supervisor') || hasRole('manager')
+      );
+      allow delete: if isDevAdmin();
+    }
+    
+    // Worker activities - Clock in/out tracking
+    match /workerActivities/{document} {
+      allow read: if isActiveUser() && (
+        // Workers can read their own activities, managers can read all
+        resource.data.workerEmail == request.auth.token.email ||
+        hasRole('supervisor') || hasRole('manager')
+      );
+      allow create: if isActiveUser() && (
+        hasRole('production') || hasRole('logistics') ||
+        hasRole('supervisor') || hasRole('manager')
+      );
+      allow update: if isActiveUser() && (
+        // Workers can update their own activities, managers can update all
+        resource.data.workerEmail == request.auth.token.email ||
+        hasRole('supervisor') || hasRole('manager')
+      );
+      allow delete: if isDevAdmin() || hasRole('manager');
+    }
+    
+    // Production statistics - Manager dashboard data
+    match /productionStats/{document} {
+      allow read: if isActiveUser() && (
+        hasRole('supervisor') || hasRole('manager') || hasRole('viewer')
+      );
+      allow write: if isDevAdmin() || hasRole('manager');
+    }
+    
     // Deny all other access
     match /{document=**} {
       allow read, write: if false;

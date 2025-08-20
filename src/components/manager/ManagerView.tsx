@@ -1,11 +1,12 @@
-// Manager View Component - Refactored into modular components
+// Manager View Component - Refactored into modular components with V4.0 Production
 import { Suspense, lazy } from 'react';
 import { User, InventoryCountEntry, Transaction, TransactionStatus } from '../../types';
-import { isInventoryTab } from '../../types/manager';
+import { isInventoryTab, isProductionTab } from '../../types/manager';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { mockDataService } from '../../services/mockData';
 import { inventoryService } from '../../services/inventory';
 import { tableStateService } from '../../services/tableState';
+import { productionTestDataService } from '../../services/productionTestDataService';
 import VersionFooter from '../VersionFooter';
 
 // Custom hooks
@@ -17,6 +18,7 @@ import { ManagerNavigation } from './ManagerNavigation';
 import { InventorySection } from './InventorySection';
 import { HRSection } from './HRSection';
 import { OperationsSection } from './OperationsSection';
+import { ProductionSection } from './ProductionSection';
 import { TestDataSection } from './TestDataSection';
 import { CSVExportSection } from './CSVExportSection';
 import { ManagerActionsSection } from './ManagerActionsSection';
@@ -72,6 +74,26 @@ export function ManagerView({ user, onBack, inventoryCounts, onClearCounts, tran
     } catch (error) {
       console.error('Failed to generate transaction test:', error);
       alert('❌ Failed to generate test case. Check console for details.');
+    } finally {
+      managerState.setIsLoading(false);
+    }
+  };
+
+  // V4.0 Production test data handler
+  const handleGenerateProductionTest = async () => {
+    managerState.setIsLoading(true);
+    try {
+      console.log('🏭 Starting production test data generation...');
+      
+      await productionTestDataService.generateCompleteProductionTest();
+      
+      alert('✅ Production test data generated! Check Production Line tab to see test cars and workers.');
+      
+      // Refresh any loaded data
+      await managerState.loadItemsAndBOMs();
+    } catch (error) {
+      console.error('❌ Production test generation failed:', error);
+      alert('❌ Failed to generate production test data. Check console for details.');
     } finally {
       managerState.setIsLoading(false);
     }
@@ -270,6 +292,13 @@ export function ManagerView({ user, onBack, inventoryCounts, onClearCounts, tran
               }}
             />
           )}
+
+          {managerState.activeCategory === 'production' && isProductionTab(managerState.activeTab) && (
+            <ProductionSection
+              activeTab={managerState.activeTab}
+              onTabChange={managerState.handleTabChange}
+            />
+          )}
         </div>
 
         {/* Test Data Generation */}
@@ -277,6 +306,7 @@ export function ManagerView({ user, onBack, inventoryCounts, onClearCounts, tran
           isLoading={managerState.isLoading}
           handleGenerateMockData={handleGenerateMockData}
           handleGenerateTransactionTest={handleGenerateTransactionTest}
+          handleGenerateProductionTest={handleGenerateProductionTest}
         />
 
         {/* CSV Export & Import - Only show for inventory tabs */}

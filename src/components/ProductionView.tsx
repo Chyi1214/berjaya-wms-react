@@ -1,10 +1,14 @@
-// Production View Component - Zone-based production management
+// Production View Component - Zone-based production management with Version 4.0 Car Tracking
 import { useState } from 'react';
-import { User, InventoryCountEntry, Transaction } from '../types';
+import { User, InventoryCountEntry, Transaction, Car } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import InventoryCountForm from './InventoryCountForm';
 import RecentCounts from './RecentCounts';
 import TransactionReceiveView from './TransactionReceiveView';
+import CarScanView from './production/CarScanView';
+import CarCompleteView from './production/CarCompleteView';
+import WorkerCheckInView from './production/WorkerCheckInView';
+import ZoneStatusDisplay from './production/ZoneStatusDisplay';
 
 interface ProductionViewProps {
   user: User;
@@ -27,7 +31,9 @@ const PRODUCTION_ZONES = Array.from({ length: 23 }, (_, i) => ({
 export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCounts, transactions, onTransactionConfirm, onTransactionReject }: ProductionViewProps) {
   const { t } = useLanguage();
   const [selectedZone, setSelectedZone] = useState<number | null>(null);
-  const [selectedAction, setSelectedAction] = useState<'menu' | 'check' | 'transaction'>('menu');
+  const [selectedAction, setSelectedAction] = useState<'menu' | 'check' | 'transaction' | 'scan_car' | 'complete_car' | 'check_in'>('menu');
+  const [isWorkerCheckedIn, setIsWorkerCheckedIn] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
   
   // Handle zone selection
   const handleZoneSelect = (zoneId: number) => {
@@ -58,6 +64,31 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
       // From any sub-screen -> go back to zone menu
       handleBackToMenu();
     }
+  };
+  
+  // Handle car scanned
+  const handleCarScanned = (car: Car) => {
+    console.log('Car scanned:', car.vin, 'Zone:', selectedZone);
+    setRefreshKey(prev => prev + 1); // Trigger zone status refresh
+    setSelectedAction('menu');
+  };
+  
+  // Handle car completed
+  const handleCarCompleted = (car: Car) => {
+    console.log('Car completed:', car.vin, 'Zone:', selectedZone);
+    setRefreshKey(prev => prev + 1); // Trigger zone status refresh
+    setSelectedAction('menu');
+  };
+  
+  // Handle worker status change
+  const handleWorkerStatusChange = (isCheckedIn: boolean) => {
+    setIsWorkerCheckedIn(isCheckedIn);
+    setRefreshKey(prev => prev + 1); // Trigger zone status refresh
+  };
+  
+  // Refresh zone data
+  const handleZoneRefresh = () => {
+    setRefreshKey(prev => prev + 1);
   };
   
   // Handle inventory count submission (supports both single items and BOM expansion)
@@ -166,14 +197,17 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
             </div>
 
             {/* Development Status */}
-            <div className="mt-8 bg-green-50 border border-green-200 rounded-lg p-4">
-              <h3 className="text-green-800 font-medium mb-2">🎉 v1.5.0 Features:</h3>
-              <ul className="text-green-700 text-sm space-y-1">
+            <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h3 className="text-blue-800 font-medium mb-2">🚀 v4.0.0 Features:</h3>
+              <ul className="text-blue-700 text-sm space-y-1">
                 <li>✅ Production zone selection (1-23)</li>
+                <li>✅ Car VIN scanning and tracking</li>
+                <li>✅ Worker clock in/out system</li>
+                <li>✅ Real-time zone status monitoring</li>
+                <li>✅ Work completion tracking</li>
                 <li>✅ Zone-specific inventory counting</li>
-                <li>✅ Firebase sync with zone data</li>
-                <li>✅ Mobile-optimized zone grid</li>
-                <li>🚧 Next: Enhanced Manager dashboard with zone breakdown</li>
+                <li>✅ Transaction management</li>
+                <li>🚧 Next: Manager production dashboard</li>
               </ul>
             </div>
           </div>
@@ -261,44 +295,124 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
                 </p>
               </div>
 
-              {/* Action Menu */}
-              <div className="grid md:grid-cols-2 gap-6 max-w-2xl mx-auto">
+              {/* Zone Status Display - Version 4.0 */}
+              <div className="mb-6">
+                <ZoneStatusDisplay 
+                  key={refreshKey}
+                  zoneId={selectedZone} 
+                  onRefresh={handleZoneRefresh}
+                />
+              </div>
+              
+              {/* Action Menu - Version 4.0 with 4 buttons */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto">
                 
-                {/* Check Inventory Button */}
+                {/* Scan Car Button - NEW V4.0 */}
                 <button
-                  onClick={() => setSelectedAction('check')}
-                  className="p-4 md:p-6 bg-white rounded-xl border-2 border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-all duration-200 text-center group"
+                  onClick={() => setSelectedAction('scan_car')}
+                  className="p-3 md:p-4 bg-white rounded-xl border-2 border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-all duration-200 text-center group"
                 >
-                  <div className="text-3xl md:text-4xl mb-2 md:mb-3">📋</div>
-                  <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-1 md:mb-2">
-                    {t('inventory.checkInventory')}
+                  <div className="text-2xl md:text-3xl mb-2">📱</div>
+                  <h3 className="text-sm md:text-base font-semibold text-gray-900 mb-1">
+                    Scan Car
                   </h3>
-                  <p className="text-gray-600 text-xs md:text-sm">
-                    {t('production.checkDescription')}
+                  <p className="text-gray-600 text-xs">
+                    Scan VIN to register car
                   </p>
-                  <div className="mt-3 md:mt-4 text-blue-500 group-hover:text-blue-600">
-                    <svg className="w-5 h-5 md:w-6 md:h-6 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="mt-2 text-blue-500 group-hover:text-blue-600">
+                    <svg className="w-4 h-4 md:w-5 md:h-5 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
                   </div>
                 </button>
 
-                {/* Transaction Button */}
+                {/* Complete Work Button - NEW V4.0 */}
                 <button
-                  onClick={() => setSelectedAction('transaction')}
-                  className="p-4 md:p-6 bg-white rounded-xl border-2 border-gray-200 hover:border-purple-500 hover:bg-purple-50 transition-all duration-200 text-center group"
+                  onClick={() => setSelectedAction('complete_car')}
+                  className="p-3 md:p-4 bg-white rounded-xl border-2 border-gray-200 hover:border-green-500 hover:bg-green-50 transition-all duration-200 text-center group"
                 >
-                  <div className="text-3xl md:text-4xl mb-2 md:mb-3">🔄</div>
-                  <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-1 md:mb-2">
-                    {t('transactions.title')}
+                  <div className="text-2xl md:text-3xl mb-2">✅</div>
+                  <h3 className="text-sm md:text-base font-semibold text-gray-900 mb-1">
+                    Complete
                   </h3>
-                  <p className="text-gray-600 text-xs md:text-sm">
-                    {t('transactions.productionDescription')}
+                  <p className="text-gray-600 text-xs">
+                    Mark work complete
                   </p>
-                  <div className="mt-3 md:mt-4 text-purple-500 group-hover:text-purple-600">
-                    <svg className="w-5 h-5 md:w-6 md:h-6 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="mt-2 text-green-500 group-hover:text-green-600">
+                    <svg className="w-4 h-4 md:w-5 md:h-5 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
+                  </div>
+                </button>
+
+                {/* Check In/Out Button - NEW V4.0 */}
+                <button
+                  onClick={() => setSelectedAction('check_in')}
+                  className={`p-3 md:p-4 bg-white rounded-xl border-2 transition-all duration-200 text-center group ${
+                    isWorkerCheckedIn 
+                      ? 'border-green-300 bg-green-50 hover:border-green-500 hover:bg-green-100' 
+                      : 'border-gray-200 hover:border-orange-500 hover:bg-orange-50'
+                  }`}
+                >
+                  <div className="text-2xl md:text-3xl mb-2">
+                    {isWorkerCheckedIn ? '⏰' : '🕐'}
+                  </div>
+                  <h3 className="text-sm md:text-base font-semibold text-gray-900 mb-1">
+                    {isWorkerCheckedIn ? 'Checked In' : 'Clock In'}
+                  </h3>
+                  <p className="text-gray-600 text-xs">
+                    {isWorkerCheckedIn ? 'Manage time' : 'Track work time'}
+                  </p>
+                  <div className={`mt-2 group-hover:opacity-75 ${
+                    isWorkerCheckedIn ? 'text-green-500' : 'text-orange-500'
+                  }`}>
+                    <svg className="w-4 h-4 md:w-5 md:h-5 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                </button>
+                
+                {/* Check Inventory Button - Existing */}
+                <button
+                  onClick={() => setSelectedAction('check')}
+                  className="p-3 md:p-4 bg-white rounded-xl border-2 border-gray-200 hover:border-indigo-500 hover:bg-indigo-50 transition-all duration-200 text-center group"
+                >
+                  <div className="text-2xl md:text-3xl mb-2">📋</div>
+                  <h3 className="text-sm md:text-base font-semibold text-gray-900 mb-1">
+                    Inventory
+                  </h3>
+                  <p className="text-gray-600 text-xs">
+                    Count items
+                  </p>
+                  <div className="mt-2 text-indigo-500 group-hover:text-indigo-600">
+                    <svg className="w-4 h-4 md:w-5 md:h-5 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                </button>
+              </div>
+              
+              {/* Transactions Button - Moved below main actions */}
+              <div className="mt-6 max-w-md mx-auto">
+                <button
+                  onClick={() => setSelectedAction('transaction')}
+                  className="w-full p-3 md:p-4 bg-white rounded-xl border-2 border-gray-200 hover:border-purple-500 hover:bg-purple-50 transition-all duration-200 text-center group"
+                >
+                  <div className="flex items-center justify-center space-x-3">
+                    <div className="text-2xl">🔄</div>
+                    <div className="text-left">
+                      <h3 className="text-base font-semibold text-gray-900">
+                        {t('transactions.title')}
+                      </h3>
+                      <p className="text-gray-600 text-sm">
+                        {t('transactions.productionDescription')}
+                      </p>
+                    </div>
+                    <div className="text-purple-500 group-hover:text-purple-600">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </div>
                   </div>
                 </button>
               </div>
@@ -389,6 +503,33 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
                 </button>
               </div>
             </>
+          )}
+
+          {selectedAction === 'scan_car' && (
+            <CarScanView
+              user={user}
+              zoneId={selectedZone!}
+              onBack={handleBackToMenu}
+              onCarScanned={handleCarScanned}
+            />
+          )}
+
+          {selectedAction === 'complete_car' && (
+            <CarCompleteView
+              user={user}
+              zoneId={selectedZone!}
+              onBack={handleBackToMenu}
+              onCarCompleted={handleCarCompleted}
+            />
+          )}
+
+          {selectedAction === 'check_in' && (
+            <WorkerCheckInView
+              user={user}
+              zoneId={selectedZone!}
+              onBack={handleBackToMenu}
+              onWorkerStatusChange={handleWorkerStatusChange}
+            />
           )}
 
           {selectedAction === 'transaction' && (
