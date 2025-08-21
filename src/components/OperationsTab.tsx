@@ -13,6 +13,16 @@ import {
   QuickActionsCard
 } from './operations';
 
+interface UploadResult {
+  success: number;
+  errors: string[];
+  stats?: {
+    totalRows: number;
+    skippedRows: number;
+    filledZones: number;
+  };
+}
+
 interface OperationsTabProps {
   onRefresh?: () => void;
 }
@@ -21,7 +31,7 @@ export function OperationsTab({ onRefresh }: OperationsTabProps) {
   const { isDevAdmin, hasPermission, user } = useAuth();
   const [scannerStatus, setScannerStatus] = useState<'idle' | 'initializing' | 'ready' | 'error'>('idle');
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadResult, setUploadResult] = useState<{success: number; errors: string[]} | null>(null);
+  const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
   const [replaceMode, setReplaceMode] = useState(false);
   const [qaStatus, setQaStatus] = useState<'idle' | 'initializing' | 'ready' | 'error'>('idle');
 

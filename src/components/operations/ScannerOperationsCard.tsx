@@ -1,14 +1,24 @@
 import React, { memo } from 'react';
 import { scanLookupService } from '../../services/scanLookupService';
 
+interface UploadResult {
+  success: number;
+  errors: string[];
+  stats?: {
+    totalRows: number;
+    skippedRows: number;
+    filledZones: number;
+  };
+}
+
 interface ScannerOperationsCardProps {
   user: { email: string } | null;
   scannerStatus: 'idle' | 'initializing' | 'ready' | 'error';
   setScannerStatus: (status: 'idle' | 'initializing' | 'ready' | 'error') => void;
   isUploading: boolean;
   setIsUploading: (uploading: boolean) => void;
-  uploadResult: { success: number; errors: string[] } | null;
-  setUploadResult: (result: { success: number; errors: string[] } | null) => void;
+  uploadResult: UploadResult | null;
+  setUploadResult: (result: UploadResult | null) => void;
   replaceMode: boolean;
   setReplaceMode: (mode: boolean) => void;
 }
@@ -85,39 +95,98 @@ export const ScannerOperationsCard = memo(function ScannerOperationsCard({
       }
 
       const lookups = [];
+      let currentZone = ''; // Track current zone for merged cell handling
+      let skippedRows = 0;
+      let filledZones = 0;
+      
       for (let i = 1; i < lines.length; i++) {
         const parts = lines[i].split(',').map(p => p.trim().replace(/^"(.*)"$/, '$1')); // Remove quotes
-        if (parts.length >= 2 && parts[0] && parts[1]) {
-          const sku = parts[0].toUpperCase();
-          const targetZone = parts[1].trim(); // Keep as string to support alphanumeric zones
-          const itemName = parts[2] || '';
-          const expectedQuantity = parts[3] && parts[3].trim() ? parseInt(parts[3]) : null;
-
-          // Validate zone format - allow alphanumeric, dashes, underscores
-          if (!targetZone || !/^[A-Za-z0-9\-_]+$/.test(targetZone)) {
-            console.warn(`Skipping invalid zone format "${parts[1]}" for SKU ${sku}`);
-            continue;
-          }
-
-          if (expectedQuantity !== null && (isNaN(expectedQuantity) || expectedQuantity < 0)) {
-            console.warn(`Skipping invalid quantity ${parts[3]} for SKU ${sku}`);
-            continue;
-          }
-
-          const lookupData: any = {
-            sku,
-            targetZone,
-            itemName,
-            updatedBy: user.email
-          };
-
-          // Only add expectedQuantity if it has a valid value
-          if (expectedQuantity !== null) {
-            lookupData.expectedQuantity = expectedQuantity;
-          }
-
-          lookups.push(lookupData);
+        
+        if (parts.length < 2) {
+          skippedRows++;
+          continue;
         }
+        
+        let sku = parts[0]?.trim();
+        let targetZone = parts[1]?.trim();
+        const itemName = parts[2] || '';
+        const expectedQuantity = parts[3] && parts[3].trim() ? parseInt(parts[3]) : null;
+
+        // Skip invalid SKU entries (empty, "/", or other invalid patterns)
+        if (!sku || sku === '/' || sku.startsWith('//') || sku.length === 0) {
+          console.warn(`Row ${i + 1}: Skipping invalid SKU "${sku}"`);
+          skippedRows++;
+          continue;
+        }
+        
+        // Handle merged cell zones (Excel exports empty cells for merged ranges)
+        if (!targetZone && currentZone) {
+          targetZone = currentZone;
+          filledZones++;
+          console.log(`Row ${i + 1}: Filled empty zone for ${sku} with ${targetZone}`);
+        } else if (targetZone) {
+          currentZone = targetZone; // Update current zone when we find a new one
+        }
+        
+        // Skip if still no zone available
+        if (!targetZone) {
+          console.warn(`Row ${i + 1}: No zone available for SKU ${sku}`);
+          skippedRows++;
+          continue;
+        }
+
+        // Normalize SKU to uppercase for consistency
+        sku = sku.toUpperCase();
+
+        // Validate zone format - allow alphanumeric, dashes, underscores
+        if (!/^[A-Za-z0-9\-_]+$/.test(targetZone)) {
+          console.warn(`Row ${i + 1}: Skipping invalid zone format "${targetZone}" for SKU ${sku}`);
+          skippedRows++;
+          continue;
+        }
+
+        // Validate expected quantity if provided
+        if (expectedQuantity !== null && (isNaN(expectedQuantity) || expectedQuantity < 0)) {
+          console.warn(`Row ${i + 1}: Skipping invalid quantity ${parts[3]} for SKU ${sku}`);
+          skippedRows++;
+          continue;
+        }
+
+        // Check for duplicate SKU+Zone combinations within this upload
+        const duplicateIndex = lookups.findIndex(lookup => 
+          lookup.sku === sku && lookup.targetZone === targetZone
+        );
+        
+        if (duplicateIndex >= 0) {
+          console.warn(`Row ${i + 1}: Skipping duplicate ${sku} in ${targetZone}`);
+          skippedRows++;
+          continue;
+        }
+
+        const lookupData: any = {
+          sku,
+          targetZone,
+          itemName,
+          updatedBy: user.email
+        };
+
+        // Only add expectedQuantity if it has a valid value
+        if (expectedQuantity !== null) {
+          lookupData.expectedQuantity = expectedQuantity;
+        }
+
+        lookups.push(lookupData);
+      }
+
+      // Report cleaning statistics
+      console.log(`📊 CSV Cleaning Summary:`);
+      console.log(`   📥 Total rows processed: ${lines.length - 1}`);
+      console.log(`   ✅ Valid entries: ${lookups.length}`);
+      console.log(`   🔧 Zones filled from merged cells: ${filledZones}`);
+      console.log(`   ⚠️ Rows skipped: ${skippedRows}`);
+      
+      if (filledZones > 0) {
+        console.log(`   🎯 Automatically fixed ${filledZones} empty zones from Excel merged cells`);
       }
 
       if (lookups.length === 0) {
@@ -139,7 +208,17 @@ export const ScannerOperationsCard = memo(function ScannerOperationsCard({
         console.log('✅ CSV update completed:', result);
       }
       
-      setUploadResult(result);
+      // Include cleaning statistics in the result
+      const resultWithStats: UploadResult = {
+        ...result,
+        stats: {
+          totalRows: lines.length - 1,
+          skippedRows,
+          filledZones
+        }
+      };
+      
+      setUploadResult(resultWithStats);
 
     } catch (error) {
       console.error('CSV upload failed:', error);
@@ -314,6 +393,26 @@ export const ScannerOperationsCard = memo(function ScannerOperationsCard({
                 )}
                 {uploadResult.errors.length > 0 && (
                   <div>⚠️ {uploadResult.errors.length} errors</div>
+                )}
+                
+                {/* Show cleaning statistics if available */}
+                {uploadResult.stats && (
+                  <div className="mt-1 pt-1 border-t border-current/20">
+                    <div className="text-xs opacity-75">
+                      📊 Processed {uploadResult.stats.totalRows} rows
+                      {uploadResult.stats.filledZones > 0 && (
+                        <span>, 🔧 filled {uploadResult.stats.filledZones} empty zones</span>
+                      )}
+                      {uploadResult.stats.skippedRows > 0 && (
+                        <span>, ⚠️ skipped {uploadResult.stats.skippedRows} invalid rows</span>
+                      )}
+                    </div>
+                    {uploadResult.stats.filledZones > 0 && (
+                      <div className="text-xs mt-1 font-medium">
+                        🎯 Auto-fixed Excel merged cell zones!
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             )}
