@@ -152,13 +152,18 @@ export const ScannerOperationsCard = memo(function ScannerOperationsCard({
           continue;
         }
 
-        // Check for duplicate SKU+Zone combinations within this upload
+        // Only skip if this is an EXACT duplicate row (same SKU, Zone, ItemName, and Quantity)
+        // This prevents importing the exact same row twice from the same CSV file
+        // Components can legitimately exist in multiple zones, so we keep all valid combinations
         const duplicateIndex = lookups.findIndex(lookup => 
-          lookup.sku === sku && lookup.targetZone === targetZone
+          lookup.sku === sku && 
+          lookup.targetZone === targetZone && 
+          lookup.itemName === itemName &&
+          lookup.expectedQuantity === expectedQuantity
         );
         
         if (duplicateIndex >= 0) {
-          console.warn(`Row ${i + 1}: Skipping duplicate ${sku} in ${targetZone}`);
+          console.warn(`Row ${i + 1}: Skipping identical duplicate row ${sku} in ${targetZone}`);
           skippedRows++;
           continue;
         }

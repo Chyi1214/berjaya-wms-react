@@ -7,36 +7,62 @@ import { ScanLookup } from '../types';
 class ScanLookupService {
   private lookupCollection = collection(db, 'scanLookups');
 
-  // Get lookup data for a specific SKU
+  // Get lookup data for a specific SKU (returns first match for backward compatibility)
   async getLookupBySKU(sku: string): Promise<ScanLookup | null> {
     try {
-      const docRef = doc(this.lookupCollection, sku.toUpperCase());
-      console.log('🔍 Firestore lookup for SKU:', sku.toUpperCase());
-      const docSnap = await getDoc(docRef);
-      
-      if (docSnap.exists()) {
-        const data = docSnap.data() as ScanLookup;
-        console.log('✅ Found lookup data:', data);
-        return {
-          ...data,
-          createdAt: data.createdAt instanceof Date ? data.createdAt : new Date(data.createdAt),
-          updatedAt: data.updatedAt instanceof Date ? data.updatedAt : new Date(data.updatedAt)
-        };
-      }
-      
-      console.log('❌ No lookup found for SKU:', sku.toUpperCase());
-      return null;
+      const lookups = await this.getAllLookupsBySKU(sku);
+      return lookups.length > 0 ? lookups[0] : null;
     } catch (error) {
       console.error('Failed to get lookup for SKU:', sku, error);
       return null;
     }
   }
 
-  // Create or update lookup entry
+  // Get ALL zones for a specific SKU (supports multiple zones per component)
+  async getAllLookupsBySKU(sku: string): Promise<ScanLookup[]> {
+    try {
+      const upperSKU = sku.toUpperCase();
+      console.log('🔍 Firestore lookup for all zones of SKU:', upperSKU);
+      
+      const querySnapshot = await getDocs(
+        query(
+          this.lookupCollection,
+          where('sku', '==', upperSKU),
+          orderBy('targetZone', 'asc')
+        )
+      );
+      
+      const lookups: ScanLookup[] = [];
+      querySnapshot.forEach((doc) => {
+        const data = doc.data() as ScanLookup;
+        lookups.push({
+          ...data,
+          createdAt: data.createdAt instanceof Date ? data.createdAt : new Date(data.createdAt),
+          updatedAt: data.updatedAt instanceof Date ? data.updatedAt : new Date(data.updatedAt)
+        });
+      });
+      
+      if (lookups.length > 0) {
+        console.log(`✅ Found ${lookups.length} zones for SKU ${upperSKU}:`, lookups.map(l => l.targetZone).join(', '));
+      } else {
+        console.log('❌ No lookups found for SKU:', upperSKU);
+      }
+      
+      return lookups;
+    } catch (error) {
+      console.error('Failed to get lookups for SKU:', sku, error);
+      return [];
+    }
+  }
+
+  // Create or update lookup entry (now supports multiple zones per SKU)
   async saveLookup(lookup: Omit<ScanLookup, 'createdAt' | 'updatedAt'>): Promise<void> {
     try {
       const sku = lookup.sku.toUpperCase();
-      const docRef = doc(this.lookupCollection, sku);
+      const zone = lookup.targetZone;
+      // Use SKU_ZONE as document ID to support multiple zones per component
+      const docId = `${sku}_${zone}`;
+      const docRef = doc(this.lookupCollection, docId);
       
       // Check if document exists
       const existing = await getDoc(docRef);
@@ -47,7 +73,7 @@ class ScanLookupService {
           addUpdatedAt: true 
         });
         await updateDoc(docRef, updateData);
-        console.log('✅ Updated lookup for SKU:', sku);
+        console.log('✅ Updated lookup for SKU+Zone:', `${sku} in ${zone}`);
       } else {
         // Create new
         const createData = prepareForFirestore({ ...lookup, sku }, { 
@@ -55,7 +81,7 @@ class ScanLookupService {
           addUpdatedAt: true 
         });
         await setDoc(docRef, createData);
-        console.log('✅ Created lookup for SKU:', sku);
+        console.log('✅ Created lookup for SKU+Zone:', `${sku} in ${zone}`);
       }
     } catch (error) {
       console.error('Failed to save lookup:', error);
@@ -63,11 +89,26 @@ class ScanLookupService {
     }
   }
 
-  // Delete lookup entry
-  async deleteLookup(sku: string): Promise<void> {
+  // Delete lookup entry (specific SKU+Zone combination)
+  async deleteLookup(sku: string, zone?: string): Promise<void> {
     try {
-      await deleteDoc(doc(this.lookupCollection, sku.toUpperCase()));
-      console.log('✅ Deleted lookup for SKU:', sku);
+      if (zone) {
+        // Delete specific SKU+Zone combination
+        const docId = `${sku.toUpperCase()}_${zone}`;
+        const docRef = doc(this.lookupCollection, docId);
+        await deleteDoc(docRef);
+        console.log('✅ Deleted lookup for SKU+Zone:', `${sku} in ${zone}`);
+      } else {
+        // Delete all zones for this SKU (backward compatibility)
+        const allLookups = await this.getAllLookupsBySKU(sku);
+        const deletePromises = allLookups.map(lookup => {
+          const docId = `${lookup.sku}_${lookup.targetZone}`;
+          const docRef = doc(this.lookupCollection, docId);
+          return deleteDoc(docRef);
+        });
+        await Promise.all(deletePromises);
+        console.log(`✅ Deleted all ${allLookups.length} zones for SKU:`, sku);
+      }
     } catch (error) {
       console.error('Failed to delete lookup:', error);
       throw error;

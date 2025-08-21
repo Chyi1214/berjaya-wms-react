@@ -161,7 +161,8 @@ export interface ScanLookup {
 
 export interface ScanResult {
   scannedCode: string;   // Raw barcode/QR content
-  lookup?: ScanLookup;   // Found lookup data
+  lookup?: ScanLookup;   // Primary lookup data (first match for compatibility)
+  allLookups?: ScanLookup[]; // All zones for this SKU (multiple zones support)
   timestamp: Date;
   scannedBy: string;
 }

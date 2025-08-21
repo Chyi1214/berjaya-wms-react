@@ -116,22 +116,27 @@ export function ScannerView({ user }: ScannerViewProps) {
     
     console.log('✨ Basic cleaned code:', JSON.stringify(cleanedCode));
 
-    // First, always try the exact cleaned code as-is
+    // First, always try the exact cleaned code as-is (now supports multiple zones!)
     const exactCleanCode = cleanedCode.toUpperCase();
     console.log('🎯 Trying exact cleaned code lookup:', exactCleanCode);
     attemptedLookups.push(exactCleanCode);
     try {
-      const exactLookup = await scanLookupService.getLookupBySKU(exactCleanCode);
-      if (exactLookup) {
-        console.log('✅ SUCCESS! Found exact match:', exactCleanCode);
+      const allLookups = await scanLookupService.getAllLookupsBySKU(exactCleanCode);
+      if (allLookups.length > 0) {
+        console.log(`✅ SUCCESS! Found ${allLookups.length} zone(s) for:`, exactCleanCode);
+        
+        // Create scan result with all zones (use first lookup as primary for compatibility)
+        const scanResult: ScanResult = {
+          scannedCode: exactCleanCode,
+          lookup: allLookups[0], // Primary lookup for compatibility
+          allLookups: allLookups, // All zones for display
+          timestamp: new Date(),
+          scannedBy: user.email
+        };
+        
         return {
           success: true,
-          scanResult: {
-            scannedCode: exactCleanCode,
-            lookup: exactLookup,
-            timestamp: new Date(),
-            scannedBy: user.email
-          },
+          scanResult,
           attemptedLookups
         };
       }
