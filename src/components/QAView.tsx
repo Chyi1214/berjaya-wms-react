@@ -127,43 +127,48 @@ const QAView: React.FC<QAViewProps> = ({ onBack }) => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={handleBack}
-                className="text-gray-600 hover:text-gray-900 transition-colors"
-              >
-                ← Back
-              </button>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">
-                  Quality Assurance
-                </h1>
-                <p className="text-sm text-gray-600">
-                  {currentView === 'list' 
-                    ? `${cars.length} cars available for inspection today`
-                    : `Inspecting: ${selectedCar?.vin}`
-                  }
-                </p>
-              </div>
+      <header className="bg-white shadow-sm border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center h-16">
+            {/* Back Button */}
+            <button
+              onClick={handleBack}
+              className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+              aria-label={currentView === 'list' ? 'Back to role selection' : 'Back to car list'}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+
+            {/* Title */}
+            <div className="flex items-center space-x-2 ml-4">
+              <span className="text-2xl">🔍</span>
+              <h1 className="text-lg font-bold text-gray-900">
+                {currentView === 'list' 
+                  ? 'Quality Assurance'
+                  : `Inspecting: ${selectedCar?.vin}`
+                }
+              </h1>
             </div>
-            
+
+            {/* Refresh Button */}
             {currentView === 'list' && (
-              <button
-                onClick={loadTodayData}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Refresh
-              </button>
+              <div className="ml-auto">
+                <button
+                  onClick={loadTodayData}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Refresh
+                </button>
+              </div>
             )}
           </div>
         </div>
-      </div>
+      </header>
 
-      {/* Content */}
-      <div className="max-w-7xl mx-auto p-4">
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {currentView === 'list' ? (
           <QACarListView
             cars={cars}
@@ -181,7 +186,7 @@ const QAView: React.FC<QAViewProps> = ({ onBack }) => {
             />
           )
         )}
-      </div>
+      </main>
     </div>
   );
 };

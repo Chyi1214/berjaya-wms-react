@@ -56,12 +56,12 @@ export function ScanResultDisplay({ result, onNewScan }: ScanResultDisplayProps)
           <div className="p-6">
             <div className="text-center space-y-4">
               
-              {/* Zone Number */}
+              {/* Zone Display */}
               <div className="bg-orange-100 border border-orange-200 rounded-lg p-6">
                 <div className="text-4xl font-bold text-orange-600 mb-2">
-                  Zone {lookup.targetZone}
+                  {lookup.targetZone}
                 </div>
-                <p className="text-orange-700 font-medium">Send this item to Zone {lookup.targetZone}</p>
+                <p className="text-orange-700 font-medium">Send this item to zone: <strong>{lookup.targetZone}</strong></p>
               </div>
 
               {/* Item Details */}
@@ -127,9 +127,10 @@ export function ScanResultDisplay({ result, onNewScan }: ScanResultDisplayProps)
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
         <h4 className="text-sm font-medium text-blue-900 mb-2">📋 Quick Reference</h4>
         <div className="text-sm text-blue-700 space-y-1">
-          <p><strong>Zone 1-10:</strong> Body & Frame Assembly</p>
-          <p><strong>Zone 11-20:</strong> Engine & Powertrain</p>
-          <p><strong>Zone 21-30:</strong> Electronics & Final Assembly</p>
+          <p><strong>Numeric Zones (1-30):</strong> Legacy production zones</p>
+          <p><strong>DF01-DF99:</strong> Distribution Floor sections</p>
+          <p><strong>Z001-Z999:</strong> Specialized work zones</p>
+          <p><strong>A1-Z9:</strong> Assembly areas</p>
         </div>
       </div>
 

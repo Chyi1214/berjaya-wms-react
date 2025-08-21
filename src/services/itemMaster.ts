@@ -14,12 +14,15 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { ItemMaster, SearchableItem } from '../types';
+import { createModuleLogger } from './logger';
+
+const logger = createModuleLogger('ItemMasterService');
 
 // Firestore collection name
 const ITEM_MASTER_COLLECTION = 'item_master';
 
 // Convert Firestore document to ItemMaster
-const mapFirestoreToItemMaster = (_id: string, data: any): ItemMaster => ({
+const mapFirestoreToItemMaster = (_id: string, data: Record<string, any>): ItemMaster => ({
   sku: data.sku,
   name: data.name,
   category: data.category || undefined,
@@ -42,7 +45,7 @@ class ItemMasterService {
 
   // Add new item to master list
   async addItem(item: Omit<ItemMaster, 'createdAt' | 'updatedAt'>): Promise<void> {
-    console.log('➕ Adding item to master list:', item.sku);
+    logger.info('Adding item to master list', { sku: item.sku });
     
     // Check if SKU already exists
     const existingItem = await this.getItemBySKU(item.sku);
@@ -62,12 +65,12 @@ class ItemMasterService {
     const firestoreData = mapItemMasterToFirestore(newItem);
     
     await setDoc(docRef, firestoreData);
-    console.log('✅ Item added to master list:', item.sku);
+    logger.info('Item added to master list', { sku: item.sku });
   }
 
   // Update existing item
   async updateItem(item: ItemMaster): Promise<void> {
-    console.log('📝 Updating item in master list:', item.sku);
+    logger.info('Updating item in master list', { sku: item.sku });
     
     const updatedItem: ItemMaster = {
       ...item,
@@ -78,7 +81,7 @@ class ItemMasterService {
     const firestoreData = mapItemMasterToFirestore(updatedItem);
     
     await setDoc(docRef, firestoreData);
-    console.log('✅ Item updated in master list:', item.sku);
+    logger.info('Item updated in master list', { sku: item.sku });
   }
 
   // Get item by SKU
@@ -114,11 +117,11 @@ class ItemMasterService {
         items.push(item);
       });
       
-      console.log(`✅ Retrieved ${items.length} items from master list`);
+      logger.debug('Retrieved items from master list', { count: items.length });
       return items;
       
     } catch (error) {
-      console.error('❌ Error getting all items:', error);
+      logger.error('Error getting all items', error);
       throw new Error('Failed to get items from master list');
     }
   }
@@ -147,7 +150,7 @@ class ItemMasterService {
       return searchableItems;
       
     } catch (error) {
-      console.error('❌ Error searching items:', error);
+      logger.error('Error searching items', error);
       return [];
     }
   }
@@ -168,26 +171,26 @@ class ItemMasterService {
           items.push(item);
         });
         
-        console.log(`🔄 Real-time update: ${items.length} items in master list`);
+        logger.debug('Real-time items update', { count: items.length });
         callback(items);
       });
       
       return unsubscribe;
       
     } catch (error) {
-      console.error('❌ Error setting up items listener:', error);
+      logger.error('Error setting up items listener', error);
       throw new Error('Failed to setup items listener');
     }
   }
 
   // Delete item by SKU
   async deleteItem(sku: string): Promise<void> {
-    console.log('🗑️ Deleting item from master list:', sku);
+    logger.info('Deleting item from master list', { sku });
     
     const docRef = doc(db, ITEM_MASTER_COLLECTION, sku);
     await deleteDoc(docRef);
     
-    console.log('✅ Item deleted from master list:', sku);
+    logger.info('Item deleted from master list', { sku });
   }
 
   // Bulk import items (for CSV import)
@@ -195,7 +198,7 @@ class ItemMasterService {
     success: number;
     failed: Array<{ sku: string; error: string }>;
   }> {
-    console.log(`📦 Bulk importing ${items.length} items to master list`);
+    logger.info('Starting bulk import', { itemCount: items.length });
     
     const batch = writeBatch(db);
     const now = new Date();
@@ -243,13 +246,13 @@ class ItemMasterService {
     // Commit all at once
     await batch.commit();
     
-    console.log(`✅ Bulk import completed: ${success} items added`);
+    logger.info('Bulk import completed', { successCount: success });
     return { success, failed };
   }
 
   // Clear all items (for testing)
   async clearAllItems(): Promise<void> {
-    console.log('🧹 Clearing all items from master list');
+    logger.warn('Clearing all items from master list');
     
     const snapshot = await getDocs(collection(db, ITEM_MASTER_COLLECTION));
     const deletePromises: Promise<void>[] = [];
@@ -259,7 +262,7 @@ class ItemMasterService {
     });
     
     await Promise.all(deletePromises);
-    console.log(`✅ Cleared ${deletePromises.length} items from master list`);
+    logger.warn('Cleared items from master list', { count: deletePromises.length });
   }
 
   // Get categories (unique list)
@@ -273,7 +276,7 @@ class ItemMasterService {
       
       return categories.sort();
     } catch (error) {
-      console.error('❌ Error getting categories:', error);
+      logger.error('Error getting categories', error);
       return [];
     }
   }
@@ -284,7 +287,7 @@ class ItemMasterService {
       const items = await this.getAllItems();
       return items.filter(item => item.category === category);
     } catch (error) {
-      console.error('❌ Error getting items by category:', error);
+      logger.error('Error getting items by category', error);
       return [];
     }
   }

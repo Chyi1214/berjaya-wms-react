@@ -15,12 +15,15 @@ import {
 import { db } from './firebase';
 import { BOM, BOMComponent, SearchableItem, InventoryCountEntry } from '../types';
 import { itemMasterService } from './itemMaster';
+import { createModuleLogger } from './logger';
+
+const logger = createModuleLogger('BOMService');
 
 // Firestore collection name
 const BOM_COLLECTION = 'boms';
 
 // Convert Firestore document to BOM
-const mapFirestoreToBOM = (_id: string, data: any): BOM => ({
+const mapFirestoreToBOM = (_id: string, data: Record<string, any>): BOM => ({
   bomCode: data.bomCode,
   name: data.name,
   description: data.description || undefined,
@@ -74,7 +77,7 @@ class BOMService {
 
   // Add new BOM
   async addBOM(bom: Omit<BOM, 'createdAt' | 'updatedAt' | 'totalComponents'>): Promise<void> {
-    console.log('➕ Adding BOM:', bom.bomCode);
+    logger.info('Adding BOM', { bomCode: bom.bomCode });
     
     // Check if BOM code already exists
     const existingBOM = await this.getBOMByCode(bom.bomCode);
@@ -101,12 +104,12 @@ class BOMService {
     const firestoreData = mapBOMToFirestore(newBOM);
     
     await setDoc(docRef, firestoreData);
-    console.log('✅ BOM added:', bom.bomCode);
+    logger.info('BOM added', { bomCode: bom.bomCode });
   }
 
   // Update existing BOM
   async updateBOM(bom: BOM): Promise<void> {
-    console.log('📝 Updating BOM:', bom.bomCode);
+    logger.info('Updating BOM', { bomCode: bom.bomCode });
     
     // Validate components
     const validation = await this.validateComponents(bom.components);
@@ -124,7 +127,7 @@ class BOMService {
     const firestoreData = mapBOMToFirestore(updatedBOM);
     
     await setDoc(docRef, firestoreData);
-    console.log('✅ BOM updated:', bom.bomCode);
+    logger.info('BOM updated', { bomCode: bom.bomCode });
   }
 
   // Get BOM by code
@@ -160,7 +163,7 @@ class BOMService {
         boms.push(bom);
       });
       
-      console.log(`✅ Retrieved ${boms.length} BOMs`);
+      logger.debug('Retrieved BOMs', { count: boms.length });
       return boms;
       
     } catch (error) {
@@ -215,7 +218,7 @@ class BOMService {
           boms.push(bom);
         });
         
-        console.log(`🔄 Real-time update: ${boms.length} BOMs`);
+        logger.debug('Real-time BOMs update', { count: boms.length });
         callback(boms);
       });
       
@@ -229,12 +232,12 @@ class BOMService {
 
   // Delete BOM by code
   async deleteBOM(bomCode: string): Promise<void> {
-    console.log('🗑️ Deleting BOM:', bomCode);
+    logger.info('Deleting BOM', { bomCode });
     
     const docRef = doc(db, BOM_COLLECTION, bomCode);
     await deleteDoc(docRef);
     
-    console.log('✅ BOM deleted:', bomCode);
+    logger.info('BOM deleted', { bomCode });
   }
 
 
@@ -243,7 +246,7 @@ class BOMService {
     success: number;
     failed: Array<{ bomCode: string; error: string }>;
   }> {
-    console.log(`📦 Bulk importing ${boms.length} BOMs`);
+    logger.info('Starting bulk BOM import', { bomCount: boms.length });
     
     const batch = writeBatch(db);
     const now = new Date();
@@ -303,13 +306,13 @@ class BOMService {
     // Commit all at once
     await batch.commit();
     
-    console.log(`✅ Bulk import completed: ${success} BOMs added`);
+    logger.info('Bulk BOM import completed', { successCount: success });
     return { success, failed };
   }
 
   // Clear all BOMs (for testing)
   async clearAllBOMs(): Promise<void> {
-    console.log('🧹 Clearing all BOMs');
+    logger.warn('Clearing all BOMs');
     
     const snapshot = await getDocs(collection(db, BOM_COLLECTION));
     const deletePromises: Promise<void>[] = [];
@@ -319,7 +322,7 @@ class BOMService {
     });
     
     await Promise.all(deletePromises);
-    console.log(`✅ Cleared ${deletePromises.length} BOMs`);
+    logger.warn('Cleared BOMs', { count: deletePromises.length });
   }
 
   // Expand BOM to individual inventory entries (Phase 3)
@@ -330,7 +333,7 @@ class BOMService {
     countedBy: string,
     additionalNotes?: string
   ): Promise<InventoryCountEntry[]> {
-    console.log(`🔄 Expanding BOM ${bomCode} (qty: ${bomQuantity}) to inventory entries`);
+    logger.debug('Expanding BOM to inventory entries', { bomCode, bomQuantity });
     
     // Get the BOM
     const bom = await this.getBOMByCode(bomCode);
@@ -364,7 +367,7 @@ class BOMService {
       entries.push(entry);
     }
     
-    console.log(`✅ Expanded BOM ${bomCode} to ${entries.length} inventory entries`);
+    logger.debug('BOM expanded to inventory entries', { bomCode, entryCount: entries.length });
     return entries;
   }
 

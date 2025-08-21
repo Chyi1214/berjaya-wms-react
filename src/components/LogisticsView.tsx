@@ -3,7 +3,6 @@ import { useState } from 'react';
 import { User, InventoryCountEntry, Transaction, TransactionFormData } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import InventoryCountForm from './InventoryCountForm';
-import RecentCounts from './RecentCounts';
 import TransactionSendForm from './TransactionSendForm';
 import TransactionOTPDisplay from './TransactionOTPDisplay';
 import ScannerView from './scanner/ScannerView';
@@ -13,12 +12,11 @@ interface LogisticsViewProps {
   onBack: () => void;
   onCountSubmit: (entries: InventoryCountEntry[]) => void;
   counts: InventoryCountEntry[];
-  onClearCounts: () => void;
   onTransactionCreate: (transactionData: TransactionFormData & { otp: string }) => Promise<{ transaction: Transaction, otp: string }>;
   transactions: Transaction[];
 }
 
-export function LogisticsView({ user, onBack, onCountSubmit, counts, onClearCounts, onTransactionCreate, transactions }: LogisticsViewProps) {
+export function LogisticsView({ user, onBack, onCountSubmit, counts, onTransactionCreate, transactions }: LogisticsViewProps) {
   const { t } = useLanguage();
   const [selectedAction, setSelectedAction] = useState<'menu' | 'check' | 'transaction' | 'scanner'>('menu');
   const [transactionResult, setTransactionResult] = useState<{ transaction: Transaction, otp: string } | null>(null);
@@ -61,52 +59,30 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onClearCoun
       {/* Header - Eugene's redesigned upper panel */}
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            {/* Upper Left: "Last Page" - Context-aware Back Button */}
-            <div className="flex items-center">
-              <button
-                onClick={handleBackButton}
-                className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-                aria-label={selectedAction === 'menu' ? 'Back to role selection' : 'Back to menu'}
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-            </div>
+          <div className="flex items-center h-16">
+            {/* Back Button */}
+            <button
+              onClick={handleBackButton}
+              className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+              aria-label={selectedAction === 'menu' ? 'Back to role selection' : 'Back to menu'}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
 
-            {/* Middle: Role Selection Home Page - Navigation Home */}
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={onBack}
-                className="flex items-center space-x-2 p-2 text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                aria-label="Go to role selection"
-              >
-                <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
-                  <span className="text-white font-bold text-sm">🏠</span>
-                </div>
-                <span className="text-sm font-medium hidden sm:block">Role Selection</span>
-              </button>
-            </div>
-
-            {/* Upper Right: Menu */}
-            <div className="flex items-center space-x-3">
-              <div className="text-right hidden sm:block">
-                <p className="text-sm font-medium text-gray-900">
-                  {user.displayName || user.email}
-                </p>
-                <p className="text-xs text-gray-500">
-                  {t('logistics.role')}
-                </p>
-              </div>
-              <button
-                className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-                aria-label="Menu"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-              </button>
+            {/* Title */}
+            <div className="flex items-center space-x-2 ml-4">
+              <span className="text-2xl">
+                {selectedAction === 'check' ? '📋' : 
+                 selectedAction === 'transaction' ? '🔄' : 
+                 selectedAction === 'scanner' ? '📷' : '📦'}
+              </span>
+              <h1 className="text-lg font-bold text-gray-900">
+                {selectedAction === 'check' ? t('inventory.inventoryCount') : 
+                 selectedAction === 'transaction' ? 'Send Items' : 
+                 selectedAction === 'scanner' ? 'Scanner' : t('roles.logistics')}
+              </h1>
             </div>
           </div>
         </div>
@@ -118,144 +94,49 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onClearCoun
           
           {selectedAction === 'menu' && (
             <>
-              {/* Welcome Section */}
-              <div className="text-center">
-                <div className="text-4xl mb-2">📦</div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                  {t('roles.logistics')}
-                </h2>
-                <p className="text-gray-600">
-                  {t('logistics.description')}
-                </p>
-              </div>
-
-              {/* Action Menu */}
-              <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+              {/* Action Menu - iPhone Style */}
+              <div className="flex justify-center space-x-8 max-w-md mx-auto">
                 
                 {/* Check Inventory Button */}
                 <button
                   onClick={() => setSelectedAction('check')}
-                  className="p-4 md:p-6 bg-white rounded-xl border-2 border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-all duration-200 text-center group"
+                  className="w-20 h-20 bg-blue-500 hover:bg-blue-600 rounded-2xl shadow-lg transition-all duration-200 flex flex-col items-center justify-center text-white group active:scale-95"
                 >
-                  <div className="text-3xl md:text-4xl mb-2 md:mb-3">📋</div>
-                  <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-1 md:mb-2">
-                    {t('inventory.checkInventory')}
-                  </h3>
-                  <p className="text-gray-600 text-xs md:text-sm">
-                    {t('logistics.checkDescription')}
-                  </p>
-                  <div className="mt-3 md:mt-4 text-blue-500 group-hover:text-blue-600">
-                    <svg className="w-5 h-5 md:w-6 md:h-6 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </div>
+                  <div className="text-2xl mb-1">📋</div>
+                  <span className="text-xs font-medium">Count</span>
                 </button>
 
                 {/* Transaction Button */}
                 <button
                   onClick={() => setSelectedAction('transaction')}
-                  className="p-4 md:p-6 bg-white rounded-xl border-2 border-gray-200 hover:border-purple-500 hover:bg-purple-50 transition-all duration-200 text-center group"
+                  className="w-20 h-20 bg-purple-500 hover:bg-purple-600 rounded-2xl shadow-lg transition-all duration-200 flex flex-col items-center justify-center text-white group active:scale-95"
                 >
-                  <div className="text-3xl md:text-4xl mb-2 md:mb-3">🔄</div>
-                  <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-1 md:mb-2">
-                    {t('transactions.title')}
-                  </h3>
-                  <p className="text-gray-600 text-xs md:text-sm">
-                    {t('transactions.logisticsDescription')}
-                  </p>
-                  <div className="mt-3 md:mt-4 text-purple-500 group-hover:text-purple-600">
-                    <svg className="w-5 h-5 md:w-6 md:h-6 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </div>
+                  <div className="text-2xl mb-1">🔄</div>
+                  <span className="text-xs font-medium">Send</span>
                 </button>
 
-                {/* Scanner Button - NEW v3.2.0 */}
+                {/* Scanner Button */}
                 <button
                   onClick={() => setSelectedAction('scanner')}
-                  className="p-4 md:p-6 bg-white rounded-xl border-2 border-gray-200 hover:border-green-500 hover:bg-green-50 transition-all duration-200 text-center group"
+                  className="w-20 h-20 bg-green-500 hover:bg-green-600 rounded-2xl shadow-lg transition-all duration-200 flex flex-col items-center justify-center text-white group active:scale-95"
                 >
-                  <div className="text-3xl md:text-4xl mb-2 md:mb-3">📱</div>
-                  <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-1 md:mb-2">
-                    {t('scanner.inboundScanner')}
-                  </h3>
-                  <p className="text-gray-600 text-xs md:text-sm">
-                    {t('logistics.scanDescription')}
-                  </p>
-                  <div className="mt-3 md:mt-4 text-green-500 group-hover:text-green-600">
-                    <svg className="w-5 h-5 md:w-6 md:h-6 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </div>
+                  <div className="text-2xl mb-1">📷</div>
+                  <span className="text-xs font-medium">Scan</span>
                 </button>
               </div>
 
-              {/* Back to Roles Button */}
-              <div className="text-center">
-                <button
-                  onClick={onBack}
-                  className="btn-secondary"
-                >
-                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                  </svg>
-                  {t('nav.backToRoles')}
-                </button>
-              </div>
             </>
           )}
 
           {selectedAction === 'check' && (
             <>
-              {/* Check Inventory View */}
-              <div className="text-center">
-                <div className="text-4xl mb-2">📋</div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                  {t('inventory.inventoryCount')} - {t('roles.logistics')}
-                </h2>
-                <p className="text-gray-600">
-                  {t('logistics.description')}
-                </p>
-              </div>
-
-              {/* Two Column Layout */}
-              <div className="grid md:grid-cols-2 gap-8">
-                
-                {/* Left Column: Count Form */}
-                <div>
-                  <InventoryCountForm
-                    onSubmit={handleCountSubmit}
-                    userEmail={user.email}
-                    location="logistics"
-                  />
-                </div>
-
-                {/* Right Column: Recent Counts */}
-                <div>
-                  <RecentCounts
-                    counts={counts}
-                    onClear={onClearCounts}
-                  />
-                </div>
-              </div>
-
-              {/* Back to Menu Button */}
-              <div className="text-center">
-                <button
-                  onClick={handleBackToMenu}
-                  className="btn-secondary mr-4"
-                >
-                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                  </svg>
-                  {t('common.back')}
-                </button>
-                <button
-                  onClick={onBack}
-                  className="btn-secondary"
-                >
-                  {t('nav.backToRoles')}
-                </button>
+              {/* Count Form */}
+              <div className="max-w-2xl mx-auto">
+                <InventoryCountForm
+                  onSubmit={handleCountSubmit}
+                  userEmail={user.email}
+                  location="logistics"
+                />
               </div>
             </>
           )}

@@ -1,6 +1,9 @@
 // Scanner Service - Barcode/QR code scanning with @zxing/library
 import { BrowserMultiFormatReader, NotFoundException } from '@zxing/library';
 import { ScannerConfig } from '../types';
+import { createModuleLogger } from './logger';
+
+const logger = createModuleLogger('ScannerService');
 
 class ScannerService {
   private codeReader: BrowserMultiFormatReader;
@@ -22,7 +25,7 @@ class ScannerService {
       const devices = await navigator.mediaDevices.enumerateDevices();
       return devices.some(device => device.kind === 'videoinput');
     } catch (error) {
-      console.error('Failed to check camera availability:', error);
+      logger.error('Failed to check camera availability', error);
       return false;
     }
   }
@@ -42,10 +45,10 @@ class ScannerService {
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       // Stop the stream immediately, we just wanted to check permission
       stream.getTracks().forEach(track => track.stop());
-      console.log('📱 Camera permission granted');
+      logger.info('Camera permission granted');
       return true;
     } catch (error) {
-      console.error('Camera permission denied:', error);
+      logger.error('Camera permission denied', error);
       return false;
     }
   }
@@ -67,7 +70,7 @@ class ScannerService {
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
       
       if (isMobile) {
-        console.log('📱 Mobile device detected, using facingMode constraint');
+        logger.debug('Mobile device detected, using facingMode constraint');
         
         // Use facingMode constraint for mobile devices
         const constraints = {
@@ -85,7 +88,7 @@ class ScannerService {
           (result, error) => {
             if (result) {
               const scannedCode = result.getText();
-              console.log('✅ Barcode scanned:', scannedCode);
+              logger.info('Barcode scanned', { code: scannedCode });
               
               // Play feedback
               this.playFeedback();
@@ -95,7 +98,7 @@ class ScannerService {
             }
             
             if (error && !(error instanceof NotFoundException)) {
-              console.error('Scanner error:', error);
+              logger.error('Scanner error', error);
               onError(new Error('Scanning failed'));
             }
           }
@@ -123,9 +126,9 @@ class ScannerService {
       
       if (backCamera) {
         selectedDevice = backCamera;
-        console.log('📷 Using back camera for scanning:', backCamera.label);
+        logger.debug('Using back camera for scanning', { cameraLabel: backCamera.label });
       } else {
-        console.log('📷 Using default camera:', selectedDevice.label);
+        logger.debug('Using default camera', { cameraLabel: selectedDevice.label });
       }
 
       const deviceId = selectedDevice.deviceId;
@@ -137,7 +140,7 @@ class ScannerService {
         (result, error) => {
           if (result) {
             const scannedCode = result.getText();
-            console.log('✅ Barcode scanned:', scannedCode);
+            logger.info('Barcode scanned', { code: scannedCode });
             
             // Play feedback
             this.playFeedback();
@@ -147,7 +150,7 @@ class ScannerService {
           }
           
           if (error && !(error instanceof NotFoundException)) {
-            console.error('Scanner error:', error);
+            logger.error('Scanner error', error);
             onError(new Error('Scanning failed'));
           }
         }
@@ -155,7 +158,7 @@ class ScannerService {
 
     } catch (error) {
       this.isScanning = false;
-      console.error('Failed to start scanning:', error);
+      logger.error('Failed to start scanning', error);
       onError(error as Error);
     }
   }
@@ -165,7 +168,7 @@ class ScannerService {
     if (this.isScanning) {
       this.codeReader.reset();
       this.isScanning = false;
-      console.log('📷 Scanner stopped');
+      logger.debug('Scanner stopped');
     }
   }
 
@@ -186,7 +189,7 @@ class ScannerService {
   private playBeep(): void {
     try {
       // Create audio context for beep
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const audioContext = new (window.AudioContext || (window as Record<string, any>).webkitAudioContext)();
       const oscillator = audioContext.createOscillator();
       const gainNode = audioContext.createGain();
 
@@ -200,7 +203,7 @@ class ScannerService {
       oscillator.start(audioContext.currentTime);
       oscillator.stop(audioContext.currentTime + 0.2);
     } catch (error) {
-      console.warn('Could not play beep sound:', error);
+      logger.warn('Could not play beep sound', error);
     }
   }
 

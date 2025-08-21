@@ -228,7 +228,7 @@ class CSVExportService {
     }
     
     // Flatten BOM data - each component gets its own row
-    const flattenedData: any[] = [];
+    const flattenedData: Record<string, any>[] = [];
     
     data.forEach(bom => {
       if (bom.components.length === 0) {

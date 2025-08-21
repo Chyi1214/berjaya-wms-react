@@ -289,7 +289,7 @@ class QualityAssuranceService {
           ...data,
           startedAt: data.startedAt.toDate(),
           completedAt: data.completedAt?.toDate(),
-          results: data.results.map((result: any) => ({
+          results: data.results.map((result: Record<string, any>) => ({
             ...result,
             checkedAt: result.checkedAt.toDate()
           }))
@@ -318,7 +318,7 @@ class QualityAssuranceService {
           ...data,
           startedAt: data.startedAt.toDate(),
           completedAt: data.completedAt?.toDate(),
-          results: data.results.map((result: any) => ({
+          results: data.results.map((result: Record<string, any>) => ({
             ...result,
             checkedAt: result.checkedAt.toDate()
           }))
@@ -352,7 +352,7 @@ class QualityAssuranceService {
           ...data,
           startedAt: data.startedAt.toDate(),
           completedAt: data.completedAt?.toDate(),
-          results: data.results.map((result: any) => ({
+          results: data.results.map((result: Record<string, any>) => ({
             ...result,
             checkedAt: result.checkedAt.toDate()
           }))

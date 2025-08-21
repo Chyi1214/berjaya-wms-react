@@ -224,16 +224,6 @@ export function InventoryCountForm({ onSubmit, userEmail, location }: InventoryC
           </div>
         )}
 
-        {/* Location Display */}
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-          <h4 className="font-medium text-gray-900">{t('inventory.countDetails')}:</h4>
-          <p className="text-gray-700">
-            <span className="font-medium">{t('inventory.location')}:</span> {location}
-          </p>
-          <p className="text-gray-700">
-            <span className="font-medium">{t('inventory.countedBy')}:</span> {userEmail}
-          </p>
-        </div>
 
         {/* Error Message */}
         {error && (

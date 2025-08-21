@@ -11,7 +11,7 @@ interface ScannerViewProps {
   onBack: () => void;
 }
 
-export function ScannerView({ user, onBack }: ScannerViewProps) {
+export function ScannerView({ user }: ScannerViewProps) {
   const { t } = useLanguage();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isScanning, setIsScanning] = useState(false);
@@ -25,6 +25,7 @@ export function ScannerView({ user, onBack }: ScannerViewProps) {
     checkCameraSupport();
     return () => {
       stopScanning();
+      clearResult(); // Reset state on unmount
     };
   }, []);
 
@@ -261,35 +262,6 @@ export function ScannerView({ user, onBack }: ScannerViewProps) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-3">
-              <button
-                onClick={onBack}
-                className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-              <div className="text-2xl">📱</div>
-              <h1 className="text-xl font-semibold text-gray-900">
-                {t('scanner.inboundScanner')}
-              </h1>
-            </div>
-            
-            <div className="text-right">
-              <p className="text-sm font-medium text-gray-900">
-                {user.displayName || user.email}
-              </p>
-              <p className="text-xs text-gray-500">{t('scanner.logisticsWorker')}</p>
-            </div>
-          </div>
-        </div>
-      </header>
-
       {/* Main Content */}
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         

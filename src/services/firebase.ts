@@ -13,6 +13,9 @@ import {
 } from 'firebase/auth';
 import { getFirestore, Firestore } from 'firebase/firestore';
 import type { User, FirebaseError } from '../types';
+import { createModuleLogger } from './logger';
+
+const logger = createModuleLogger('FirebaseService');
 
 // Firebase configuration object
 const firebaseConfig = {
@@ -35,7 +38,7 @@ const validateFirebaseConfig = () => {
   const missing = requiredKeys.filter(key => !import.meta.env[key]);
   
   if (missing.length > 0) {
-    console.error('Missing Firebase configuration:', missing);
+    logger.error('Missing Firebase configuration', { missing });
     throw new Error(`Missing Firebase environment variables: ${missing.join(', ')}`);
   }
 };
@@ -50,9 +53,9 @@ try {
   app = initializeApp(firebaseConfig);
   auth = getAuth(app);
   db = getFirestore(app);
-  console.log('✅ Firebase initialized successfully');
+  logger.info('Firebase initialized successfully');
 } catch (error) {
-  console.error('❌ Firebase initialization failed:', error);
+  logger.error('Firebase initialization failed', error);
   throw error;
 }
 
@@ -76,16 +79,16 @@ export const authService = {
     try {
       const result = await signInWithPopup(auth, googleProvider);
       const user = mapFirebaseUser(result.user);
-      console.log('✅ Google login successful:', user.email);
+      logger.info('Google login successful', { email: user.email });
       return user;
     } catch (error) {
       const firebaseError = error as FirebaseError;
-      console.error('❌ Google login failed:', firebaseError.message);
+      logger.error('Google login failed', firebaseError);
       
       // Handle specific error cases
       if (firebaseError.code === 'auth/popup-blocked') {
         // Fallback to redirect for popup blockers
-        console.log('Popup blocked, falling back to redirect...');
+        logger.warn('Popup blocked, falling back to redirect');
         return authService.signInWithGoogleRedirect();
       }
       
@@ -101,7 +104,7 @@ export const authService = {
       throw new Error('REDIRECT_IN_PROGRESS');
     } catch (error) {
       const firebaseError = error as FirebaseError;
-      console.error('❌ Google redirect login failed:', firebaseError.message);
+      logger.error('Google redirect login failed', firebaseError);
       throw new Error(firebaseError.message);
     }
   },
@@ -112,13 +115,13 @@ export const authService = {
       const result = await getRedirectResult(auth);
       if (result) {
         const user = mapFirebaseUser(result.user);
-        console.log('✅ Google redirect login successful:', user.email);
+        logger.info('Google redirect login successful', { email: user.email });
         return user;
       }
       return null;
     } catch (error) {
       const firebaseError = error as FirebaseError;
-      console.error('❌ Redirect result failed:', firebaseError.message);
+      logger.error('Redirect result failed', firebaseError);
       throw new Error(firebaseError.message);
     }
   },
@@ -127,10 +130,10 @@ export const authService = {
   signOut: async (): Promise<void> => {
     try {
       await signOut(auth);
-      console.log('✅ User signed out successfully');
+      logger.info('User signed out successfully');
     } catch (error) {
       const firebaseError = error as FirebaseError;
-      console.error('❌ Sign out failed:', firebaseError.message);
+      logger.error('Sign out failed', firebaseError);
       throw new Error(firebaseError.message);
     }
   },

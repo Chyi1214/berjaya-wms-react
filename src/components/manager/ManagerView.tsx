@@ -34,7 +34,7 @@ interface ManagerViewProps {
   transactions: Transaction[];
 }
 
-export function ManagerView({ user, onBack, inventoryCounts, onClearCounts, transactions }: ManagerViewProps) {
+export function ManagerView({ user: _user, onBack, inventoryCounts, onClearCounts, transactions }: ManagerViewProps) {
   const { t } = useLanguage();
 
   // Use custom hooks for state management
@@ -178,52 +178,22 @@ export function ManagerView({ user, onBack, inventoryCounts, onClearCounts, tran
       {/* Header - Eugene's redesigned upper panel */}
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            {/* Upper Left: "Last Page" - Back to roles */}
-            <div className="flex items-center">
-              <button
-                onClick={onBack}
-                className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-                aria-label="Back to role selection"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-            </div>
+          <div className="flex items-center h-16">
+            {/* Back Button */}
+            <button
+              onClick={onBack}
+              className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+              aria-label="Back to role selection"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
 
-            {/* Middle: Role Selection Home Page - Navigation Home */}
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={onBack}
-                className="flex items-center space-x-2 p-2 text-gray-700 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
-                aria-label="Go to role selection"
-              >
-                <div className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center">
-                  <span className="text-white font-bold text-sm">🏠</span>
-                </div>
-                <span className="text-sm font-medium hidden sm:block">{t('manager.header')}</span>
-              </button>
-            </div>
-
-            {/* Upper Right: Menu */}
-            <div className="flex items-center space-x-3">
-              <div className="text-right hidden sm:block">
-                <p className="text-sm font-medium text-gray-900">
-                  {user.displayName || user.email}
-                </p>
-                <p className="text-xs text-gray-500">
-                  {t('manager.role')}
-                </p>
-              </div>
-              <button
-                className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-                aria-label="Menu"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-              </button>
+            {/* Title */}
+            <div className="flex items-center space-x-2 ml-4">
+              <span className="text-2xl">📊</span>
+              <h1 className="text-lg font-bold text-gray-900">{t('manager.header')}</h1>
             </div>
           </div>
         </div>
@@ -231,16 +201,6 @@ export function ManagerView({ user, onBack, inventoryCounts, onClearCounts, tran
 
       <main className="container mx-auto px-4 py-6 max-w-7xl">
         <div className="space-y-6">
-          {/* Welcome Section */}
-          <div className="text-center">
-            <div className="text-4xl mb-2">📊</div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">
-              {t('manager.title')} - {t('manager.fullDashboard')}
-            </h2>
-            <p className="text-gray-600">
-              Eugene's v2.0.0 Three-Table System
-            </p>
-          </div>
 
         {/* Navigation */}
         <ManagerNavigation

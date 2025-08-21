@@ -111,34 +111,19 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
         {/* Header */}
         <header className="bg-white shadow-sm border-b border-gray-200">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between items-center h-16">
-              <div className="flex items-center space-x-3">
-                <button
-                  onClick={onBack}
-                  className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-                  aria-label="Go back"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                  </svg>
-                </button>
-                <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
-                  <span className="text-white font-bold text-sm">B</span>
-                </div>
-                <h1 className="text-xl font-semibold text-gray-900">
-                  {t('production.title')}
-                </h1>
-              </div>
-              
-              <div className="flex items-center space-x-4">
-                <div className="text-right">
-                  <p className="text-sm font-medium text-gray-900">
-                    {user.displayName || user.email}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    {t('production.role')}
-                  </p>
-                </div>
+            <div className="flex items-center h-16">
+              <button
+                onClick={onBack}
+                className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                aria-label="Go back"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+              <div className="flex items-center space-x-2 ml-3">
+                <span className="text-2xl">🔧</span>
+                <h1 className="text-lg font-bold text-gray-900">Production</h1>
               </div>
             </div>
           </div>
@@ -153,60 +138,22 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
   // Zone-specific inventory counting view
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header - Eugene's redesigned upper panel */}
+      {/* Header */}
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            {/* Upper Left: "Last Page" - Context-aware Back Button */}
-            <div className="flex items-center">
-              <button
-                onClick={handleBackButton}
-                className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-                aria-label={!selectedZone ? 'Back to role selection' : selectedAction === 'menu' ? 'Back to zones' : 'Back to menu'}
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-            </div>
-
-            {/* Middle: Role Selection Home Page - Navigation Home */}
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={onBack}
-                className="flex items-center space-x-2 p-2 text-gray-700 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                aria-label="Go to role selection"
-              >
-                <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
-                  <span className="text-white font-bold text-sm">🏠</span>
-                </div>
-                <span className="text-sm font-medium hidden sm:block">Zone {selectedZone}</span>
-              </button>
-            </div>
-
-            {/* Upper Right: Menu */}
-            <div className="flex items-center space-x-3">
-              <div className="bg-green-100 border border-green-200 rounded-lg px-2 py-1">
-                <span className="text-green-800 text-xs font-medium">
-                  Zone {selectedZone}
-                </span>
-              </div>
-              <div className="text-right hidden sm:block">
-                <p className="text-sm font-medium text-gray-900">
-                  {user.displayName || user.email}
-                </p>
-                <p className="text-xs text-gray-500">
-                  {t('production.role')}
-                </p>
-              </div>
-              <button
-                className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-                aria-label="Menu"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-              </button>
+          <div className="flex items-center h-16">
+            <button
+              onClick={handleBackButton}
+              className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+              aria-label={selectedAction === 'menu' ? 'Back to zones' : 'Back to menu'}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <div className="flex items-center space-x-2 ml-3">
+              <span className="text-2xl">🔧</span>
+              <h1 className="text-lg font-bold text-gray-900">Zone {selectedZone}</h1>
             </div>
           </div>
         </div>
@@ -218,16 +165,6 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
           
           {selectedAction === 'menu' && (
             <>
-              {/* Welcome Section */}
-              <div className="text-center">
-                <div className="text-4xl mb-2">🏭</div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                  {t('production.zoneTitle', { zone: selectedZone })}
-                </h2>
-                <p className="text-gray-600">
-                  {t('production.zoneDesc', { zone: selectedZone })}
-                </p>
-              </div>
 
               {/* Zone Status Display - Version 4.0 */}
               <div className="mb-6">

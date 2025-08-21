@@ -9,28 +9,24 @@ const getRoles = (t: (key: string) => string): RoleInfo[] => [
   {
     id: UserRole.LOGISTICS,
     name: t('roles.logistics'),
-    description: t('roles.logisticsDesc'),
     icon: '📦',
     color: 'bg-blue-500 hover:bg-blue-600'
   },
   {
     id: UserRole.PRODUCTION,
     name: t('roles.production'),
-    description: t('roles.productionDesc'),
-    icon: '🏭',
+    icon: '🔧',
     color: 'bg-green-500 hover:bg-green-600'
   },
   {
     id: UserRole.QA,
     name: t('roles.qa'),
-    description: t('roles.qaDesc'),
     icon: '✅',
     color: 'bg-orange-500 hover:bg-orange-600'
   },
   {
     id: UserRole.MANAGER,
     name: t('roles.manager'),
-    description: t('roles.managerDesc'),
     icon: '📊',
     color: 'bg-purple-500 hover:bg-purple-600'
   }
@@ -108,7 +104,6 @@ export function RoleSelection({ user, onRoleSelect, onLogout }: RoleSelectionPro
                 <div className="text-4xl">{role.icon}</div>
                 <div className="text-left flex-1">
                   <h3 className="text-xl font-semibold">{role.name}</h3>
-                  <p className="text-white/90 text-sm">{role.description}</p>
                 </div>
                 <div className="text-white/75">
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">

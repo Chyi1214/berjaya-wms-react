@@ -12,12 +12,15 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { InventoryCountEntry } from '../types';
+import { createModuleLogger } from './logger';
+
+const logger = createModuleLogger('InventoryService');
 
 // Firestore collection name
 const INVENTORY_COLLECTION = 'inventory_counts';
 
 // Convert Firestore document to InventoryCountEntry
-const mapFirestoreToEntry = (_id: string, data: any): InventoryCountEntry => ({
+const mapFirestoreToEntry = (_id: string, data: Record<string, any>): InventoryCountEntry => ({
   sku: data.sku,
   itemName: data.itemName,
   amount: data.amount,
@@ -48,10 +51,10 @@ export const inventoryService = {
       const firestoreData = mapEntryToFirestore(entry);
       
       await setDoc(docRef, firestoreData);
-      console.log(`✅ Inventory count saved: ${docId} = ${entry.amount}`);
+      logger.info('Inventory count saved', { docId, amount: entry.amount });
       
     } catch (error) {
-      console.error('❌ Error saving inventory count:', error);
+      logger.error('Error saving inventory count', error);
       throw new Error('Failed to save inventory count');
     }
   },
@@ -72,11 +75,11 @@ export const inventoryService = {
         counts.push(entry);
       });
       
-      console.log(`✅ Retrieved ${counts.length} inventory counts from Firebase`);
+      logger.debug('Retrieved inventory counts from Firebase', { count: counts.length });
       return counts;
       
     } catch (error) {
-      console.error('❌ Error getting inventory counts:', error);
+      logger.error('Error getting inventory counts', error);
       throw new Error('Failed to get inventory counts');
     }
   },
@@ -97,14 +100,14 @@ export const inventoryService = {
           counts.push(entry);
         });
         
-        console.log(`🔄 Real-time update: ${counts.length} inventory counts`);
+        logger.debug('Real-time inventory counts update', { count: counts.length });
         callback(counts);
       });
       
       return unsubscribe;
       
     } catch (error) {
-      console.error('❌ Error setting up real-time listener:', error);
+      logger.error('Error setting up real-time listener', error);
       throw new Error('Failed to setup real-time listener');
     }
   },
@@ -120,10 +123,10 @@ export const inventoryService = {
       });
       
       await Promise.all(deletePromises);
-      console.log(`✅ Cleared ${deletePromises.length} inventory records`);
+      logger.warn('Cleared inventory records', { count: deletePromises.length });
       
     } catch (error) {
-      console.error('❌ Error clearing inventory:', error);
+      logger.error('Error clearing inventory', error);
       throw new Error('Failed to clear inventory');
     }
   },
@@ -145,7 +148,7 @@ export const inventoryService = {
       return foundEntry;
       
     } catch (error) {
-      console.error('❌ Error getting inventory count:', error);
+      logger.error('Error getting inventory count', error);
       return null;
     }
   }

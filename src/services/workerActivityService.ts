@@ -362,7 +362,7 @@ class WorkerActivityService {
     await updateDoc(docRef, cleanedUpdates);
   }
 
-  private convertTimestamps(data: any): any {
+  private convertTimestamps(data: Record<string, any>): Record<string, any> {
     const result = { ...data };
     
     // Convert Firestore Timestamps to Dates

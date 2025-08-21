@@ -99,7 +99,7 @@ class ScanLookupService {
   }
 
   // Get lookups for specific zone
-  async getLookupsByZone(zone: number): Promise<ScanLookup[]> {
+  async getLookupsByZone(zone: string): Promise<ScanLookup[]> {
     try {
       const querySnapshot = await getDocs(
         query(
@@ -166,32 +166,32 @@ class ScanLookupService {
   // Generate test data
   async generateTestData(userEmail: string): Promise<void> {
     const testLookups = [
-      // Original simple SKUs
-      { sku: 'A001', targetZone: 8, itemName: 'Engine Part A', expectedQuantity: 50, updatedBy: userEmail },
-      { sku: 'A002', targetZone: 12, itemName: 'Engine Part B', expectedQuantity: 30, updatedBy: userEmail },
-      { sku: 'B001', targetZone: 5, itemName: 'Body Panel A', expectedQuantity: 25, updatedBy: userEmail },
-      { sku: 'B002', targetZone: 5, itemName: 'Body Panel B', expectedQuantity: 25, updatedBy: userEmail },
-      { sku: 'E001', targetZone: 15, itemName: 'Electronic Module A', expectedQuantity: 100, updatedBy: userEmail },
-      { sku: 'E002', targetZone: 15, itemName: 'Electronic Module B', expectedQuantity: 75, updatedBy: userEmail },
-      { sku: 'F001', targetZone: 3, itemName: 'Frame Component A', expectedQuantity: 40, updatedBy: userEmail },
-      { sku: 'F002', targetZone: 3, itemName: 'Frame Component B', expectedQuantity: 35, updatedBy: userEmail },
+      // Original simple SKUs (numeric zones)
+      { sku: 'A001', targetZone: '8', itemName: 'Engine Part A', expectedQuantity: 50, updatedBy: userEmail },
+      { sku: 'A002', targetZone: '12', itemName: 'Engine Part B', expectedQuantity: 30, updatedBy: userEmail },
+      { sku: 'B001', targetZone: '5', itemName: 'Body Panel A', expectedQuantity: 25, updatedBy: userEmail },
+      { sku: 'B002', targetZone: '5', itemName: 'Body Panel B', expectedQuantity: 25, updatedBy: userEmail },
+      { sku: 'E001', targetZone: '15', itemName: 'Electronic Module A', expectedQuantity: 100, updatedBy: userEmail },
+      { sku: 'E002', targetZone: '15', itemName: 'Electronic Module B', expectedQuantity: 75, updatedBy: userEmail },
+      { sku: 'F001', targetZone: '3', itemName: 'Frame Component A', expectedQuantity: 40, updatedBy: userEmail },
+      { sku: 'F002', targetZone: '3', itemName: 'Frame Component B', expectedQuantity: 35, updatedBy: userEmail },
       
-      // Complex QR code SKUs (realistic formats from multiple providers)
-      { sku: 'F16-1301P05AA', targetZone: 2, itemName: 'Provider A Part', expectedQuantity: 20, updatedBy: userEmail },
-      { sku: '25469-CX70P250401', targetZone: 7, itemName: 'Provider B Component', expectedQuantity: 15, updatedBy: userEmail },
-      { sku: '2010.0577.1700', targetZone: 18, itemName: 'T1NRHD Right Lower Guard', expectedQuantity: 12, updatedBy: userEmail },
-      { sku: '401005094AA', targetZone: 22, itemName: 'Specification Part', expectedQuantity: 8, updatedBy: userEmail }
+      // Complex QR code SKUs with diverse zone formats
+      { sku: 'F16-1301P05AA', targetZone: 'DF02', itemName: 'Distribution Floor Part', expectedQuantity: 20, updatedBy: userEmail },
+      { sku: '25469-CX70P250401', targetZone: 'Z001', itemName: 'Special Zone Component', expectedQuantity: 15, updatedBy: userEmail },
+      { sku: '2010.0577.1700', targetZone: 'A3', itemName: 'Assembly Area Guard', expectedQuantity: 12, updatedBy: userEmail },
+      { sku: '401005094AA', targetZone: 'WH-B7', itemName: 'Warehouse B Section 7', expectedQuantity: 8, updatedBy: userEmail }
     ];
 
     // Clean each lookup to remove any potential undefined values
     const cleanedLookups = testLookups.map(lookup => {
-      const cleaned: any = {};
+      const cleaned: Record<string, any> = {};
       for (const [key, value] of Object.entries(lookup)) {
         if (value !== undefined) {
           cleaned[key] = value;
         }
       }
-      return cleaned;
+      return cleaned as Omit<ScanLookup, 'createdAt' | 'updatedAt'>;
     });
 
     for (const lookup of cleanedLookups) {

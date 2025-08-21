@@ -6,6 +6,9 @@ import ErrorBoundary from './components/ErrorBoundary';
 import Login from './components/Login';
 import RoleSelection from './components/RoleSelection';
 import LogisticsView from './components/LogisticsView';
+import { createModuleLogger } from './services/logger';
+
+const logger = createModuleLogger('App');
 
 // Lazy load heavy components for better performance
 const ProductionView = lazy(() => import('./components/ProductionView'));
@@ -40,7 +43,7 @@ function AppContent() {
         const counts = await inventoryService.getAllInventoryCounts();
         setInventoryCounts(counts);
       } catch (error) {
-        console.error('Failed to load inventory:', error);
+        logger.error('Failed to load inventory', error);
       }
     };
 
@@ -71,7 +74,7 @@ function AppContent() {
 
   // Handle role selection
   const handleRoleSelect = (role: UserRole) => {
-    console.log('Role selected:', role);
+    logger.info('Role selected', { role });
     setSelectedRole(role);
     switch (role) {
       case UserRole.LOGISTICS:
@@ -91,7 +94,7 @@ function AppContent() {
 
   // Handle back to role selection
   const handleBackToRoles = () => {
-    console.log('Returning to role selection from:', selectedRole);
+    logger.debug('Returning to role selection', { previousRole: selectedRole });
     setCurrentSection(AppSection.ROLE_SELECTION);
     setSelectedRole(null);
   };
@@ -110,9 +113,9 @@ function AppContent() {
       for (const entry of entries) {
         await inventoryService.saveInventoryCount(entry);
       }
-      console.log(`✅ ${entries.length} inventory count(s) saved to Firebase:`, entries);
+      logger.info('Inventory counts saved to Firebase', { count: entries.length, entries });
     } catch (error) {
-      console.error('❌ Failed to save inventory count:', error);
+      logger.error('Failed to save inventory count', error);
       alert('Failed to save count. Please try again.');
     }
   };
@@ -122,9 +125,9 @@ function AppContent() {
     if (window.confirm('Clear all inventory counts? This cannot be undone.')) {
       try {
         await inventoryService.clearAllInventory();
-        console.log('✅ All inventory data cleared from Firebase');
+        logger.warn('All inventory data cleared from Firebase');
       } catch (error) {
-        console.error('❌ Failed to clear inventory:', error);
+        logger.error('Failed to clear inventory', error);
         alert('Failed to clear data. Please try again.');
       }
     }
@@ -150,7 +153,7 @@ function AppContent() {
     await transactionService.saveTransaction(newTransaction);
     await transactionService.saveOTP(newTransaction.id, otp);
     
-    console.log('✅ Transaction created in Firebase:', newTransaction, 'OTP:', otp);
+    logger.info('Transaction created in Firebase', { transactionId: newTransaction.id, otp });
     return { transaction: newTransaction, otp };
   };
 
@@ -189,18 +192,18 @@ function AppContent() {
           // Save updated expected inventory to Firebase
           await tableStateService.saveExpectedInventory(updatedExpected);
           
-          console.log('⚡ Expected inventory updated incrementally after transaction confirmation');
+          logger.info('Expected inventory updated incrementally after transaction confirmation');
         }
       } else {
         // Fallback to full calculation only if expected table is empty
-        console.log('⚠️ Expected table empty, skipping update (will be handled by manager view)');
+        logger.debug('Expected table empty, skipping update - will be handled by manager view');
       }
     } catch (error) {
-      console.error('⚠️ Failed to update expected inventory:', error);
+      logger.warn('Failed to update expected inventory', error);
       // Don't throw - transaction was still confirmed successfully
     }
 
-    console.log('✅ Transaction confirmed in Firebase:', transactionId);
+    logger.info('Transaction confirmed in Firebase', { transactionId });
   };
 
   // Handle transaction rejection
@@ -218,7 +221,7 @@ function AppContent() {
     // Remove OTP after rejection
     await transactionService.deleteOTP(transactionId);
 
-    console.log('❌ Transaction rejected in Firebase:', transactionId, 'Reason:', reason);
+    logger.info('Transaction rejected in Firebase', { transactionId, reason });
   };
 
   // Helper to get item name by SKU
@@ -278,7 +281,6 @@ function AppContent() {
           onBack={handleBackToRoles}
           onCountSubmit={handleInventoryCount}
           counts={inventoryCounts}
-          onClearCounts={handleClearCounts}
           onTransactionCreate={handleTransactionCreate}
           transactions={transactions}
         />

@@ -200,7 +200,7 @@ class WorkStationService {
       const station = await this.getWorkStation(zoneId);
       if (!station) return null;
 
-      let updates: any = {
+      let updates: Record<string, any> = {
         lastUpdated: new Date()
       };
 
@@ -295,7 +295,7 @@ class WorkStationService {
     }
   }
 
-  private convertTimestamps(data: any): any {
+  private convertTimestamps(data: Record<string, any>): Record<string, any> {
     const result = { ...data };
     
     // Convert Firestore Timestamps to Dates

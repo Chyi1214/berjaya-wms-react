@@ -13,6 +13,9 @@ import {
   getDocs
 } from 'firebase/firestore';
 import { Transaction } from '../types';
+import { createModuleLogger } from './logger';
+
+const logger = createModuleLogger('TransactionService');
 
 const db = getFirestore();
 const TRANSACTIONS_COLLECTION = 'transactions';
@@ -44,9 +47,9 @@ class TransactionService {
         id: transaction.id
       });
       
-      console.log('✅ Transaction saved to Firebase:', transaction.id);
+      logger.info('Transaction saved to Firebase', { transactionId: transaction.id });
     } catch (error) {
-      console.error('❌ Error saving transaction:', error);
+      logger.error('Error saving transaction', error);
       throw error;
     }
   }
@@ -62,9 +65,9 @@ class TransactionService {
       
       await addDoc(collection(db, OTPS_COLLECTION), otpData);
       
-      console.log('✅ OTP saved to Firebase for transaction:', transactionId);
+      logger.info('OTP saved to Firebase', { transactionId });
     } catch (error) {
-      console.error('❌ Error saving OTP:', error);
+      logger.error('Error saving OTP', error);
       throw error;
     }
   }
@@ -98,13 +101,13 @@ class TransactionService {
       await Promise.all(updatePromises);
       
       if (updatePromises.length > 0) {
-        console.log('✅ Transaction updated in Firebase:', transactionId);
+        logger.info('Transaction updated in Firebase', { transactionId });
       } else {
-        console.warn('⚠️ No transaction found with ID:', transactionId);
+        logger.warn('No transaction found with ID', { transactionId });
       }
       
     } catch (error) {
-      console.error('❌ Error updating transaction:', error);
+      logger.error('Error updating transaction', error);
       throw error;
     }
   }
@@ -129,12 +132,12 @@ class TransactionService {
       await Promise.all(deletePromises);
       
       if (deletePromises.length > 0) {
-        console.log('✅ OTP deleted from Firebase for transaction:', transactionId);
+        logger.info('OTP deleted from Firebase', { transactionId });
       } else {
-        console.warn('⚠️ No OTP found for transaction:', transactionId);
+        logger.warn('No OTP found for transaction', { transactionId });
       }
     } catch (error) {
-      console.error('❌ Error deleting OTP:', error);
+      logger.error('Error deleting OTP', error);
       throw error;
     }
   }
@@ -154,7 +157,7 @@ class TransactionService {
       
       return null;
     } catch (error) {
-      console.error('❌ Error getting OTP:', error);
+      logger.error('Error getting OTP', error);
       return null;
     }
   }
@@ -177,10 +180,10 @@ class TransactionService {
         });
       });
 
-      console.log(`📊 Loaded ${transactions.length} transactions from Firebase`);
+      logger.debug('Loaded transactions from Firebase', { count: transactions.length });
       callback(transactions);
     }, (error) => {
-      console.error('❌ Error listening to transactions:', error);
+      logger.error('Error listening to transactions', error);
       // Fallback to empty array on error
       callback([]);
     });
@@ -208,7 +211,7 @@ class TransactionService {
         unsubscribe(); // Clean up listener after first fetch
         resolve(transactions);
       }, (error) => {
-        console.error('❌ Error fetching transactions:', error);
+        logger.error('Error fetching transactions', error);
         resolve([]);
       });
     });
@@ -232,7 +235,7 @@ class TransactionService {
       
       return null;
     } catch (error) {
-      console.error('❌ Error getting transaction by ID:', error);
+      logger.error('Error getting transaction by ID', error);
       return null;
     }
   }
@@ -265,9 +268,12 @@ class TransactionService {
       // Wait for all deletions to complete
       await Promise.all(deletePromises);
       
-      console.log(`✅ Cleared ${transactionSnapshot.size} transactions and ${otpSnapshot.size} OTPs from Firebase`);
+      logger.warn('Cleared transactions and OTPs from Firebase', { 
+        transactionCount: transactionSnapshot.size, 
+        otpCount: otpSnapshot.size 
+      });
     } catch (error) {
-      console.error('❌ Error clearing transactions:', error);
+      logger.error('Error clearing transactions', error);
       throw error;
     }
   }

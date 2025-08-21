@@ -322,7 +322,7 @@ class CarTrackingService {
     await addDoc(this.movementsCollection, cleanedData);
   }
 
-  private convertTimestamps(data: any): any {
+  private convertTimestamps(data: Record<string, any>): Record<string, any> {
     const result = { ...data };
     
     // Convert Firestore Timestamps to Dates
@@ -338,7 +338,7 @@ class CarTrackingService {
     
     // Convert zone history timestamps
     if (result.zoneHistory && Array.isArray(result.zoneHistory)) {
-      result.zoneHistory = result.zoneHistory.map((entry: any) => ({
+      result.zoneHistory = result.zoneHistory.map((entry: Record<string, any>) => ({
         ...entry,
         enteredAt: entry.enteredAt instanceof Timestamp ? entry.enteredAt.toDate() : entry.enteredAt,
         exitedAt: entry.exitedAt instanceof Timestamp ? entry.exitedAt.toDate() : entry.exitedAt
