@@ -195,20 +195,24 @@ export function ScannerView({ user }: ScannerViewProps) {
       attemptedLookups.push(candidate);
       
       try {
-        const lookup = await scanLookupService.getLookupBySKU(candidate);
+        const allLookups = await scanLookupService.getAllLookupsBySKU(candidate);
         
-        if (lookup) {
-          console.log('✅ SUCCESS! Found lookup for:', candidate);
-          console.log('🎯 Lookup data:', lookup);
+        if (allLookups.length > 0) {
+          console.log(`✅ SUCCESS! Found ${allLookups.length} zone(s) for:`, candidate);
+          console.log('🎯 Lookup data:', allLookups);
+          
+          // Create scan result with all zones (same pattern as exact match)
+          const scanResult: ScanResult = {
+            scannedCode: candidate,
+            lookup: allLookups[0], // Primary lookup for compatibility
+            allLookups: allLookups, // All zones for display
+            timestamp: new Date(),
+            scannedBy: user.email
+          };
           
           return {
             success: true,
-            scanResult: {
-              scannedCode: candidate,
-              lookup,
-              timestamp: new Date(),
-              scannedBy: user.email
-            },
+            scanResult,
             attemptedLookups
           };
         } else {
