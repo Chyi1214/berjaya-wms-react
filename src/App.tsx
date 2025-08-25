@@ -1,5 +1,5 @@
 // Main App Component
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { LanguageProvider } from './contexts/LanguageContext';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -30,52 +30,75 @@ function AppContent() {
   const [currentSection, setCurrentSection] = useState<AppSection>(AppSection.LOGIN);
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
   
-  // Firebase inventory state (real-time sync)
+  // Firebase inventory state (real-time sync) - loaded after role selection
   const [inventoryCounts, setInventoryCounts] = useState<InventoryCountEntry[]>([]);
   
-  // Transaction state (Firebase real-time sync)
+  // Transaction state (Firebase real-time sync) - loaded after role selection  
   const [transactions, setTransactions] = useState<Transaction[]>([]);
 
-  // Load inventory data from Firebase on mount
-  useEffect(() => {
-    const loadInventory = async () => {
-      try {
-        const counts = await inventoryService.getAllInventoryCounts();
-        setInventoryCounts(counts);
-      } catch (error) {
-        logger.error('Failed to load inventory', error);
-      }
-    };
-
-    loadInventory();
-  }, []);
-
-  // Real-time listener for inventory changes
-  useEffect(() => {
-    const unsubscribe = inventoryService.onInventoryCountsChange((counts) => {
-      setInventoryCounts(counts);
-    });
-
-    return unsubscribe;
-  }, []);
-
-  // Real-time listener for transactions
-  useEffect(() => {
-    // Clear old localStorage data to avoid conflicts
-    localStorage.removeItem('wms-transactions');
-    localStorage.removeItem('wms-transaction-otps');
+  // Load data based on role requirements
+  const loadRoleSpecificData = async (role: UserRole) => {
+    logger.info('Loading data for role', { role });
     
-    const unsubscribe = transactionService.onTransactionsChange((transactions) => {
-      setTransactions(transactions);
-    });
-
-    return unsubscribe;
-  }, []);
+    try {
+      // Clear old localStorage data to avoid conflicts
+      localStorage.removeItem('wms-transactions');
+      localStorage.removeItem('wms-transaction-otps');
+      
+      // Load data based on role needs
+      switch (role) {
+        case UserRole.LOGISTICS:
+        case UserRole.MANAGER:
+          // These roles need both inventory and transactions
+          const counts = await inventoryService.getAllInventoryCounts();
+          setInventoryCounts(counts);
+          
+          // Set up real-time listeners
+          const unsubInventory = inventoryService.onInventoryCountsChange((counts) => {
+            setInventoryCounts(counts);
+          });
+          
+          const unsubTransactions = transactionService.onTransactionsChange((transactions) => {
+            setTransactions(transactions);
+          });
+          
+          // Store unsubscribe functions for cleanup
+          (window as any).__unsubscribe = { inventory: unsubInventory, transactions: unsubTransactions };
+          break;
+          
+        case UserRole.PRODUCTION:
+          // Production needs inventory and incoming transactions only
+          const prodCounts = await inventoryService.getAllInventoryCounts();
+          setInventoryCounts(prodCounts);
+          
+          const unsubProdInventory = inventoryService.onInventoryCountsChange((counts) => {
+            setInventoryCounts(counts);
+          });
+          
+          const unsubProdTransactions = transactionService.onTransactionsChange((transactions) => {
+            setTransactions(transactions);
+          });
+          
+          (window as any).__unsubscribe = { inventory: unsubProdInventory, transactions: unsubProdTransactions };
+          break;
+          
+        case UserRole.QA:
+          // QA doesn't need inventory or transactions, just car data (loaded in QAView)
+          break;
+      }
+    } catch (error) {
+      logger.error('Failed to load role-specific data', error);
+    }
+  };
 
   // Handle role selection
-  const handleRoleSelect = (role: UserRole) => {
+  const handleRoleSelect = async (role: UserRole) => {
     logger.info('Role selected', { role });
     setSelectedRole(role);
+    
+    // Load data for the selected role
+    await loadRoleSpecificData(role);
+    
     switch (role) {
       case UserRole.LOGISTICS:
         setCurrentSection(AppSection.LOGISTICS);
@@ -95,13 +118,35 @@ function AppContent() {
   // Handle back to role selection
   const handleBackToRoles = () => {
     logger.debug('Returning to role selection', { previousRole: selectedRole });
+    
+    // Clean up any active listeners
+    if ((window as any).__unsubscribe) {
+      const unsubs = (window as any).__unsubscribe;
+      if (unsubs.inventory) unsubs.inventory();
+      if (unsubs.transactions) unsubs.transactions();
+      delete (window as any).__unsubscribe;
+    }
+    
+    // Clear data and reset state
+    setInventoryCounts([]);
+    setTransactions([]);
     setCurrentSection(AppSection.ROLE_SELECTION);
     setSelectedRole(null);
   };
 
   // Handle logout
   const handleLogout = async () => {
+    // Clean up any active listeners
+    if ((window as any).__unsubscribe) {
+      const unsubs = (window as any).__unsubscribe;
+      if (unsubs.inventory) unsubs.inventory();
+      if (unsubs.transactions) unsubs.transactions();
+      delete (window as any).__unsubscribe;
+    }
+    
     await logout();
+    setInventoryCounts([]);
+    setTransactions([]);
     setCurrentSection(AppSection.LOGIN);
     setSelectedRole(null);
   };

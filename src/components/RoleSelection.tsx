@@ -1,6 +1,7 @@
 // Role Selection Component - Choose user role after login
 import { UserRole, RoleInfo, type RoleSelectionProps } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useAuth } from '../contexts/AuthContext'; // Import useAuth
 import LanguageSwitcher from './LanguageSwitcher';
 import VersionFooter from './VersionFooter';
 
@@ -34,7 +35,10 @@ const getRoles = (t: (key: string) => string): RoleInfo[] => [
 
 export function RoleSelection({ user, onRoleSelect, onLogout }: RoleSelectionProps) {
   const { t } = useLanguage();
+  const { authenticatedUser, isDevAdmin } = useAuth(); // Get authenticated user and dev admin status
   const roles = getRoles(t);
+
+  const userRole = authenticatedUser?.userRecord?.role;
 
   // Handle role button click
   const handleRoleClick = (role: UserRole) => {
@@ -94,25 +98,36 @@ export function RoleSelection({ user, onRoleSelect, onLogout }: RoleSelectionPro
 
         {/* Role Buttons */}
         <div className="space-y-4 mb-8">
-          {roles.map((role) => (
-            <button
-              key={role.id}
-              onClick={() => handleRoleClick(role.id)}
-              className={`w-full p-6 rounded-xl transition-all duration-200 transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-opacity-50 text-white font-medium ${role.color} focus:ring-${role.color.split('-')[1]}-300`}
-            >
-              <div className="flex items-center space-x-4">
-                <div className="text-4xl">{role.icon}</div>
-                <div className="text-left flex-1">
-                  <h3 className="text-xl font-semibold">{role.name}</h3>
+          {roles.map((role) => {
+            const isManager = userRole === UserRole.MANAGER;
+            const isDisabled =
+              !userRole || (!isManager && !isDevAdmin && role.id !== userRole);
+
+            return (
+              <button
+                key={role.id}
+                onClick={() => handleRoleClick(role.id)}
+                disabled={isDisabled}
+                className={`w-full p-6 rounded-xl transition-all duration-200 transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-opacity-50 text-white font-medium ${
+                  isDisabled
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : `${role.color} focus:ring-${role.color.split('-')[1]}-300`
+                }`}
+              >
+                <div className="flex items-center space-x-4">
+                  <div className="text-4xl">{role.icon}</div>
+                  <div className="text-left flex-1">
+                    <h3 className="text-xl font-semibold">{role.name}</h3>
+                  </div>
+                  <div className="text-white/75">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
                 </div>
-                <div className="text-white/75">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </div>
-              </div>
-            </button>
-          ))}
+              </button>
+            );
+          })}
         </div>
 
         {/* Logout Button */}

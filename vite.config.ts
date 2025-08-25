@@ -13,40 +13,57 @@ export default defineConfig({
     sourcemap: true,
     rollupOptions: {
       output: {
-        manualChunks: {
-          // Vendor libraries
-          'vendor-react': ['react', 'react-dom'],
-          'vendor-firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore'],
+        manualChunks: (id) => {
+          // Optimize Firebase splitting
+          if (id.includes('firebase/auth')) {
+            return 'firebase-auth';
+          }
+          if (id.includes('firebase/firestore')) {
+            return 'firebase-firestore';
+          }
+          if (id.includes('firebase/app')) {
+            return 'firebase-core';
+          }
           
-          // Scanner module (heavy with @zxing/library)
-          'scanner': [
-            './src/components/scanner/ScannerView.tsx',
-            './src/components/scanner/ScanResultDisplay.tsx',
-            './src/services/scannerService.ts',
-            './src/services/scanLookupService.ts'
-          ],
+          // Split @zxing into its own chunk (huge library)
+          if (id.includes('@zxing')) {
+            return 'zxing-scanner';
+          }
           
-          // BOM features (our new autocomplete system)
-          'bom': [
-            './src/components/common/SearchAutocomplete.tsx',
-            './src/services/combinedSearch.ts',
-            './src/services/bom.ts'
-          ],
+          // React vendor chunk
+          if (id.includes('node_modules/react')) {
+            return 'vendor-react';
+          }
           
-          // Heavy management components
-          'management': [
-            './src/components/UserManagementTab.tsx',
-            './src/components/OperationsTab.tsx',
-            './src/components/CSVImportDialog.tsx'
-          ],
+          // Scanner components (without @zxing)
+          if (id.includes('scanner/ScannerView') || 
+              id.includes('scanner/ScanResultDisplay') ||
+              id.includes('scannerService') ||
+              id.includes('scanLookupService')) {
+            return 'scanner-components';
+          }
+          
+          // BOM features
+          if (id.includes('SearchAutocomplete') || 
+              id.includes('combinedSearch') ||
+              id.includes('/bom.ts')) {
+            return 'bom';
+          }
+          
+          // Management components
+          if (id.includes('UserManagementTab') || 
+              id.includes('OperationsTab') ||
+              id.includes('CSVImportDialog')) {
+            return 'management';
+          }
           
           // Transaction system
-          'transactions': [
-            './src/components/TransactionForm.tsx',
-            './src/components/TransactionList.tsx',
-            './src/components/TransactionTable.tsx',
-            './src/services/transactions.ts'
-          ]
+          if (id.includes('TransactionForm') || 
+              id.includes('TransactionList') ||
+              id.includes('TransactionTable') ||
+              id.includes('/transactions.ts')) {
+            return 'transactions';
+          }
         }
       }
     }
