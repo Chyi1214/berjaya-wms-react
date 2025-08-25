@@ -14,20 +14,14 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: (id) => {
-          // Optimize Firebase splitting
-          if (id.includes('firebase/auth')) {
-            return 'firebase-auth';
-          }
-          if (id.includes('firebase/firestore')) {
-            return 'firebase-firestore';
-          }
-          if (id.includes('firebase/app')) {
-            return 'firebase-core';
-          }
-          
           // Split @zxing into its own chunk (huge library)
           if (id.includes('@zxing')) {
             return 'zxing-scanner';
+          }
+          
+          // Keep all Firebase together (auth + firestore + app) to avoid config issues
+          if (id.includes('firebase/')) {
+            return 'vendor-firebase';
           }
           
           // React vendor chunk
