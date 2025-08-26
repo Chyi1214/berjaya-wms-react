@@ -186,20 +186,22 @@ const chineseTranslations: Translation = {
       workflowTitle: '工作流程',
       workflowDesc: '工人在盘点库存时可以选择单个物料或整个BOM'
     },
-    tabs: {
-      inventory: '库存',
-      hr: '人力资源',
-      operations: '运营'
-    },
     subTabs: {
       overview: '总览',
       checked: '已盘点',
       expected: '预期',
       transactions: '事务',
       yesterday: '昨天',
-      itemMaster: '物料主数据',
-      userManagement: '用户管理',
+      itemMaster: '物料',
+      scanner: '扫描器',
+      userManagement: '用户',
       scannerOperations: '扫描器与运营'
+    },
+    tabs: {
+      inventory: '库存',
+      productionLine: '生产线',
+      qa: '质量保证',
+      hr: '人力资源'
     }
   },
 

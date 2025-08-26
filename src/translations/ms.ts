@@ -186,20 +186,22 @@ const malayTranslations: Translation = {
       workflowTitle: 'Aliran Kerja',
       workflowDesc: 'Pekerja boleh memilih item individu atau keseluruhan BOM semasa mengira inventori'
     },
-    tabs: {
-      inventory: 'Inventori',
-      hr: 'HR',
-      operations: 'Operasi'
-    },
     subTabs: {
-      overview: 'Gambaran Keseluruhan',
+      overview: 'Gambaran',
       checked: 'Diperiksa',
       expected: 'Jangkaan',
-      transactions: 'Transaksi',
+      transactions: 'Trans',
       yesterday: 'Semalam',
-      itemMaster: 'Induk Item',
-      userManagement: 'Pengurusan Pengguna',
+      itemMaster: 'Item',
+      scanner: 'Pengimbas',
+      userManagement: 'Pengguna',
       scannerOperations: 'Pengimbas & Operasi'
+    },
+    tabs: {
+      inventory: 'Inventori',
+      productionLine: 'Barisan Pengeluaran',
+      qa: 'Kawalan Kualiti',
+      hr: 'HR'
     }
   },
 

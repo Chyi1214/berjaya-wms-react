@@ -186,20 +186,22 @@ const bengaliTranslations: Translation = {
       workflowTitle: 'কর্মপ্রবাহ',
       workflowDesc: 'কর্মীরা ইনভেন্টরি গণনা করার সময় পৃথক আইটেম বা পুরো BOM নির্বাচন করতে পারেন'
     },
-    tabs: {
-      inventory: 'ইনভেন্টরি',
-      hr: 'এইচআর',
-      operations: 'অপারেশনস'
-    },
     subTabs: {
-      overview: 'সংক্ষিপ্ত বিবরণ',
+      overview: 'সংক্ষিপ্ত',
       checked: 'পরীক্ষিত',
       expected: 'প্রত্যাশিত',
       transactions: 'লেনদেন',
       yesterday: 'গতকাল',
-      itemMaster: 'আইটেম মাস্টার',
-      userManagement: 'ব্যবহারকারী ব্যবস্থাপনা',
+      itemMaster: 'আইটেম',
+      scanner: 'স্ক্যানার',
+      userManagement: 'ব্যবহারকারী',
       scannerOperations: 'স্ক্যানার ও অপারেশনস'
+    },
+    tabs: {
+      inventory: 'ইনভেন্টরি',
+      productionLine: 'উৎপাদন লাইন',
+      qa: 'মান নিয়ন্ত্রণ',
+      hr: 'এইচআর'
     }
   },
 

@@ -186,20 +186,22 @@ const myanmarTranslations: Translation = {
       workflowTitle: 'လုပ်ငန်းအသွားအလာ',
       workflowDesc: 'အလုပ်သမားများသည် ကုန်ပစ္စည်းစာရင်းရေတွက်သည့်အခါ တစ်ခုချင်းစီ သို့မဟုတ် BOM တစ်ခုလုံးကို ရွေးချယ်နိုင်သည်'
     },
+    subTabs: {
+      overview: 'ခြုံငုံ',
+      checked: 'စစ်ဆေးပြီး',
+      expected: 'မျှော်မှန်း',
+      transactions: 'လွှဲ',
+      yesterday: 'မနေ့က',
+      itemMaster: 'ပစ္စည်း',
+      scanner: 'စကင်နာ',
+      userManagement: 'အသုံးပြုသူ',
+      scannerOperations: 'စကင်နာနှင့် လုပ်ငန်းဆောင်တာများ'
+    },
     tabs: {
       inventory: 'ကုန်ပစ္စည်းစာရင်း',
-      hr: 'HR',
-      operations: 'လုပ်ငန်းဆောင်တာများ'
-    },
-    subTabs: {
-      overview: 'ခြုံငုံသုံးသပ်ချက်',
-      checked: 'စစ်ဆေးပြီး',
-      expected: 'မျှော်မှန်းထားသည်',
-      transactions: 'ငွေလွှဲခြင်းများ',
-      yesterday: 'မနေ့က',
-      itemMaster: 'ပစ္စည်း မာစတာ',
-      userManagement: 'အသုံးပြုသူ စီမံခန့်ခွဲမှု',
-      scannerOperations: 'စကင်နာနှင့် လုပ်ငန်းဆောင်တာများ'
+      productionLine: 'ထုတ်လုပ်ရေး လိုင်း',
+      qa: 'အရည်အသွေး ထိန်းချုပ်ရေး',
+      hr: 'HR'
     }
   },
 

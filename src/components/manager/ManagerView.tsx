@@ -1,7 +1,7 @@
 // Manager View Component - Refactored into modular components with V4.0 Production
 import { Suspense, lazy } from 'react';
 import { User, InventoryCountEntry, Transaction, TransactionStatus } from '../../types';
-import { isInventoryTab, isProductionTab } from '../../types/manager';
+import { isInventoryTab, isProductionTab, isQATab } from '../../types/manager';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { mockDataService } from '../../services/mockData';
 import { inventoryService } from '../../services/inventory';
@@ -17,7 +17,7 @@ import { useTableData } from './hooks/useTableData';
 import { ManagerNavigation } from './ManagerNavigation';
 import { InventorySection } from './InventorySection';
 import { HRSection } from './HRSection';
-import { OperationsSection } from './OperationsSection';
+import { QASection } from './QASection';
 import { ProductionSection } from './ProductionSection';
 import { TestDataSection } from './TestDataSection';
 import { CSVExportSection } from './CSVExportSection';
@@ -235,28 +235,26 @@ export function ManagerView({ user: _user, onBack, inventoryCounts, onClearCount
             />
           )}
 
+          {managerState.activeCategory === 'production' && isProductionTab(managerState.activeTab) && (
+            <ProductionSection
+              activeTab={managerState.activeTab}
+              onTabChange={managerState.handleTabChange}
+            />
+          )}
+
+          {managerState.activeCategory === 'qa' && isQATab(managerState.activeTab) && (
+            <QASection
+              onRefresh={() => {
+                // Refresh QA data if needed
+              }}
+            />
+          )}
+
           {managerState.activeCategory === 'hr' && (
             <HRSection
               onRefresh={() => {
                 // Refresh user data if needed
               }}
-            />
-          )}
-
-          {managerState.activeCategory === 'operations' && (
-            <OperationsSection
-              onRefresh={() => {
-                // Refresh all data
-                managerState.loadItemsAndBOMs();
-                // Add any other data refresh logic here
-              }}
-            />
-          )}
-
-          {managerState.activeCategory === 'production' && isProductionTab(managerState.activeTab) && (
-            <ProductionSection
-              activeTab={managerState.activeTab}
-              onTabChange={managerState.handleTabChange}
             />
           )}
         </div>

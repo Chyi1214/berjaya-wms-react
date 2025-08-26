@@ -214,20 +214,22 @@ const englishTranslations: Translation = {
       workflowTitle: 'Workflow',
       workflowDesc: 'Workers can select individual items or entire BOMs when counting inventory'
     },
-    tabs: {
-      inventory: 'Inventory',
-      hr: 'HR',
-      operations: 'Operations'
-    },
     subTabs: {
       overview: 'Overview',
       checked: 'Checked',
       expected: 'Expected',
-      transactions: 'Transactions',
-      yesterday: 'Yesterday',
-      itemMaster: 'Item Master',
-      userManagement: 'User Management',
+      transactions: 'Trans',
+      yesterday: 'Yester',
+      itemMaster: 'Items',
+      scanner: 'Scanner',
+      userManagement: 'Users',
       scannerOperations: 'Scanner & Operations'
+    },
+    tabs: {
+      inventory: 'Inventory',
+      productionLine: 'Production Line', 
+      qa: 'QA',
+      hr: 'HR'
     }
   },
 

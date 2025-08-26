@@ -9,6 +9,7 @@ import {
   YesterdayResultTab
 } from '../manager/inventory';
 import { ItemBOMSection } from './ItemBOMSection';
+import { ScannerSection } from './ScannerSection';
 
 interface InventorySectionProps {
   activeTab: InventoryTab;
@@ -94,6 +95,10 @@ export function InventorySection({
           handleGenerateItemMockData={handleGenerateItemMockData}
           setItemsLoading={setItemsLoading}
         />
+      )}
+
+      {activeTab === 'scanner' && (
+        <ScannerSection />
       )}
     </div>
   );
