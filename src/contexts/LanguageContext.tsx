@@ -250,17 +250,12 @@ export function LanguageProvider({ children }: LanguageProviderProps) {
   // Load translations when language changes
   useEffect(() => {
     const loadTranslations = async () => {
-      if (currentLanguage === 'en') {
-        setTranslations(defaultTranslations);
-        return;
-      }
-
       try {
-        // Import translation file dynamically
+        // Import translation file dynamically for ALL languages including English
         const translationModule = await import(`../translations/${currentLanguage}.ts`);
         setTranslations(translationModule.default);
       } catch (error) {
-        console.warn(`Failed to load translations for ${currentLanguage}, falling back to English`);
+        console.warn(`Failed to load translations for ${currentLanguage}, falling back to default`);
         setTranslations(defaultTranslations);
       }
     };
