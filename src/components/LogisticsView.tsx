@@ -6,6 +6,7 @@ import InventoryCountForm from './InventoryCountForm';
 import TransactionSendForm from './TransactionSendForm';
 import TransactionOTPDisplay from './TransactionOTPDisplay';
 import ScannerView from './scanner/ScannerView';
+import ScanInView from './scanner/ScanInView';
 
 interface LogisticsViewProps {
   user: User;
@@ -18,7 +19,7 @@ interface LogisticsViewProps {
 
 export function LogisticsView({ user, onBack, onCountSubmit, counts, onTransactionCreate, transactions }: LogisticsViewProps) {
   const { t } = useLanguage();
-  const [selectedAction, setSelectedAction] = useState<'menu' | 'check' | 'transaction' | 'scanner'>('menu');
+  const [selectedAction, setSelectedAction] = useState<'menu' | 'check' | 'transaction' | 'scanner' | 'scanin'>('menu');
   const [transactionResult, setTransactionResult] = useState<{ transaction: Transaction, otp: string } | null>(null);
   
   // Handle new count submission (now supports both single items and BOM expansion)
@@ -76,12 +77,14 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onTransacti
               <span className="text-2xl">
                 {selectedAction === 'check' ? '📋' : 
                  selectedAction === 'transaction' ? '🔄' : 
-                 selectedAction === 'scanner' ? '📷' : '📦'}
+                 selectedAction === 'scanner' ? '📷' : 
+                 selectedAction === 'scanin' ? '📥' : '📦'}
               </span>
               <h1 className="text-lg font-bold text-gray-900">
                 {selectedAction === 'check' ? t('inventory.inventoryCount') : 
                  selectedAction === 'transaction' ? 'Send Items' : 
-                 selectedAction === 'scanner' ? 'Scanner' : t('roles.logistics')}
+                 selectedAction === 'scanner' ? 'Scanner' : 
+                 selectedAction === 'scanin' ? 'Scan In' : t('roles.logistics')}
               </h1>
             </div>
           </div>
@@ -95,33 +98,42 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onTransacti
           {selectedAction === 'menu' && (
             <>
               {/* Action Menu - iPhone Style */}
-              <div className="flex justify-center space-x-8 max-w-md mx-auto">
+              <div className="grid grid-cols-2 gap-4 max-w-sm mx-auto">
                 
                 {/* Check Inventory Button */}
                 <button
                   onClick={() => setSelectedAction('check')}
-                  className="w-20 h-20 bg-blue-500 hover:bg-blue-600 rounded-2xl shadow-lg transition-all duration-200 flex flex-col items-center justify-center text-white group active:scale-95"
+                  className="h-24 bg-blue-500 hover:bg-blue-600 rounded-2xl shadow-lg transition-all duration-200 flex flex-col items-center justify-center text-white group active:scale-95"
                 >
-                  <div className="text-2xl mb-1">📋</div>
-                  <span className="text-xs font-medium">Count</span>
+                  <div className="text-3xl mb-1">📋</div>
+                  <span className="text-sm font-medium">Check Inventory</span>
                 </button>
 
                 {/* Transaction Button */}
                 <button
                   onClick={() => setSelectedAction('transaction')}
-                  className="w-20 h-20 bg-purple-500 hover:bg-purple-600 rounded-2xl shadow-lg transition-all duration-200 flex flex-col items-center justify-center text-white group active:scale-95"
+                  className="h-24 bg-purple-500 hover:bg-purple-600 rounded-2xl shadow-lg transition-all duration-200 flex flex-col items-center justify-center text-white group active:scale-95"
                 >
-                  <div className="text-2xl mb-1">🔄</div>
-                  <span className="text-xs font-medium">Send</span>
+                  <div className="text-3xl mb-1">🔄</div>
+                  <span className="text-sm font-medium">Send Items</span>
                 </button>
 
-                {/* Scanner Button */}
+                {/* Scanner Button (Info) */}
                 <button
                   onClick={() => setSelectedAction('scanner')}
-                  className="w-20 h-20 bg-green-500 hover:bg-green-600 rounded-2xl shadow-lg transition-all duration-200 flex flex-col items-center justify-center text-white group active:scale-95"
+                  className="h-24 bg-green-500 hover:bg-green-600 rounded-2xl shadow-lg transition-all duration-200 flex flex-col items-center justify-center text-white group active:scale-95"
                 >
-                  <div className="text-2xl mb-1">📷</div>
-                  <span className="text-xs font-medium">Scan</span>
+                  <div className="text-3xl mb-1">📷</div>
+                  <span className="text-sm font-medium">Inbound Scanner</span>
+                </button>
+
+                {/* Scan In Button (New) */}
+                <button
+                  onClick={() => setSelectedAction('scanin')}
+                  className="h-24 bg-orange-500 hover:bg-orange-600 rounded-2xl shadow-lg transition-all duration-200 flex flex-col items-center justify-center text-white group active:scale-95"
+                >
+                  <div className="text-3xl mb-1">📥</div>
+                  <span className="text-sm font-medium">Scan In</span>
                 </button>
               </div>
 
@@ -186,6 +198,13 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onTransacti
 
           {selectedAction === 'scanner' && (
             <ScannerView 
+              user={user}
+              onBack={handleBackToMenu}
+            />
+          )}
+
+          {selectedAction === 'scanin' && (
+            <ScanInView 
               user={user}
               onBack={handleBackToMenu}
             />
