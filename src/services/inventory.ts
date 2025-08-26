@@ -151,6 +151,45 @@ export const inventoryService = {
       logger.error('Error getting inventory count', error);
       return null;
     }
+  },
+
+  // Add to existing inventory count (for Scan In functionality)
+  async addToInventoryCount(sku: string, itemName: string, addAmount: number, location: string, countedBy: string): Promise<InventoryCountEntry> {
+    try {
+      // Get current inventory count
+      const currentEntry = await this.getInventoryCount(sku, location);
+      
+      // Calculate new amount
+      const currentAmount = currentEntry?.amount || 0;
+      const newAmount = currentAmount + addAmount;
+      
+      // Create updated entry
+      const updatedEntry: InventoryCountEntry = {
+        sku,
+        itemName,
+        amount: newAmount,
+        location,
+        countedBy,
+        timestamp: new Date()
+      };
+      
+      // Save the updated count
+      await this.saveInventoryCount(updatedEntry);
+      
+      logger.info('Added to inventory count', { 
+        sku, 
+        location, 
+        previousAmount: currentAmount, 
+        addAmount, 
+        newAmount 
+      });
+      
+      return updatedEntry;
+      
+    } catch (error) {
+      logger.error('Error adding to inventory count', error);
+      throw new Error('Failed to add to inventory count');
+    }
   }
 };
 

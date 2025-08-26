@@ -5,6 +5,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { scannerService } from '../../services/scannerService';
 import { itemMasterService } from '../../services/itemMaster';
 import { transactionService } from '../../services/transactions';
+import { inventoryService } from '../../services/inventory';
 
 interface ScanInViewProps {
   user: User;
@@ -142,14 +143,23 @@ export function ScanInView({ user, onBack }: ScanInViewProps) {
     setError(null);
 
     try {
-      // Create a TRANSFER_IN transaction
+      // First, update the inventory count (this will add to existing count)
+      const updatedInventory = await inventoryService.addToInventoryCount(
+        scanResult.sku,
+        scanResult.item.name,
+        qty,
+        'logistics',
+        user.email
+      );
+
+      // Create a TRANSFER_IN transaction for audit trail
       const transaction: Transaction = {
         id: `txn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         sku: scanResult.sku,
         itemName: scanResult.item.name,
         amount: qty,
-        previousAmount: 0, // Will be calculated by backend
-        newAmount: qty, // Will be calculated by backend
+        previousAmount: updatedInventory.amount - qty, // Previous amount
+        newAmount: updatedInventory.amount, // New amount
         location: 'logistics',
         transactionType: TransactionType.TRANSFER_IN,
         status: TransactionStatus.COMPLETED, // Auto-complete with trust
@@ -158,11 +168,11 @@ export function ScanInView({ user, onBack }: ScanInViewProps) {
         notes: 'Scanned in via Scan In feature'
       };
 
-      // Save to Firebase
+      // Save transaction for audit trail
       await transactionService.saveTransaction(transaction);
 
       // Success!
-      setSuccess(`✅ Added ${qty} x ${scanResult.item.name}`);
+      setSuccess(`✅ Added ${qty} x ${scanResult.item.name} (Total: ${updatedInventory.amount})`);
       setShowQuantityDialog(false);
       setScanResult(null);
       setQuantity('');
@@ -173,7 +183,7 @@ export function ScanInView({ user, onBack }: ScanInViewProps) {
       }, 3000);
 
     } catch (error) {
-      console.error('Failed to save transaction:', error);
+      console.error('Failed to save inventory:', error);
       setError('Failed to save inventory. Please try again.');
     } finally {
       setIsProcessing(false);

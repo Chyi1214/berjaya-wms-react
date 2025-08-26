@@ -16,7 +16,7 @@ The user has explicitly stated that **maintainability is the highest priority**.
 
 ## 📋 Project Overview
 
-**Current Status**: v5.1.2 - Logistics Translation Enhancement (August 26, 2025)
+**Current Status**: v5.1.3 - Scan In Inventory Fix (August 26, 2025)
 **IMPORTANT**: Read Eugene_note.md first! Contains complete roadmap and vision.
 **MAJOR MILESTONE**: Version 4.1 Quality Assurance system COMPLETE!
 - **Original Problem**: Complex event management, scope issues, Firebase integration chaos
@@ -1073,6 +1073,52 @@ After v5.1.2:
 - **Build Status**: ✅ Production-ready compilation successful
 
 **v5.1.2 ensures that warehouse workers using any of the 5 supported languages have a fully localized logistics interface, supporting Berjaya Autotech's multicultural workforce.**
+
+## 🔧 **v5.1.3 SCAN IN INVENTORY FIX (August 26, 2025)**
+
+### 🎯 **Critical Bug Fix - COMPLETE:**
+**Problem Solved**: Scan In function was only creating transaction logs but not updating inventory counts in expected table
+**Solution**: Enhanced Scan In to update both inventory counts AND transaction logs for complete audit trail
+
+### 🛠️ **Technical Implementation:**
+- **Enhanced Inventory Service**: Added `addToInventoryCount()` method for accumulative inventory updates
+- **Dual Update Logic**: Scan In now updates inventory count first, then creates transaction record
+- **Accurate Previous/New Amounts**: Transaction logs now show correct before/after amounts
+- **Improved Success Messages**: Shows both added amount and new total count
+
+### 📊 **Scan In Workflow (Fixed):**
+```
+Before v5.1.3:
+❌ Scan item → Create transaction log only
+❌ Inventory expected table unchanged
+❌ Manager sees transaction but no inventory update
+
+After v5.1.3:
+✅ Scan item → Update inventory count (add to existing)
+✅ Create transaction log with accurate amounts
+✅ Manager sees both inventory increase AND transaction audit
+✅ Complete end-to-end inventory tracking
+```
+
+### 🔍 **New Inventory Service Features:**
+- **`addToInventoryCount()`**: Safely adds to existing inventory without replacing
+- **Previous Amount Tracking**: Retrieves current amount before adding
+- **Atomic Updates**: Ensures data consistency during inventory updates
+- **Comprehensive Logging**: Debug information for inventory operations
+
+### ✅ **User Experience Improvements:**
+- **Clearer Success Messages**: "Added 5 x Item A (Total: 25)" format
+- **Real-time Inventory Updates**: Expected table reflects scan-in immediately
+- **Audit Trail Preserved**: All transactions logged with accurate before/after amounts
+- **Manager Dashboard Accuracy**: Inventory counts now reflect all scan-in operations
+
+### 🏭 **Production Impact:**
+- **Fixed Core Functionality**: Scan In now properly increases inventory as expected
+- **Data Integrity**: Inventory counts and transaction logs now synchronized
+- **Manager Visibility**: Complete visibility into inventory changes via both methods
+- **Zero Data Loss**: All existing transactions preserved, new behavior implemented
+
+**v5.1.3 fixes the critical Scan In functionality ensuring inventory numbers update correctly in the expected table while maintaining complete transaction audit trails.**
 
 ## 🔧 **v3.2.1 BUG FIXES & STABILITY IMPROVEMENTS (August 20, 2025)**
 
