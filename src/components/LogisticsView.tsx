@@ -82,9 +82,9 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onTransacti
               </span>
               <h1 className="text-lg font-bold text-gray-900">
                 {selectedAction === 'check' ? t('inventory.inventoryCount') : 
-                 selectedAction === 'transaction' ? 'Send Items' : 
+                 selectedAction === 'transaction' ? t('logistics.sendItems') : 
                  selectedAction === 'scanner' ? 'Scanner' : 
-                 selectedAction === 'scanin' ? 'Scan In' : t('roles.logistics')}
+                 selectedAction === 'scanin' ? t('logistics.scanIn') : t('roles.logistics')}
               </h1>
             </div>
           </div>
@@ -106,7 +106,7 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onTransacti
                   className="h-24 bg-blue-500 hover:bg-blue-600 rounded-2xl shadow-lg transition-all duration-200 flex flex-col items-center justify-center text-white group active:scale-95"
                 >
                   <div className="text-3xl mb-1">📋</div>
-                  <span className="text-sm font-medium">Check Inventory</span>
+                  <span className="text-sm font-medium">{t('logistics.checkInventory')}</span>
                 </button>
 
                 {/* Transaction Button */}
@@ -115,7 +115,7 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onTransacti
                   className="h-24 bg-purple-500 hover:bg-purple-600 rounded-2xl shadow-lg transition-all duration-200 flex flex-col items-center justify-center text-white group active:scale-95"
                 >
                   <div className="text-3xl mb-1">🔄</div>
-                  <span className="text-sm font-medium">Send Items</span>
+                  <span className="text-sm font-medium">{t('logistics.sendItems')}</span>
                 </button>
 
                 {/* Scanner Button (Info) */}
@@ -124,7 +124,7 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onTransacti
                   className="h-24 bg-green-500 hover:bg-green-600 rounded-2xl shadow-lg transition-all duration-200 flex flex-col items-center justify-center text-white group active:scale-95"
                 >
                   <div className="text-3xl mb-1">📷</div>
-                  <span className="text-sm font-medium">Inbound Scanner</span>
+                  <span className="text-sm font-medium">{t('logistics.inboundScanner')}</span>
                 </button>
 
                 {/* Scan In Button (New) */}
@@ -133,7 +133,7 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onTransacti
                   className="h-24 bg-orange-500 hover:bg-orange-600 rounded-2xl shadow-lg transition-all duration-200 flex flex-col items-center justify-center text-white group active:scale-95"
                 >
                   <div className="text-3xl mb-1">📥</div>
-                  <span className="text-sm font-medium">Scan In</span>
+                  <span className="text-sm font-medium">{t('logistics.scanIn')}</span>
                 </button>
               </div>
 
@@ -178,7 +178,7 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onTransacti
                   <div className="text-center">
                     <div className="text-4xl mb-2">📤</div>
                     <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                      Send Items - {t('roles.logistics')}
+                      {t('logistics.sendItems')} - {t('roles.logistics')}
                     </h2>
                     <p className="text-gray-600">
                       {t('transactions.sendInventoryToProduction')}

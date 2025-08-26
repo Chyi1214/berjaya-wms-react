@@ -35,10 +35,12 @@ const chineseTranslations: Translation = {
     selectRole: '请选择您的角色',
     logistics: '物流',
     production: '生产',
+    qa: '质量保证',
     manager: '经理',
     transaction: '事务',
     logisticsDesc: '库存盘点与管理',
     productionDesc: '各区域生产管理',
+    qaDesc: '质量控制与检查',
     managerDesc: '仪表盘与报告',
     transactionDesc: '事务管理与审计'
   },
@@ -108,7 +110,10 @@ const chineseTranslations: Translation = {
     role: '物流角色',
     checkDescription: '库存盘点与管理',
     inboundScanner: '入库扫描器',
-    scanDescription: '扫描条形码以查找目标区域'
+    scanDescription: '扫描条形码以查找目标区域',
+    checkInventory: '检查库存',
+    sendItems: '发送物料',
+    scanIn: '扫描入库'
   },
 
   // Scanner

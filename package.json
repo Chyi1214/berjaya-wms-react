@@ -1,6 +1,6 @@
 {
   "name": "berjaya-wms-react",
-  "version": "5.1.1",
+  "version": "5.1.2",
   "description": "Berjaya Warehouse Management System - React Version",
   "private": true,
   "type": "module",

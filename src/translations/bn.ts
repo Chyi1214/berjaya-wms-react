@@ -35,10 +35,12 @@ const bengaliTranslations: Translation = {
     selectRole: 'আপনার ভূমিকা নির্বাচন করুন',
     logistics: 'লজিস্টিকস',
     production: 'উৎপাদন',
+    qa: 'মান নিয়ন্ত্রণ',
     manager: 'ম্যানেজার',
     transaction: 'লেনদেন',
     logisticsDesc: 'ইনভেন্টরি গণনা এবং ব্যবস্থাপনা',
     productionDesc: 'জোন-ভিত্তিক উৎপাদন ব্যবস্থাপনা',
+    qaDesc: 'মান নিয়ন্ত্রণ এবং পরিদর্শন',
     managerDesc: 'ড্যাশবোর্ড এবং রিপোর্টিং',
     transactionDesc: 'লেনদেন ব্যবস্থাপনা এবং অডিট ট্রেইল'
   },
@@ -108,7 +110,10 @@ const bengaliTranslations: Translation = {
     role: 'লজিস্টিকস ভূমিকা',
     checkDescription: 'ইনভেন্টরি গণনা এবং ব্যবস্থাপনা',
     inboundScanner: 'ইনবাউন্ড স্ক্যানার',
-    scanDescription: 'লক্ষ্য অঞ্চল খুঁজে পেতে বারকোড স্ক্যান করুন'
+    scanDescription: 'লক্ষ্য অঞ্চল খুঁজে পেতে বারকোড স্ক্যান করুন',
+    checkInventory: 'ইনভেন্টরি পরীক্ষা করুন',
+    sendItems: 'আইটেম পাঠান',
+    scanIn: 'স্ক্যান ইন'
   },
 
   // Scanner

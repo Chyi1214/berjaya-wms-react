@@ -35,10 +35,12 @@ const malayTranslations: Translation = {
     selectRole: 'Pilih Peranan Anda',
     logistics: 'Logistik',
     production: 'Pengeluaran',
+    qa: 'Kawalan Kualiti',
     manager: 'Pengurus',
     transaction: 'Transaksi',
     logisticsDesc: 'Pengiraan dan pengurusan inventori',
     productionDesc: 'Pengurusan pengeluaran berasaskan zon',
+    qaDesc: 'Kawalan kualiti dan pemeriksaan',
     managerDesc: 'Papan pemuka dan pelaporan',
     transactionDesc: 'Pengurusan transaksi dan jejak audit'
   },
@@ -108,7 +110,10 @@ const malayTranslations: Translation = {
     role: 'Peranan Logistik',
     checkDescription: 'Pengiraan dan pengurusan inventori',
     inboundScanner: 'Pengimbas Masuk',
-    scanDescription: 'Imbas kod bar untuk mencari zon sasaran'
+    scanDescription: 'Imbas kod bar untuk mencari zon sasaran',
+    checkInventory: 'Periksa Inventori',
+    sendItems: 'Hantar Item',
+    scanIn: 'Imbas Masuk'
   },
 
   // Scanner

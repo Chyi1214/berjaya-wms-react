@@ -110,7 +110,10 @@ const englishTranslations: Translation = {
     role: 'Logistics Role',
     checkDescription: 'Inventory counting and management',
     inboundScanner: 'Inbound Scanner',
-    scanDescription: 'Scan barcodes to find target zones'
+    scanDescription: 'Scan barcodes to find target zones',
+    checkInventory: 'Check Inventory',
+    sendItems: 'Send Items',
+    scanIn: 'Scan In'
   },
 
   // Scanner
