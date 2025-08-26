@@ -88,11 +88,28 @@ export const ScannerOperationsCard = memo(function ScannerOperationsCard({
         throw new Error('CSV file must have at least a header row and one data row');
       }
 
-      // Parse CSV - expect format: SKU,Zone,ItemName,ExpectedQuantity
-      const header = lines[0].toLowerCase();
-      if (!header.includes('sku') || !header.includes('zone')) {
-        throw new Error('CSV must have SKU and Zone columns. Expected format: SKU,Zone,ItemName,ExpectedQuantity');
+      // Parse CSV by header names (more robust than position-based)
+      const headerLine = lines[0].toLowerCase();
+      const headers = headerLine.split(',').map(h => h.replace(/"/g, '').trim());
+      
+      // Find column indices by header names (flexible matching)
+      const skuIndex = headers.findIndex(h => h.includes('sku') || h.includes('part no') || h.includes('partno'));
+      const zoneIndex = headers.findIndex(h => h.includes('zone') || h.includes('target') || h.includes('location'));
+      const nameIndex = headers.findIndex(h => h.includes('name') || h.includes('item') || h.includes('part name'));
+      const qtyIndex = headers.findIndex(h => h.includes('quantity') || h.includes('qty') || h.includes('expected'));
+
+      if (skuIndex === -1) {
+        throw new Error('CSV must have a SKU column (SKU, PART NO, or similar)');
       }
+      if (zoneIndex === -1) {
+        throw new Error('CSV must have a Zone column (Zone, Target, Location, or similar)');
+      }
+
+      console.log(`📋 CSV Column Mapping:`);
+      console.log(`   SKU: Column ${skuIndex + 1} (${headers[skuIndex]})`);
+      console.log(`   Zone: Column ${zoneIndex + 1} (${headers[zoneIndex]})`);
+      console.log(`   ItemName: Column ${nameIndex + 1} (${nameIndex >= 0 ? headers[nameIndex] : 'not found'})`);
+      console.log(`   Quantity: Column ${qtyIndex + 1} (${qtyIndex >= 0 ? headers[qtyIndex] : 'not found'})`);
 
       const lookups = [];
       let currentZone = ''; // Track current zone for merged cell handling
@@ -102,15 +119,15 @@ export const ScannerOperationsCard = memo(function ScannerOperationsCard({
       for (let i = 1; i < lines.length; i++) {
         const parts = lines[i].split(',').map(p => p.trim().replace(/^"(.*)"$/, '$1')); // Remove quotes
         
-        if (parts.length < 2) {
+        if (parts.length < Math.max(skuIndex + 1, zoneIndex + 1)) {
           skippedRows++;
           continue;
         }
         
-        let sku = parts[0]?.trim();
-        let targetZone = parts[1]?.trim();
-        const itemName = parts[2] || '';
-        const expectedQuantity = parts[3] && parts[3].trim() ? parseInt(parts[3]) : null;
+        let sku = parts[skuIndex]?.trim();
+        let targetZone = parts[zoneIndex]?.trim();
+        const itemName = nameIndex >= 0 ? (parts[nameIndex] || '') : '';
+        const expectedQuantity = qtyIndex >= 0 && parts[qtyIndex] && parts[qtyIndex].trim() ? parseInt(parts[qtyIndex]) : null;
 
         // Skip invalid SKU entries (empty, "/", or other invalid patterns)
         if (!sku || sku === '/' || sku.startsWith('//') || sku.length === 0) {
