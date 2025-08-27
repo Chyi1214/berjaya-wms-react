@@ -32,12 +32,12 @@ interface ManagerViewProps {
   transactions: Transaction[];
 }
 
-export function ManagerView({ user: _user, onBack, inventoryCounts, onClearCounts, transactions }: ManagerViewProps) {
+export function ManagerView({ user: _user, onBack, inventoryCounts, onClearCounts: _onClearCounts, transactions }: ManagerViewProps) {
   const { t } = useLanguage();
 
   // Use custom hooks for state management
   const managerState = useManagerState();
-  const { tableData } = useTableData(inventoryCounts, transactions);
+  const { tableData, syncAllTables } = useTableData(inventoryCounts, transactions);
 
   // Initialize Expected table from Yesterday if Expected is empty but Yesterday has data
   React.useEffect(() => {
@@ -68,24 +68,14 @@ export function ManagerView({ user: _user, onBack, inventoryCounts, onClearCount
       // Generate complete test scenario with inventory counts
       await mockDataService.generateCompleteTestScenario();
       
-      // Sync all three tables with the same baseline data
+      // Get the latest counts and sync all three tables properly
       const latestCounts = await inventoryService.getAllInventoryCounts();
       
       if (latestCounts.length > 0) {
-        // Create baseline data for Expected and Yesterday tables
-        const baselineData = latestCounts.map(item => ({
-          ...item,
-          countedBy: 'system.mockdata',
-          timestamp: new Date()
-        }));
+        // Use the proper sync function that handles all edge cases
+        const totalItems = await syncAllTables(latestCounts);
         
-        // Sync Expected and Yesterday tables with the same data
-        await Promise.all([
-          tableStateService.saveExpectedInventory(baselineData),
-          tableStateService.saveYesterdayResults(baselineData)
-        ]);
-        
-        alert(`✅ All three tables synced! ${latestCounts.length} items in Checked, Expected, and Yesterday tables.`);
+        alert(`✅ All three tables synced! ${latestCounts.length} SKUs, ${totalItems} total items in Checked, Expected, and Yesterday tables.`);
       } else {
         alert('⚠️ No inventory data generated. Please try again.');
       }
@@ -98,7 +88,7 @@ export function ManagerView({ user: _user, onBack, inventoryCounts, onClearCount
   };
 
   const handleConcludePeriod = async () => {
-    if (!confirm('⚠️ Conclude current period? This will:\n• Mark completed transactions as concluded\n• Set Expected table to Yesterday baseline\n• Save Checked items as new Yesterday Results\n\nThis cannot be undone!')) {
+    if (!confirm('⚠️ Conclude current period? This will:\n• Mark completed transactions as concluded\n• Save Expected table as new Yesterday baseline\n• Checked and Expected tables remain unchanged for reference\n\nThis cannot be undone!')) {
       return;
     }
 
@@ -112,29 +102,20 @@ export function ManagerView({ user: _user, onBack, inventoryCounts, onClearCount
         transactionService.updateTransaction(transaction.id, { concludedAt: now })
       );
       
-      // Step 2: Save current checked data as yesterday results
-      const newYesterday = tableData.checked.map(item => ({
+      // Step 2: Save current expected data as yesterday results (new baseline)
+      const newYesterday = tableData.expected.map(item => ({
         ...item,
         countedBy: 'system.concluded',
         timestamp: now
       }));
       
-      // Step 3: Set Expected table to match Yesterday (baseline)
-      const newExpected = newYesterday.map(item => ({
-        ...item,
-        countedBy: 'system.baseline',
-        timestamp: now
-      }));
-      
-      // Execute all updates
+      // Execute all updates (Expected and Checked tables remain unchanged)
       await Promise.all([
         ...transactionUpdates,
-        tableStateService.saveYesterdayResults(newYesterday),
-        tableStateService.saveExpectedInventory(newExpected),
-        onClearCounts() // Clear Firebase checked inventory data
+        tableStateService.saveYesterdayResults(newYesterday)
       ]);
       
-      alert(`✅ Period concluded! ${completedTransactions.length} transactions marked, Expected table reset to baseline.`);
+      alert(`✅ Period concluded! ${completedTransactions.length} transactions marked, Expected saved as new baseline.`);
       managerState.handleTabChange('yesterday');
     } catch (error) {
       console.error('Failed to conclude period:', error);

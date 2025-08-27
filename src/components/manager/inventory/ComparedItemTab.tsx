@@ -1,5 +1,5 @@
-// Compared Item Tab - Smart discrepancy highlighting with sorting
-import { useMemo } from 'react';
+// Compared Item Tab - Smart discrepancy highlighting with sorting and location filtering
+import { useMemo, useState } from 'react';
 import { InventoryCountEntry } from '../../../types';
 
 interface ComparedItemTabProps {
@@ -7,6 +7,8 @@ interface ComparedItemTabProps {
   checkedData: InventoryCountEntry[];
   onConcludeToday?: () => void;
 }
+
+type LocationFilter = 'all' | 'logistics' | 'production';
 
 interface EnhancedInventoryEntry extends InventoryCountEntry {
   checkedAmount?: number;
@@ -16,27 +18,64 @@ interface EnhancedInventoryEntry extends InventoryCountEntry {
 }
 
 export function ComparedItemTab({ expectedData, checkedData, onConcludeToday }: ComparedItemTabProps) {
+  const [locationFilter, setLocationFilter] = useState<LocationFilter>('all');
+
   // Create enhanced data with discrepancy calculation and smart sorting
   const enhancedData = useMemo(() => {
     const checkedMap = new Map<string, number>();
     const expectedMap = new Map<string, number>();
     
-    // Create map of checked amounts by SKU (total by SKU)
-    checkedData.forEach(item => {
+    // Filter data based on location filter
+    const getFilteredData = (data: InventoryCountEntry[]) => {
+      if (locationFilter === 'logistics') {
+        return data.filter(item => item.location === 'logistics');
+      } else if (locationFilter === 'production') {
+        return data.filter(item => item.location.startsWith('production_zone_'));
+      }
+      return data; // 'all' - no filtering
+    };
+
+    const filteredCheckedData = getFilteredData(checkedData);
+    const filteredExpectedData = getFilteredData(expectedData);
+
+    // Create map of checked amounts by SKU (filtered by location)
+    // Group by SKU and location to get latest count per location
+    const checkedByLocation = new Map<string, InventoryCountEntry>();
+    filteredCheckedData.forEach(item => {
+      const key = `${item.sku}_${item.location}`;
+      const existing = checkedByLocation.get(key);
+      if (!existing || item.timestamp > existing.timestamp) {
+        checkedByLocation.set(key, item);
+      }
+    });
+    
+    // Sum latest counts per location for each SKU
+    checkedByLocation.forEach(item => {
       const existing = checkedMap.get(item.sku) || 0;
       checkedMap.set(item.sku, existing + item.amount);
     });
 
-    // Create map of expected amounts by SKU (total by SKU)
-    expectedData.forEach(item => {
+    // Create map of expected amounts by SKU (filtered by location)
+    // Group by SKU and location to get latest count per location
+    const expectedByLocation = new Map<string, InventoryCountEntry>();
+    filteredExpectedData.forEach(item => {
+      const key = `${item.sku}_${item.location}`;
+      const existing = expectedByLocation.get(key);
+      if (!existing || item.timestamp > existing.timestamp) {
+        expectedByLocation.set(key, item);
+      }
+    });
+    
+    // Sum latest counts per location for each SKU
+    expectedByLocation.forEach(item => {
       const existing = expectedMap.get(item.sku) || 0;
       expectedMap.set(item.sku, existing + item.amount);
     });
 
-    // Get unique SKUs from both datasets
+    // Get unique SKUs from both filtered datasets
     const allSKUs = new Set([
-      ...expectedData.map(item => item.sku),
-      ...checkedData.map(item => item.sku)
+      ...filteredExpectedData.map(item => item.sku),
+      ...filteredCheckedData.map(item => item.sku)
     ]);
 
     // Create one entry per unique SKU with totals
@@ -47,8 +86,10 @@ export function ComparedItemTab({ expectedData, checkedData, onConcludeToday }: 
       const discrepancy = Math.abs(expectedTotal - checkedTotal);
       const discrepancyRatio = expectedTotal > 0 ? discrepancy / expectedTotal : (checkedTotal > 0 ? 1 : 0);
       
-      // Use first item with this SKU as template
-      const templateItem = expectedData.find(item => item.sku === sku) || 
+      // Use first item with this SKU as template (from filtered data)
+      const templateItem = filteredExpectedData.find(item => item.sku === sku) || 
+                          filteredCheckedData.find(item => item.sku === sku) ||
+                          expectedData.find(item => item.sku === sku) || 
                           checkedData.find(item => item.sku === sku)!;
       
       return {
@@ -58,22 +99,59 @@ export function ComparedItemTab({ expectedData, checkedData, onConcludeToday }: 
         discrepancy,
         discrepancyRatio,
         hasDiscrepancy: discrepancy > 0,
-        location: 'multiple' // Since we're showing totals across all locations
+        location: locationFilter === 'all' ? 'multiple' : locationFilter
       };
     });
 
     // Sort by biggest discrepancy ratio first (Eugene's smart algorithm)
     return enhanced.sort((a, b) => b.discrepancyRatio - a.discrepancyRatio);
-  }, [expectedData, checkedData]);
+  }, [expectedData, checkedData, locationFilter]);
 
   const totalDiscrepancies = enhancedData.filter(item => item.hasDiscrepancy).length;
 
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <h3 className="text-lg font-semibold text-gray-900">
-          🔍 Compared Item Table
-        </h3>
+        <div className="flex items-center space-x-4">
+          <h3 className="text-lg font-semibold text-gray-900">
+            🔍 Compared Item Table
+          </h3>
+          
+          {/* Location Filter Toggle */}
+          <div className="flex bg-gray-100 rounded-lg p-1">
+            <button
+              onClick={() => setLocationFilter('all')}
+              className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
+                locationFilter === 'all'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              All
+            </button>
+            <button
+              onClick={() => setLocationFilter('logistics')}
+              className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
+                locationFilter === 'logistics'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Logistics
+            </button>
+            <button
+              onClick={() => setLocationFilter('production')}
+              className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
+                locationFilter === 'production'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Production
+            </button>
+          </div>
+        </div>
+        
         <div className="flex items-center space-x-4">
           {totalDiscrepancies > 0 && (
             <span className="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm font-medium">
@@ -96,7 +174,7 @@ export function ComparedItemTab({ expectedData, checkedData, onConcludeToday }: 
           <div className="mb-4 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
             <h4 className="font-medium text-yellow-900 mb-2">🔍 Expected vs Checked Comparison</h4>
             <p className="text-yellow-700 text-sm">
-              Yellow highlighting shows discrepancies • Sorted by biggest differences first • Use for investigating inventory issues
+              Yellow highlighting shows discrepancies • Sorted by biggest differences first • Filter by location using toggle buttons • Use for investigating inventory issues
             </p>
           </div>
           

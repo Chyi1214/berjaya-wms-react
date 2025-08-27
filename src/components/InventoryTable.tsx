@@ -47,28 +47,25 @@ export function InventoryTable({ counts }: InventoryTableProps) {
     }, {} as Record<string, InventorySummary>)
   );
   
-  // Now get the latest count per SKU per location
-  counts.forEach(count => {
-    const summary = inventorySummary.find(s => s.sku === count.sku);
-    if (!summary) return;
-    
-    // Get all counts for this SKU and location, take the latest
-    const sameSKULocationCounts = counts.filter(c => 
-      c.sku === count.sku && c.location === count.location
+  // Calculate quantities for each SKU (fixed logic to avoid duplication)
+  inventorySummary.forEach(summary => {
+    // Get latest logistics count for this SKU
+    const logisticsCounts = counts.filter(c => 
+      c.sku === summary.sku && c.location === 'logistics'
     ).sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
     
-    const latestCount = sameSKULocationCounts[0];
+    if (logisticsCounts.length > 0) {
+      summary.quantities.logistics = logisticsCounts[0].amount;
+    }
     
-    if (latestCount.location === 'logistics') {
-      summary.quantities.logistics = latestCount.amount;
-    } else if (latestCount.location.startsWith('production_zone_')) {
-      // Sum all production zones for this SKU (latest count per zone)
-      const allZoneCounts = counts.filter(c => 
-        c.sku === count.sku && c.location.startsWith('production_zone_')
-      );
-      
+    // Get latest count per production zone for this SKU, then sum
+    const productionCounts = counts.filter(c => 
+      c.sku === summary.sku && c.location.startsWith('production_zone_')
+    );
+    
+    if (productionCounts.length > 0) {
       // Group by zone and get latest per zone
-      const zoneLatest = allZoneCounts.reduce((zones, c) => {
+      const zoneLatest = productionCounts.reduce((zones, c) => {
         if (!zones[c.location] || c.timestamp > zones[c.location].timestamp) {
           zones[c.location] = c;
         }

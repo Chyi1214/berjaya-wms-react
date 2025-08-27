@@ -37,6 +37,7 @@ export function EnhancedInventoryTable({ counts }: EnhancedInventoryTableProps) 
   const processInventoryData = (): EnhancedInventorySummary[] => {
     const summaryMap = new Map<string, EnhancedInventorySummary>();
 
+    // First, create summary entries for each unique SKU
     counts.forEach(count => {
       const key = count.sku;
       
@@ -58,44 +59,41 @@ export function EnhancedInventoryTable({ counts }: EnhancedInventoryTableProps) 
       if (count.timestamp > summary.lastUpdated) {
         summary.lastUpdated = count.timestamp;
       }
+    });
 
-      // Handle logistics location
-      if (count.location === 'logistics') {
-        // Get latest logistics count for this SKU
-        const logisticsCounts = counts.filter(c => 
-          c.sku === count.sku && c.location === 'logistics'
-        ).sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-        
-        summary.logistics = logisticsCounts[0]?.amount || 0;
+    // Then calculate quantities for each SKU (fixed logic to avoid duplication)
+    Array.from(summaryMap.values()).forEach(summary => {
+      // Get latest logistics count for this SKU
+      const logisticsCounts = counts.filter(c => 
+        c.sku === summary.sku && c.location === 'logistics'
+      ).sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+      
+      if (logisticsCounts.length > 0) {
+        summary.logistics = logisticsCounts[0].amount;
       }
       
-      // Handle production zones
-      else if (count.location.startsWith('production_zone_')) {
+      // Get all production zone counts for this SKU
+      const productionCounts = counts.filter(c => 
+        c.sku === summary.sku && c.location.startsWith('production_zone_')
+      );
+      
+      // Group by zone and get latest per zone
+      const zoneLatest: Record<string, InventoryCountEntry> = {};
+      productionCounts.forEach(count => {
         const zoneId = count.location.replace('production_zone_', '');
-        
-        // Get latest count for this zone
-        const zoneCounts = counts.filter(c => 
-          c.sku === count.sku && c.location === count.location
-        ).sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-        
-        const latestZoneCount = zoneCounts[0];
-        
-        // Update or add zone data
-        const existingZoneIndex = summary.productionZones.findIndex(z => z.zoneId === zoneId);
-        const zoneData: ZoneInventory = {
-          zoneId,
-          zoneName: `Zone ${zoneId}`,
-          quantity: latestZoneCount.amount,
-          lastUpdated: latestZoneCount.timestamp,
-          countedBy: latestZoneCount.countedBy
-        };
-        
-        if (existingZoneIndex >= 0) {
-          summary.productionZones[existingZoneIndex] = zoneData;
-        } else {
-          summary.productionZones.push(zoneData);
+        if (!zoneLatest[zoneId] || count.timestamp > zoneLatest[zoneId].timestamp) {
+          zoneLatest[zoneId] = count;
         }
-      }
+      });
+      
+      // Create zone data from latest counts
+      summary.productionZones = Object.entries(zoneLatest).map(([zoneId, latestCount]) => ({
+        zoneId,
+        zoneName: `Zone ${zoneId}`,
+        quantity: latestCount.amount,
+        lastUpdated: latestCount.timestamp,
+        countedBy: latestCount.countedBy
+      }));
     });
 
     // Calculate totals and sort zones

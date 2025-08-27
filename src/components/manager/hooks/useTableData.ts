@@ -148,6 +148,10 @@ export function useTableData(
       tableStateService.saveYesterdayResults(syncedYesterday)
     ]);
     
+    // Reset transaction tracking to prevent immediate recalculation
+    setInitialLoadComplete(false);
+    previousTransactionCount.current = transactions.length;
+    
     const totalItems = baseData.reduce((sum, item) => sum + item.amount, 0);
     console.log(`✅ All tables synchronized: ${baseData.length} SKUs, ${totalItems} total items`);
     
