@@ -139,6 +139,17 @@ export function ManagerNavigation({
                 <span className="sm:hidden">📊 ({tableData.expected.length})</span>
               </button>
               <button
+                onClick={() => onTabChange('compared')}
+                className={`flex-shrink-0 whitespace-nowrap border-b-2 py-4 px-1 text-sm font-medium transition-colors ${
+                  activeTab === 'compared'
+                    ? 'border-yellow-500 text-yellow-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <span className="hidden sm:inline">🔍 {t('manager.subTabs.compared')}</span>
+                <span className="sm:hidden">🔍</span>
+              </button>
+              <button
                 onClick={() => onTabChange('transaction')}
                 className={`flex-shrink-0 whitespace-nowrap border-b-2 py-4 px-1 text-sm font-medium transition-colors ${
                   activeTab === 'transaction'

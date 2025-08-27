@@ -1,11 +1,12 @@
 // Manager View Component - Refactored into modular components with V4.0 Production
-import { Suspense, lazy } from 'react';
+import React, { Suspense, lazy } from 'react';
 import { User, InventoryCountEntry, Transaction } from '../../types';
 import { isInventoryTab, isProductionTab, isQATab, isOperationsTab } from '../../types/manager';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { tableStateService } from '../../services/tableState';
 import { mockDataService } from '../../services/mockData';
 import { transactionService } from '../../services/transactions';
+import { inventoryService } from '../../services/inventory';
 import VersionFooter from '../VersionFooter';
 
 // Custom hooks
@@ -38,13 +39,56 @@ export function ManagerView({ user: _user, onBack, inventoryCounts, onClearCount
   const managerState = useManagerState();
   const { tableData } = useTableData(inventoryCounts, transactions);
 
+  // Initialize Expected table from Yesterday if Expected is empty but Yesterday has data
+  React.useEffect(() => {
+    const initializeExpectedFromYesterday = async () => {
+      if (tableData.yesterday.length > 0 && tableData.expected.length === 0) {
+        console.log('🔄 Initializing Expected table from Yesterday data...');
+        try {
+          const baselineData = tableData.yesterday.map(item => ({
+            ...item,
+            countedBy: 'system.initialized',
+            timestamp: new Date()
+          }));
+          await tableStateService.saveExpectedInventory(baselineData);
+          console.log('✅ Expected table initialized from Yesterday baseline');
+        } catch (error) {
+          console.error('Failed to initialize Expected table:', error);
+        }
+      }
+    };
+
+    initializeExpectedFromYesterday();
+  }, [tableData.yesterday, tableData.expected]);
+
   // Inventory mock data generator for Overview tab
   const handleGenerateInventoryMockData = async () => {
     managerState.setIsLoading(true);
     try {
       // Generate complete test scenario with inventory counts
       await mockDataService.generateCompleteTestScenario();
-      alert('✅ Inventory mock data generated! Check Checked and Expected tables.');
+      
+      // Sync all three tables with the same baseline data
+      const latestCounts = await inventoryService.getAllInventoryCounts();
+      
+      if (latestCounts.length > 0) {
+        // Create baseline data for Expected and Yesterday tables
+        const baselineData = latestCounts.map(item => ({
+          ...item,
+          countedBy: 'system.mockdata',
+          timestamp: new Date()
+        }));
+        
+        // Sync Expected and Yesterday tables with the same data
+        await Promise.all([
+          tableStateService.saveExpectedInventory(baselineData),
+          tableStateService.saveYesterdayResults(baselineData)
+        ]);
+        
+        alert(`✅ All three tables synced! ${latestCounts.length} items in Checked, Expected, and Yesterday tables.`);
+      } else {
+        alert('⚠️ No inventory data generated. Please try again.');
+      }
     } catch (error) {
       console.error('Failed to generate inventory mock data:', error);
       alert('❌ Failed to generate inventory mock data. Check console for details.');
