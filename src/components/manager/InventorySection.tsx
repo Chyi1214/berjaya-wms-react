@@ -31,6 +31,9 @@ interface InventorySectionProps {
   handleExportAllItemData: () => void;
   handleGenerateItemMockData: () => Promise<void>;
   setItemsLoading: React.Dispatch<React.SetStateAction<boolean>>;
+  // Add handlers for Overview subtab
+  onConcludeToday?: () => void;
+  onClearAllData?: () => void;
 }
 
 export function InventorySection({
@@ -48,17 +51,18 @@ export function InventorySection({
   handleExportBOMs,
   handleExportAllItemData,
   handleGenerateItemMockData,
-  setItemsLoading
+  setItemsLoading,
+  onConcludeToday,
+  onClearAllData
 }: InventorySectionProps) {
   return (
     <div className="p-6">
       {activeTab === 'overview' && (
         <OverviewTab
-          checkedCount={tableData.checked.length}
-          expectedCount={tableData.expected.length}
-          transactionCount={transactions.length}
-          yesterdayCount={tableData.yesterday.length}
-          itemCount={items.length}
+          onGenerateMockData={handleGenerateItemMockData}
+          onConcludeToday={onConcludeToday}
+          onClearAllData={onClearAllData}
+          isLoading={itemsLoading}
         />
       )}
 

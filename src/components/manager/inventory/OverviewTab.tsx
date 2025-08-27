@@ -1,75 +1,155 @@
-// Overview Tab - Dashboard with stats cards for inventory management
+// Overview Tab - Inventory management with batch progress and admin tools
 
 interface OverviewTabProps {
-  checkedCount: number;
-  transactionCount: number;
-  itemCount: number;
-  expectedCount: number;
-  yesterdayCount: number;
+  // Remove the unhelpful indices, we'll add needed props later
+  onGenerateMockData?: () => void;
+  onConcludeToday?: () => void;
+  onClearAllData?: () => void;
+  isLoading?: boolean;
 }
 
 export function OverviewTab({ 
-  checkedCount, 
-  transactionCount, 
-  itemCount,
-  expectedCount,
-  yesterdayCount 
+  onGenerateMockData,
+  onConcludeToday,
+  onClearAllData,
+  isLoading 
 }: OverviewTabProps) {
   return (
-    <div className="text-center py-12">
-      <div className="text-6xl mb-6">📊</div>
-      <h3 className="text-xl font-semibold text-gray-900 mb-2">Inventory Overview</h3>
-      <p className="text-gray-500 mb-8">Manager insights and quick actions for inventory management</p>
-      
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6 max-w-6xl mx-auto">
-        {/* Checked Items Card */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-          <div className="text-blue-600 text-2xl mb-2">📋</div>
-          <h4 className="font-medium text-blue-900">Checked Items</h4>
-          <p className="text-blue-700 text-2xl font-bold">{checkedCount}</p>
-          <p className="text-blue-700 text-sm mt-1">Items counted today</p>
-        </div>
+    <div className="p-6 space-y-8">
+      {/* Header */}
+      <div className="text-center">
+        <div className="text-4xl mb-4">📊</div>
+        <h3 className="text-xl font-semibold text-gray-900 mb-2">Inventory Overview</h3>
+        <p className="text-gray-500">Batch progress monitoring and inventory management tools</p>
+      </div>
+
+      {/* Batch Progress Placeholders - Creative & Visual */}
+      <div className="space-y-6">
+        <h4 className="text-lg font-medium text-gray-900">📦 Batch Progress Monitor</h4>
         
-        {/* Expected Items Card */}
-        <div className="bg-orange-50 border border-orange-200 rounded-lg p-6">
-          <div className="text-orange-600 text-2xl mb-2">📊</div>
-          <h4 className="font-medium text-orange-900">Expected</h4>
-          <p className="text-orange-700 text-2xl font-bold">{expectedCount}</p>
-          <p className="text-orange-700 text-sm mt-1">Calculated expected</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {/* Active Batches */}
+          <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-lg p-6">
+            <div className="text-blue-600 text-3xl mb-3">🔄</div>
+            <h5 className="font-medium text-blue-900 mb-2">Active Batches</h5>
+            <div className="space-y-2">
+              <div className="text-blue-700 text-2xl font-bold">12</div>
+              <div className="w-full bg-blue-200 rounded-full h-2">
+                <div className="bg-blue-600 h-2 rounded-full" style={{width: '75%'}}></div>
+              </div>
+              <p className="text-blue-700 text-sm">75% Complete</p>
+            </div>
+          </div>
+
+          {/* Batch Health */}
+          <div className="bg-gradient-to-br from-green-50 to-green-100 border border-green-200 rounded-lg p-6">
+            <div className="text-green-600 text-3xl mb-3">💚</div>
+            <h5 className="font-medium text-green-900 mb-2">Batch Health</h5>
+            <div className="space-y-2">
+              <div className="text-green-700 text-2xl font-bold">96%</div>
+              <div className="flex space-x-1">
+                {[1,2,3,4,5].map(i => (
+                  <div key={i} className={`h-2 flex-1 rounded ${i <= 4 ? 'bg-green-500' : 'bg-green-200'}`}></div>
+                ))}
+              </div>
+              <p className="text-green-700 text-sm">Quality Score</p>
+            </div>
+          </div>
+
+          {/* Pending Reconciliations */}
+          <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 border border-yellow-200 rounded-lg p-6">
+            <div className="text-yellow-600 text-3xl mb-3">⚠️</div>
+            <h5 className="font-medium text-yellow-900 mb-2">Reconciliations</h5>
+            <div className="space-y-2">
+              <div className="text-yellow-700 text-2xl font-bold">7</div>
+              <div className="text-yellow-700 text-xs space-y-1">
+                <div>SKU-A001: +5 variance</div>
+                <div>SKU-B003: -2 variance</div>
+              </div>
+              <p className="text-yellow-700 text-sm">Need Attention</p>
+            </div>
+          </div>
+
+          {/* Batch Timeline */}
+          <div className="bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-lg p-6">
+            <div className="text-purple-600 text-3xl mb-3">⏰</div>
+            <h5 className="font-medium text-purple-900 mb-2">Timeline</h5>
+            <div className="space-y-2">
+              <div className="text-purple-700 text-lg font-bold">2.5 hrs</div>
+              <div className="space-y-1">
+                <div className="flex items-center space-x-2">
+                  <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                  <div className="text-purple-700 text-xs">Batch-001 Started</div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="w-2 h-2 bg-purple-300 rounded-full"></div>
+                  <div className="text-purple-700 text-xs">Batch-002 Pending</div>
+                </div>
+              </div>
+              <p className="text-purple-700 text-sm">Avg Process Time</p>
+            </div>
+          </div>
         </div>
-        
-        {/* Transactions Card */}
-        <div className="bg-purple-50 border border-purple-200 rounded-lg p-6">
-          <div className="text-purple-600 text-2xl mb-2">🔄</div>
-          <h4 className="font-medium text-purple-900">Transactions</h4>
-          <p className="text-purple-700 text-2xl font-bold">{transactionCount}</p>
-          <p className="text-purple-700 text-sm mt-1">Total transactions</p>
-        </div>
-        
-        {/* Yesterday Results Card */}
-        <div className="bg-green-50 border border-green-200 rounded-lg p-6">
-          <div className="text-green-600 text-2xl mb-2">🗓️</div>
-          <h4 className="font-medium text-green-900">Yesterday</h4>
-          <p className="text-green-700 text-2xl font-bold">{yesterdayCount}</p>
-          <p className="text-green-700 text-sm mt-1">Previous period</p>
-        </div>
-        
-        {/* Item Master Card */}
-        <div className="bg-pink-50 border border-pink-200 rounded-lg p-6">
-          <div className="text-pink-600 text-2xl mb-2">📦</div>
-          <h4 className="font-medium text-pink-900">Item Master</h4>
-          <p className="text-pink-700 text-2xl font-bold">{itemCount}</p>
-          <p className="text-pink-700 text-sm mt-1">Items in catalog</p>
+
+        {/* Coming Soon Banner */}
+        <div className="bg-gradient-to-r from-gray-50 to-gray-100 border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+          <div className="text-gray-400 text-2xl mb-2">🚧</div>
+          <p className="text-gray-600 font-medium">Advanced Batch Analytics Coming Soon</p>
+          <p className="text-gray-500 text-sm mt-1">Real-time batch tracking, automated reconciliation, and predictive insights</p>
         </div>
       </div>
 
-      {/* Quick Info */}
-      <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-4 max-w-2xl mx-auto">
-        <h4 className="font-medium text-blue-900 mb-2">📊 Eugene's v2.0.0 Workflow</h4>
-        <div className="text-blue-700 text-sm space-y-1">
-          <p><strong>Overview:</strong> View all inventory statistics at a glance</p>
-          <p><strong>Process:</strong> Check items → Compare with expected → Conclude period</p>
-          <p><strong>Navigation:</strong> Use tabs above to access specific inventory functions</p>
+      {/* Admin Tools Section */}
+      <div className="space-y-6">
+        <h4 className="text-lg font-medium text-gray-900">⚙️ Management Tools</h4>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {/* Data Generation */}
+          <div className="bg-white border border-gray-200 rounded-lg p-6">
+            <h5 className="font-medium text-gray-900 mb-4">🎲 Test Data</h5>
+            <button
+              onClick={onGenerateMockData}
+              disabled={isLoading}
+              className="w-full bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+            >
+              {isLoading ? '⏳ Generating...' : '🎯 Generate Mock Data'}
+            </button>
+            <p className="text-gray-500 text-sm mt-2">Create test inventory and transactions</p>
+          </div>
+
+          {/* CSV Operations */}
+          <div className="bg-white border border-gray-200 rounded-lg p-6">
+            <h5 className="font-medium text-gray-900 mb-4">📄 CSV Operations</h5>
+            <div className="space-y-2">
+              <button className="w-full bg-green-500 hover:bg-green-600 text-white text-sm py-2 px-3 rounded transition-colors">
+                📤 Export Data
+              </button>
+              <button className="w-full bg-orange-500 hover:bg-orange-600 text-white text-sm py-2 px-3 rounded transition-colors">
+                📥 Import Data
+              </button>
+            </div>
+            <p className="text-gray-500 text-xs mt-2">Export and import inventory data</p>
+          </div>
+
+          {/* Daily Operations */}
+          <div className="bg-white border border-gray-200 rounded-lg p-6">
+            <h5 className="font-medium text-gray-900 mb-4">📅 Daily Operations</h5>
+            <div className="space-y-2">
+              <button
+                onClick={onConcludeToday}
+                className="w-full bg-purple-500 hover:bg-purple-600 text-white text-sm py-2 px-3 rounded transition-colors"
+              >
+                ✅ Conclude Today
+              </button>
+              <button
+                onClick={onClearAllData}
+                className="w-full bg-red-500 hover:bg-red-600 text-white text-sm py-2 px-3 rounded transition-colors"
+              >
+                🗑️ Clear All Data
+              </button>
+            </div>
+            <p className="text-gray-500 text-xs mt-2">End-of-day and maintenance operations</p>
+          </div>
         </div>
       </div>
     </div>

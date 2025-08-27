@@ -6,7 +6,7 @@ interface VersionFooterProps {
 
 export function VersionFooter({ className = '' }: VersionFooterProps) {
   // Get version from package.json via import.meta.env or hardcode
-  const version = '5.1.6';
+  const version = '5.2.0';
   const buildDate = new Date().toLocaleDateString();
 
   return (
