@@ -19,27 +19,46 @@ export function ComparedItemTab({ expectedData, checkedData, onConcludeToday }: 
   // Create enhanced data with discrepancy calculation and smart sorting
   const enhancedData = useMemo(() => {
     const checkedMap = new Map<string, number>();
+    const expectedMap = new Map<string, number>();
     
-    // Create map of checked amounts by SKU
+    // Create map of checked amounts by SKU (total by SKU)
     checkedData.forEach(item => {
       const existing = checkedMap.get(item.sku) || 0;
       checkedMap.set(item.sku, existing + item.amount);
     });
 
-    // Enhance expected data with discrepancy info
-    const enhanced: EnhancedInventoryEntry[] = expectedData.map(expectedItem => {
-      const expectedTotal = expectedItem.amount;
-      const checkedTotal = checkedMap.get(expectedItem.sku) || 0;
+    // Create map of expected amounts by SKU (total by SKU)
+    expectedData.forEach(item => {
+      const existing = expectedMap.get(item.sku) || 0;
+      expectedMap.set(item.sku, existing + item.amount);
+    });
+
+    // Get unique SKUs from both datasets
+    const allSKUs = new Set([
+      ...expectedData.map(item => item.sku),
+      ...checkedData.map(item => item.sku)
+    ]);
+
+    // Create one entry per unique SKU with totals
+    const enhanced: EnhancedInventoryEntry[] = Array.from(allSKUs).map(sku => {
+      const expectedTotal = expectedMap.get(sku) || 0;
+      const checkedTotal = checkedMap.get(sku) || 0;
       
       const discrepancy = Math.abs(expectedTotal - checkedTotal);
       const discrepancyRatio = expectedTotal > 0 ? discrepancy / expectedTotal : (checkedTotal > 0 ? 1 : 0);
       
+      // Use first item with this SKU as template
+      const templateItem = expectedData.find(item => item.sku === sku) || 
+                          checkedData.find(item => item.sku === sku)!;
+      
       return {
-        ...expectedItem,
+        ...templateItem,
+        amount: expectedTotal, // Show total expected amount
         checkedAmount: checkedTotal,
         discrepancy,
         discrepancyRatio,
-        hasDiscrepancy: discrepancy > 0
+        hasDiscrepancy: discrepancy > 0,
+        location: 'multiple' // Since we're showing totals across all locations
       };
     });
 
