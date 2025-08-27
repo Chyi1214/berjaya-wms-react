@@ -26,6 +26,7 @@ export interface Car {
   type: string;             // e.g., "Basic", "Premium", "Series3"
   color: string;            // e.g., "Red", "Blue", "Silver"
   series: string;           // Product series/model
+  carType?: string;         // Optional: Computed car type for batch management (e.g., "TK1_Red_High")
   status: CarStatus;
   currentZone: number | null; // Current zone (1-23) or null if not in production
   

@@ -5,6 +5,7 @@ import {
   ScannerOperationsCard,
   CSVUploadInstructionsCard,
   QAManagementCard,
+  BatchManagementCard,
   SystemHealthCard,
   DataManagementCard,
   APIManagementCard,
@@ -66,6 +67,10 @@ export function OperationsTab({ onRefresh }: OperationsTabProps) {
           user={user}
           qaStatus={qaStatus}
           setQaStatus={setQaStatus}
+        />
+        <BatchManagementCard 
+          user={user}
+          onRefresh={onRefresh}
         />
         <SystemHealthCard canViewSystemHealth={canViewSystemHealth} />
         <DataManagementCard />

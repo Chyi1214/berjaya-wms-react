@@ -174,3 +174,59 @@ export interface ScannerConfig {
   autoFocus: boolean;
   flashMode: 'auto' | 'on' | 'off';
 }
+
+// Batch Management Types - Section 5.3 Implementation
+export interface CarType {
+  carCode: string;          // Primary key (e.g., "TK1_Red_High", "T9_Blue_Low")
+  name: string;             // Display name
+  description?: string;     // Optional details
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface BatchItem {
+  sku: string;              // Component SKU
+  quantity: number;         // Required quantity for this batch
+  name: string;             // Component name (cached for display)
+}
+
+export interface Batch {
+  batchId: string;          // Primary key (e.g., "603", "604") 
+  name?: string;            // Optional batch description
+  items: BatchItem[];       // All components in this batch
+  carVins: string[];        // VIN numbers of cars in this batch
+  carType: string;          // References CarType.carCode
+  totalCars: number;        // Number of cars this batch should produce
+  status: 'planning' | 'in_progress' | 'completed' | 'problematic';
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ZoneBOMMapping {
+  zoneId: string;           // Zone identifier (1-23, DF02, Z001, etc.)
+  carCode: string;          // References CarType.carCode
+  bomCode: string;          // References BOM.bomCode
+  consumeOnCompletion: boolean;  // Whether to consume BOM when car marked complete
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface BatchHealthCheck {
+  batchId: string;          // References Batch.batchId
+  healthStatus: 'healthy' | 'warning' | 'critical';
+  availableComponents: number;  // How many cars can be completed with current inventory
+  missingComponents: Array<{
+    sku: string;
+    name: string;
+    needed: number;
+    available: number;
+    shortfall: number;
+  }>;
+  excessComponents: Array<{
+    sku: string; 
+    name: string;
+    excess: number;
+  }>;
+  checkedAt: Date;
+  checkedBy: string;
+}

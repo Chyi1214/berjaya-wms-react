@@ -5,6 +5,7 @@ import { User, Car } from '../../types';
 import { carTrackingService } from '../../services/carTrackingService';
 import { workStationService } from '../../services/workStationService';
 import { workerActivityService } from '../../services/workerActivityService';
+import { batchManagementService } from '../../services/batchManagement';
 
 interface CarCompleteViewProps {
   user: User;
@@ -76,6 +77,22 @@ export function CarCompleteView({ user, zoneId, onBack, onCarCompleted }: CarCom
       const activeWorker = await workerActivityService.getActiveWorkerActivity(user.email);
       if (activeWorker) {
         await workerActivityService.markCarWorkCompleted(user.email, currentCar.vin);
+      }
+
+      // Process BOM consumption for this car/zone combination (Section 5.3)
+      try {
+        if (currentCar.carType) {
+          await batchManagementService.consumeBOMForCarCompletion(
+            currentCar.vin,
+            zoneId.toString(),
+            currentCar.carType,
+            user.email
+          );
+          console.log('✅ BOM consumption processed for car completion');
+        }
+      } catch (bomError) {
+        console.warn('BOM consumption failed (non-critical):', bomError);
+        // Don't fail the entire car completion if BOM consumption fails
       }
 
       // Get updated car data
