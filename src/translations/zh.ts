@@ -201,7 +201,8 @@ const chineseTranslations: Translation = {
       inventory: '库存',
       productionLine: '生产线',
       qa: '质量保证',
-      hr: '人力资源'
+      hr: '人力资源',
+      operations: '运营'
     }
   },
 

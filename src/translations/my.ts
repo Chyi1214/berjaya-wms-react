@@ -201,7 +201,8 @@ const myanmarTranslations: Translation = {
       inventory: 'ကုန်ပစ္စည်းစာရင်း',
       productionLine: 'ထုတ်လုပ်ရေး လိုင်း',
       qa: 'အရည်အသွေး ထိန်းချုပ်ရေး',
-      hr: 'HR'
+      hr: 'HR',
+      operations: 'လုပ်ငန်းဆောင်တာများ'
     }
   },
 

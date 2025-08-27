@@ -76,6 +76,8 @@ export function useManagerState(): UseManagerStateReturn {
       setActiveTab('overview');
     } else if (category === 'hr' && activeTab !== 'hr') {
       setActiveTab('hr');
+    } else if (category === 'operations' && activeTab !== 'operations') {
+      setActiveTab('operations');
     }
   };
 

@@ -201,7 +201,8 @@ const malayTranslations: Translation = {
       inventory: 'Inventori',
       productionLine: 'Barisan Pengeluaran',
       qa: 'Kawalan Kualiti',
-      hr: 'HR'
+      hr: 'HR',
+      operations: 'Operasi'
     }
   },
 

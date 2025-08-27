@@ -201,7 +201,8 @@ const bengaliTranslations: Translation = {
       inventory: 'ইনভেন্টরি',
       productionLine: 'উৎপাদন লাইন',
       qa: 'মান নিয়ন্ত্রণ',
-      hr: 'এইচআর'
+      hr: 'এইচআর',
+      operations: 'অপারেশনস'
     }
   },
 

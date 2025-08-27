@@ -229,7 +229,8 @@ const englishTranslations: Translation = {
       inventory: 'Inventory',
       productionLine: 'Production Line', 
       qa: 'QA',
-      hr: 'HR'
+      hr: 'HR',
+      operations: 'Operations'
     }
   },
 

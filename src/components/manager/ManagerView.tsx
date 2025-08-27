@@ -1,7 +1,7 @@
 // Manager View Component - Refactored into modular components with V4.0 Production
 import { Suspense, lazy } from 'react';
 import { User, InventoryCountEntry, Transaction, TransactionStatus } from '../../types';
-import { isInventoryTab, isProductionTab, isQATab } from '../../types/manager';
+import { isInventoryTab, isProductionTab, isQATab, isOperationsTab } from '../../types/manager';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { mockDataService } from '../../services/mockData';
 import { inventoryService } from '../../services/inventory';
@@ -19,6 +19,7 @@ import { InventorySection } from './InventorySection';
 import { HRSection } from './HRSection';
 import { QASection } from './QASection';
 import { ProductionSection } from './ProductionSection';
+import { OperationsSection } from './OperationsSection';
 import { TestDataSection } from './TestDataSection';
 import { CSVExportSection } from './CSVExportSection';
 import { ManagerActionsSection } from './ManagerActionsSection';
@@ -254,6 +255,14 @@ export function ManagerView({ user: _user, onBack, inventoryCounts, onClearCount
             <HRSection
               onRefresh={() => {
                 // Refresh user data if needed
+              }}
+            />
+          )}
+
+          {managerState.activeCategory === 'operations' && isOperationsTab(managerState.activeTab) && (
+            <OperationsSection
+              onRefresh={() => {
+                // Refresh operations data if needed
               }}
             />
           )}
