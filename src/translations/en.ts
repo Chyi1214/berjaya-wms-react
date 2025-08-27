@@ -218,6 +218,7 @@ const englishTranslations: Translation = {
       overview: 'Overview',
       checked: 'Checked',
       expected: 'Expected',
+      compared: 'Compared',
       transactions: 'Trans',
       yesterday: 'Yester',
       itemMaster: 'Items',

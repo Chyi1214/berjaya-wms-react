@@ -190,6 +190,7 @@ const bengaliTranslations: Translation = {
       overview: 'সংক্ষিপ্ত',
       checked: 'পরীক্ষিত',
       expected: 'প্রত্যাশিত',
+      compared: 'তুলনা',
       transactions: 'লেনদেন',
       yesterday: 'গতকাল',
       itemMaster: 'আইটেম',

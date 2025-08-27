@@ -190,6 +190,7 @@ const chineseTranslations: Translation = {
       overview: '总览',
       checked: '已盘点',
       expected: '预期',
+      compared: '对比',
       transactions: '事务',
       yesterday: '昨天',
       itemMaster: '物料',

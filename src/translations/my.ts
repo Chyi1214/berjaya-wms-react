@@ -190,6 +190,7 @@ const myanmarTranslations: Translation = {
       overview: 'ခြုံငုံ',
       checked: 'စစ်ဆေးပြီး',
       expected: 'မျှော်မှန်း',
+      compared: 'နှိုင်းယှဉ်',
       transactions: 'လွှဲ',
       yesterday: 'မနေ့က',
       itemMaster: 'ပစ္စည်း',

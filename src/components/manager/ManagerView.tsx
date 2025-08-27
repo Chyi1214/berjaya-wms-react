@@ -4,6 +4,8 @@ import { User, InventoryCountEntry, Transaction } from '../../types';
 import { isInventoryTab, isProductionTab, isQATab, isOperationsTab } from '../../types/manager';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { tableStateService } from '../../services/tableState';
+import { mockDataService } from '../../services/mockData';
+import { transactionService } from '../../services/transactions';
 import VersionFooter from '../VersionFooter';
 
 // Custom hooks
@@ -36,29 +38,59 @@ export function ManagerView({ user: _user, onBack, inventoryCounts, onClearCount
   const managerState = useManagerState();
   const { tableData } = useTableData(inventoryCounts, transactions);
 
+  // Inventory mock data generator for Overview tab
+  const handleGenerateInventoryMockData = async () => {
+    managerState.setIsLoading(true);
+    try {
+      // Generate complete test scenario with inventory counts
+      await mockDataService.generateCompleteTestScenario();
+      alert('✅ Inventory mock data generated! Check Checked and Expected tables.');
+    } catch (error) {
+      console.error('Failed to generate inventory mock data:', error);
+      alert('❌ Failed to generate inventory mock data. Check console for details.');
+    } finally {
+      managerState.setIsLoading(false);
+    }
+  };
 
   const handleConcludePeriod = async () => {
-    if (!confirm('⚠️ Conclude current period? This will:\n• Set current checked items as "Yesterday Results"\n• Clear current counts\n• Reset for next period\n\nThis cannot be undone!')) {
+    if (!confirm('⚠️ Conclude current period? This will:\n• Mark completed transactions as concluded\n• Set Expected table to Yesterday baseline\n• Save Checked items as new Yesterday Results\n\nThis cannot be undone!')) {
       return;
     }
 
     managerState.setIsLoading(true);
     try {
-      // Save current checked data as yesterday
+      const now = new Date();
+      
+      // Step 1: Mark all completed transactions as concluded
+      const completedTransactions = transactions.filter(t => t.status === 'completed' && !t.concludedAt);
+      const transactionUpdates = completedTransactions.map(transaction => 
+        transactionService.updateTransaction(transaction.id, { concludedAt: now })
+      );
+      
+      // Step 2: Save current checked data as yesterday results
       const newYesterday = tableData.checked.map(item => ({
         ...item,
         countedBy: 'system.concluded',
-        timestamp: new Date()
+        timestamp: now
       }));
       
-      // Save yesterday results to Firebase and clear other tables
+      // Step 3: Set Expected table to match Yesterday (baseline)
+      const newExpected = newYesterday.map(item => ({
+        ...item,
+        countedBy: 'system.baseline',
+        timestamp: now
+      }));
+      
+      // Execute all updates
       await Promise.all([
+        ...transactionUpdates,
         tableStateService.saveYesterdayResults(newYesterday),
-        tableStateService.clearExpectedInventory(),
-        onClearCounts() // Clear Firebase inventory data
+        tableStateService.saveExpectedInventory(newExpected),
+        onClearCounts() // Clear Firebase checked inventory data
       ]);
       
-      alert('✅ Period concluded! Yesterday results saved, ready for next period.');
+      alert(`✅ Period concluded! ${completedTransactions.length} transactions marked, Expected table reset to baseline.`);
       managerState.handleTabChange('yesterday');
     } catch (error) {
       console.error('Failed to conclude period:', error);
@@ -145,6 +177,7 @@ export function ManagerView({ user: _user, onBack, inventoryCounts, onClearCount
               handleExportBOMs={managerState.handleExportBOMs}
               handleExportAllItemData={managerState.handleExportAllItemData}
               handleGenerateItemMockData={managerState.handleGenerateItemMockData}
+              handleGenerateInventoryMockData={handleGenerateInventoryMockData}
               setItemsLoading={managerState.setItemsLoading}
               onConcludeToday={handleConcludePeriod}
               onClearAllData={handleClearAllData}

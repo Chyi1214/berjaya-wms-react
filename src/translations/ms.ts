@@ -190,6 +190,7 @@ const malayTranslations: Translation = {
       overview: 'Gambaran',
       checked: 'Diperiksa',
       expected: 'Jangkaan',
+      compared: 'Perbandingan',
       transactions: 'Trans',
       yesterday: 'Semalam',
       itemMaster: 'Item',

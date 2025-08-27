@@ -120,6 +120,7 @@ export interface Transaction {
   performedBy: string;
   approvedBy?: string;
   timestamp: Date;
+  concludedAt?: Date; // When this transaction was included in period conclusion
   notes?: string;
   reference?: string; // Purchase order, work order, etc.
 }

@@ -5,6 +5,7 @@ import {
   OverviewTab,
   CheckedItemTab,
   ExpectedItemTab,
+  ComparedItemTab,
   TransactionLogTab,
   YesterdayResultTab
 } from '../manager/inventory';
@@ -30,6 +31,7 @@ interface InventorySectionProps {
   handleExportBOMs: () => void;
   handleExportAllItemData: () => void;
   handleGenerateItemMockData: () => Promise<void>;
+  handleGenerateInventoryMockData?: () => Promise<void>;
   setItemsLoading: React.Dispatch<React.SetStateAction<boolean>>;
   // Add handlers for Overview subtab
   onConcludeToday?: () => void;
@@ -51,6 +53,7 @@ export function InventorySection({
   handleExportBOMs,
   handleExportAllItemData,
   handleGenerateItemMockData,
+  handleGenerateInventoryMockData,
   setItemsLoading,
   onConcludeToday,
   onClearAllData
@@ -59,7 +62,7 @@ export function InventorySection({
     <div className="p-6">
       {activeTab === 'overview' && (
         <OverviewTab
-          onGenerateMockData={handleGenerateItemMockData}
+          onGenerateMockData={handleGenerateInventoryMockData || handleGenerateItemMockData}
           onConcludeToday={onConcludeToday}
           onClearAllData={onClearAllData}
           isLoading={itemsLoading}
@@ -71,8 +74,12 @@ export function InventorySection({
       )}
 
       {activeTab === 'expected' && (
-        <ExpectedItemTab 
-          tableData={tableData.expected} 
+        <ExpectedItemTab tableData={tableData.expected} />
+      )}
+
+      {activeTab === 'compared' && (
+        <ComparedItemTab 
+          expectedData={tableData.expected} 
           checkedData={tableData.checked}
           onConcludeToday={onConcludeToday}
         />
