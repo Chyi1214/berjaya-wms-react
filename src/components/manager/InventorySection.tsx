@@ -71,7 +71,11 @@ export function InventorySection({
       )}
 
       {activeTab === 'expected' && (
-        <ExpectedItemTab tableData={tableData.expected} />
+        <ExpectedItemTab 
+          tableData={tableData.expected} 
+          checkedData={tableData.checked}
+          onConcludeToday={onConcludeToday}
+        />
       )}
 
       {activeTab === 'transaction' && (
