@@ -16,14 +16,14 @@ The user has explicitly stated that **maintainability is the highest priority**.
 
 ## 📋 Project Overview
 
-**Current Status**: v5.1.3 - Scan In Inventory Fix (August 26, 2025)
+**Current Status**: v5.2.9 - Complete Inventory Management Fixes and Location Filtering (August 27, 2025)
 **IMPORTANT**: Read Eugene_note.md first! Contains complete roadmap and vision.
 **MAJOR MILESTONE**: Version 4.1 Quality Assurance system COMPLETE!
 - **Original Problem**: Complex event management, scope issues, Firebase integration chaos
 - **Solution**: Clean React architecture with TypeScript + Tailwind CSS
 - **Result**: Live at https://berjaya-autotech-4b4f4.web.app
 - **GitHub**: https://github.com/Chyi1214/berjaya-wms-react.git
-- **Last Commit**: 98ebd08 (v3.2.0: Scanner Integration Complete with Account Management)
+- **Last Commit**: 8f812d6 (v5.2.9: Complete inventory management fixes and location filtering)
 - **Codebase Size**: 80+ files, 11,000+ lines of TypeScript/React code (refactored for maintainability)
 
 ### Migration Success Metrics
@@ -1119,6 +1119,77 @@ After v5.1.3:
 - **Zero Data Loss**: All existing transactions preserved, new behavior implemented
 
 **v5.1.3 fixes the critical Scan In functionality ensuring inventory numbers update correctly in the expected table while maintaining complete transaction audit trails.**
+
+## 🚀 **v5.2.9 INVENTORY MANAGEMENT OVERHAUL (August 27, 2025)**
+
+### 🎯 **Critical Bug Fixes - Data Integrity Restored:**
+
+**Problem Solved**: Multiple critical data calculation and synchronization bugs were causing incorrect totals and data inconsistencies across the three-table inventory system (Checked, Expected, Yesterday).
+
+### **🔧 Major Fixes Implemented:**
+
+1. **✅ Conclusion Workflow Logic (v5.2.6)**
+   - **Fixed**: Expected table was being overwritten with Checked data during conclusion
+   - **Solution**: Changed to Expected → Yesterday data flow, preserving Expected as baseline
+   - **Impact**: Proper period conclusion maintains data integrity
+
+2. **✅ Table Calculation Logic (v5.2.5)**  
+   - **Fixed**: Production totals were calculated multiple times in forEach loops
+   - **Solution**: Separated data processing - create summaries first, then calculate once
+   - **Impact**: Dashboard totals now match individual table totals correctly
+
+3. **✅ ComparedItemTab Double-Counting (v5.2.8)**
+   - **Fixed**: Expected values showing doubled amounts (138 instead of 69)
+   - **Solution**: Added deduplication by SKU+location with timestamp checking
+   - **Impact**: Compared table now shows accurate Expected vs Checked comparisons
+
+4. **✅ Mock Data Synchronization (v5.2.7)**
+   - **Fixed**: Expected table becoming out of sync after mock data generation
+   - **Solution**: Used proper syncAllTables() with transaction tracking reset
+   - **Impact**: All three tables remain synchronized after data regeneration
+
+### **🆕 New Feature: Location Filtering (v5.2.9)**
+
+**Added comprehensive location-based filtering to ComparedItemTab:**
+
+- **Toggle Buttons**: All | Logistics | Production
+- **Smart Filtering**: Shows Expected vs Checked for specific locations only
+- **Zero Handling**: Treats missing location data as zero (maintains completeness)
+- **Enhanced UX**: Clean UI with selected state highlighting
+
+**Use Cases:**
+- **All**: Overall warehouse discrepancy analysis (default)
+- **Logistics**: Focus on receiving/shipping area issues
+- **Production**: Focus on production floor inventory problems
+
+### **🏆 Technical Achievements:**
+
+**Data Integrity**: All critical table calculation bugs resolved
+- ✅ Fixed dashboard total mismatches
+- ✅ Fixed doubled Expected amounts in comparisons  
+- ✅ Fixed conclusion workflow data flow
+- ✅ Fixed mock data synchronization
+
+**Enhanced Analytics**: Location filtering enables targeted discrepancy analysis
+- ✅ Managers can drill down by area
+- ✅ Improved problem identification capabilities
+- ✅ Maintained sorting by discrepancy ratio
+
+**Maintainability Preserved**: All fixes follow clean architecture patterns
+- ✅ No code explosion despite complex fixes
+- ✅ TypeScript safety maintained throughout
+- ✅ Component isolation preserved
+- ✅ Clean state management patterns
+
+### **🎯 System Status Post-v5.2.9:**
+
+**Production Ready**: All critical data integrity issues resolved
+- **Three-Table System**: Checked, Expected, Yesterday work correctly
+- **Conclusion Workflow**: Proper baseline management  
+- **Comparison Analysis**: Accurate discrepancy highlighting with location filtering
+- **Mock Data**: Perfect synchronization across all tables
+
+**The inventory management system is now robust and ready for production deployment with accurate calculations and comprehensive analytics capabilities.**
 
 ## 🔧 **v3.2.1 BUG FIXES & STABILITY IMPROVEMENTS (August 20, 2025)**
 
