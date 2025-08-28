@@ -16,7 +16,7 @@ The user has explicitly stated that **maintainability is the highest priority**.
 
 ## 📋 Project Overview
 
-**Current Status**: v5.3.0 - Complete Batch Management System Implementation (August 27, 2025)
+**Current Status**: v5.3.1 - Refined Batch Management Interface with VIN-per-row Design (August 27, 2025)
 **IMPORTANT**: Read Eugene_note.md first! Contains complete roadmap and vision.
 **MAJOR MILESTONE**: Version 4.1 Quality Assurance system COMPLETE!
 - **Original Problem**: Complex event management, scope issues, Firebase integration chaos
@@ -1232,6 +1232,39 @@ Zone 1 + TK1_Red_High → BOM001 consumption:
 - Production scheduling based on component availability
 
 **v5.3.0 implements the complete "soul of factory management system" as envisioned by Eugene, providing sophisticated batch tracking and automated BOM consumption while maintaining the clean, maintainable architecture.**
+
+## 🔧 **v5.3.1 UI REFINEMENTS - Operations Tab Structure (August 27, 2025)**
+
+### 🎯 **Important for Future Claude:**
+
+**Operations Tab Structure FIXED:**
+- ✅ **Operations tab should ONLY contain "Batch Management"** as its subtab
+- ✅ **NOT "Operations Center"** - that was confusing and incorrect
+- ✅ **Scanner belongs in Logistics** (already has scanner functionality)
+- ✅ **QA Management belongs in QA tab** (not Operations)
+
+**VIN Handling Improved:**
+- ✅ **VIN-per-row design** in data preview tables
+- ✅ **CSV format fixed**: Each VIN gets its own CSV row (no more cramped `VIN1|VIN2|VIN3`)
+- ✅ **Monospace font** for VIN display for easy reading
+- ✅ **Data preview** shows exactly what batch management looks like
+
+**UI Structure:**
+```
+Manager Dashboard:
+├── Inventory (item counting, BOMs)
+├── Production Line (car tracking, zones)  
+├── QA (quality assurance, inspections)
+├── Operations
+│   └── 🏭 Batch Management (ONLY subtab)
+└── HR (user management)
+```
+
+**Key Message for Future Claude:**
+- Operations = Batch Management ONLY
+- Don't add scanner/QA cards to Operations (they belong elsewhere)
+- VIN data must be readable and manageable (one VIN per row)
+- Always show data preview so users don't have to download to see structure
 
 ## 🚀 **v5.2.9 INVENTORY MANAGEMENT OVERHAUL (August 27, 2025)**
 

@@ -5,8 +5,10 @@ import { carTrackingService } from '../services/carTrackingService';
 import { qualityAssuranceService } from '../services/qualityAssuranceService';
 import QACarListView from './qa/QACarListView';
 import QAInspectionView from './qa/QAInspectionView';
+import { ElaMenu } from './ela/ElaMenu';
+import { ElaChat } from './ela/ElaChat';
 
-const QAView: React.FC<QAViewProps> = ({ onBack }) => {
+const QAView: React.FC<QAViewProps> = ({ user, onBack }) => {
   const [cars, setCars] = useState<Car[]>([]);
   const [inspections, setInspections] = useState<QAInspection[]>([]);
   const [selectedCar, setSelectedCar] = useState<Car | null>(null);
@@ -14,6 +16,8 @@ const QAView: React.FC<QAViewProps> = ({ onBack }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentView, setCurrentView] = useState<'list' | 'inspection'>('list');
+  const [showElaMenu, setShowElaMenu] = useState(false);
+  const [showElaChat, setShowElaChat] = useState(false);
 
   // Load today's cars and inspections
   useEffect(() => {
@@ -152,17 +156,39 @@ const QAView: React.FC<QAViewProps> = ({ onBack }) => {
               </h1>
             </div>
 
-            {/* Refresh Button */}
-            {currentView === 'list' && (
-              <div className="ml-auto">
+            {/* Right side buttons */}
+            <div className="ml-auto flex items-center space-x-2">
+              {/* Refresh Button */}
+              {currentView === 'list' && (
                 <button
                   onClick={loadTodayData}
                   className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
                 >
                   Refresh
                 </button>
+              )}
+
+              {/* Ela Menu Button */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowElaMenu(!showElaMenu)}
+                  className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                  aria-label="Open menu"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
+                </button>
+
+                {/* Ela Menu Dropdown */}
+                {showElaMenu && (
+                  <ElaMenu
+                    onChatOpen={() => setShowElaChat(true)}
+                    onClose={() => setShowElaMenu(false)}
+                  />
+                )}
               </div>
-            )}
+            </div>
           </div>
         </div>
       </header>
@@ -187,6 +213,15 @@ const QAView: React.FC<QAViewProps> = ({ onBack }) => {
           )
         )}
       </main>
+
+      {/* Ela Chat Modal */}
+      {showElaChat && (
+        <ElaChat
+          user={user}
+          userRole="qa"
+          onClose={() => setShowElaChat(false)}
+        />
+      )}
     </div>
   );
 };

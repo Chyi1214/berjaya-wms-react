@@ -10,6 +10,8 @@ import CarCompleteView from './production/CarCompleteView';
 import WorkerCheckInView from './production/WorkerCheckInView';
 import ZoneStatusDisplay from './production/ZoneStatusDisplay';
 import ProductionLineView from './production/ProductionLineView';
+import { ElaMenu } from './ela/ElaMenu';
+import { ElaChat } from './ela/ElaChat';
 
 interface ProductionViewProps {
   user: User;
@@ -30,6 +32,8 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
   const [selectedAction, setSelectedAction] = useState<'menu' | 'check' | 'transaction' | 'scan_car' | 'complete_car' | 'check_in'>('menu');
   const [isWorkerCheckedIn, setIsWorkerCheckedIn] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [showElaMenu, setShowElaMenu] = useState(false);
+  const [showElaChat, setShowElaChat] = useState(false);
   
   // Handle zone selection
   const handleZoneSelect = (zoneId: number) => {
@@ -125,12 +129,42 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
                 <span className="text-2xl">🔧</span>
                 <h1 className="text-lg font-bold text-gray-900">Production</h1>
               </div>
+
+              {/* Ela Menu Button */}
+              <div className="ml-auto relative">
+                <button
+                  onClick={() => setShowElaMenu(!showElaMenu)}
+                  className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                  aria-label="Open menu"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
+                </button>
+
+                {/* Ela Menu Dropdown */}
+                {showElaMenu && (
+                  <ElaMenu
+                    onChatOpen={() => setShowElaChat(true)}
+                    onClose={() => setShowElaMenu(false)}
+                  />
+                )}
+              </div>
             </div>
           </div>
         </header>
 
         {/* Main Content - Production Line View */}
         <ProductionLineView onZoneSelect={handleZoneSelect} />
+
+        {/* Ela Chat Modal */}
+        {showElaChat && (
+          <ElaChat
+            user={user}
+            userRole="production"
+            onClose={() => setShowElaChat(false)}
+          />
+        )}
       </div>
     );
   }
@@ -154,6 +188,27 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
             <div className="flex items-center space-x-2 ml-3">
               <span className="text-2xl">🔧</span>
               <h1 className="text-lg font-bold text-gray-900">Zone {selectedZone}</h1>
+            </div>
+
+            {/* Ela Menu Button */}
+            <div className="ml-auto relative">
+              <button
+                onClick={() => setShowElaMenu(!showElaMenu)}
+                className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                aria-label="Open menu"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
+
+              {/* Ela Menu Dropdown */}
+              {showElaMenu && (
+                <ElaMenu
+                  onChatOpen={() => setShowElaChat(true)}
+                  onClose={() => setShowElaMenu(false)}
+                />
+              )}
             </div>
           </div>
         </div>
@@ -454,6 +509,15 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
 
         </div>
       </main>
+
+      {/* Ela Chat Modal */}
+      {showElaChat && (
+        <ElaChat
+          user={user}
+          userRole={`production-zone-${selectedZone}`}
+          onClose={() => setShowElaChat(false)}
+        />
+      )}
     </div>
   );
 }

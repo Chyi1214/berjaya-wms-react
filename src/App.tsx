@@ -365,6 +365,7 @@ function AppContent() {
           </div>
         }>
           <QAView 
+            user={user}
             onBack={handleBackToRoles}
           />
         </Suspense>

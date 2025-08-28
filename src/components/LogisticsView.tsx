@@ -7,6 +7,8 @@ import TransactionSendForm from './TransactionSendForm';
 import TransactionOTPDisplay from './TransactionOTPDisplay';
 import ScannerView from './scanner/ScannerView';
 import ScanInView from './scanner/ScanInView';
+import { ElaMenu } from './ela/ElaMenu';
+import { ElaChat } from './ela/ElaChat';
 
 interface LogisticsViewProps {
   user: User;
@@ -21,6 +23,8 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onTransacti
   const { t } = useLanguage();
   const [selectedAction, setSelectedAction] = useState<'menu' | 'check' | 'transaction' | 'scanner' | 'scanin'>('menu');
   const [transactionResult, setTransactionResult] = useState<{ transaction: Transaction, otp: string } | null>(null);
+  const [showElaMenu, setShowElaMenu] = useState(false);
+  const [showElaChat, setShowElaChat] = useState(false);
   
   // Handle new count submission (now supports both single items and BOM expansion)
   const handleCountSubmit = async (entries: InventoryCountEntry[]) => {
@@ -86,6 +90,27 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onTransacti
                  selectedAction === 'scanner' ? 'Scanner' : 
                  selectedAction === 'scanin' ? t('logistics.scanIn') : t('roles.logistics')}
               </h1>
+            </div>
+
+            {/* Ela Menu Button */}
+            <div className="ml-auto relative">
+              <button
+                onClick={() => setShowElaMenu(!showElaMenu)}
+                className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                aria-label="Open menu"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
+
+              {/* Ela Menu Dropdown */}
+              {showElaMenu && (
+                <ElaMenu
+                  onChatOpen={() => setShowElaChat(true)}
+                  onClose={() => setShowElaMenu(false)}
+                />
+              )}
             </div>
           </div>
         </div>
@@ -212,6 +237,15 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onTransacti
 
         </div>
       </main>
+
+      {/* Ela Chat Modal */}
+      {showElaChat && (
+        <ElaChat
+          user={user}
+          userRole="logistics"
+          onClose={() => setShowElaChat(false)}
+        />
+      )}
     </div>
   );
 }

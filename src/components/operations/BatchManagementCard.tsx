@@ -157,9 +157,12 @@ TK1_Red_Low,Truck Model 1 - Red Basic,Basic red truck with standard features
 T9_Blue_Low,Truck Model 9 - Blue Basic,Basic blue truck with standard features`;
       filename = 'car-types-template.csv';
     } else {
-      csvContent = `batchId,carType,carVins,name,items
-603,TK1_Red_High,VIN001603|VIN002603|VIN003603,Production Batch 603,A001:50:Engine Part A|B001:25:Body Panel B|C001:10:Control Module C
-604,TK1_Red_Low,VIN001604|VIN002604,Production Batch 604,A001:30:Engine Part A|B001:15:Body Panel B`;
+      csvContent = `batchId,carType,vin,name,components
+603,TK1_Red_High,VIN001603,Production Batch 603,A001:50:Engine Part A|B001:25:Body Panel B|C001:10:Control Module C
+603,TK1_Red_High,VIN002603,Production Batch 603,A001:50:Engine Part A|B001:25:Body Panel B|C001:10:Control Module C
+603,TK1_Red_High,VIN003603,Production Batch 603,A001:50:Engine Part A|B001:25:Body Panel B|C001:10:Control Module C
+604,TK1_Red_Low,VIN001604,Production Batch 604,A001:30:Engine Part A|B001:15:Body Panel B
+604,TK1_Red_Low,VIN002604,Production Batch 604,A001:30:Engine Part A|B001:15:Body Panel B`;
       filename = 'batches-template.csv';
     }
     

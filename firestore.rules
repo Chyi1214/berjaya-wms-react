@@ -176,6 +176,36 @@ service cloud.firestore {
       allow write: if isDevAdmin() || hasRole('manager');
     }
     
+    // Version 5.4 Collections - Ela AI Assistant (Chat with Ela)
+    
+    // Ela conversations - Worker feedback conversations
+    match /elaConversations/{document} {
+      allow read: if isActiveUser();  // All authenticated users can read conversations
+      allow create: if isActiveUser();  // All users can start conversations
+      allow update: if isActiveUser() && (
+        // Users can update their own conversations, managers can update all
+        resource.data.userId == request.auth.uid ||
+        hasRole('manager') || hasRole('supervisor')
+      );
+      allow delete: if isDevAdmin() || hasRole('manager');
+    }
+    
+    // Ela messages - Individual chat messages
+    match /elaMessages/{document} {
+      allow read: if isActiveUser();  // All authenticated users can read messages
+      allow create: if isActiveUser();  // All users can send messages
+      allow update: if isDevAdmin() || hasRole('manager');  // Only managers can edit messages
+      allow delete: if isDevAdmin() || hasRole('manager');  // Only managers can delete messages
+    }
+    
+    // Ela summaries - AI-generated conversation summaries for managers
+    match /elaSummaries/{document} {
+      allow read: if isActiveUser() && (
+        hasRole('supervisor') || hasRole('manager') || hasRole('viewer')
+      );
+      allow write: if isDevAdmin() || hasRole('manager');  // Only managers can generate summaries
+    }
+    
     // Deny all other access
     match /{document=**} {
       allow read, write: if false;

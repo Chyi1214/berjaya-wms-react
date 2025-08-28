@@ -1,7 +1,7 @@
 // Manager View Component - Refactored into modular components with V4.0 Production
 import React, { Suspense, lazy } from 'react';
 import { User, InventoryCountEntry, Transaction } from '../../types';
-import { isInventoryTab, isProductionTab, isQATab, isOperationsTab } from '../../types/manager';
+import { isInventoryTab, isProductionTab, isQATab, isOperationsTab, isFeedbackTab } from '../../types/manager';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { tableStateService } from '../../services/tableState';
 import { mockDataService } from '../../services/mockData';
@@ -19,7 +19,8 @@ import { InventorySection } from './InventorySection';
 import { HRSection } from './HRSection';
 import { QASection } from './QASection';
 import { ProductionSection } from './ProductionSection';
-import { OperationsSection } from './OperationsSection';
+import { ElaSection } from './ElaSection';
+import { OperationsTab } from '../OperationsTab';
 
 // Lazy load the CSV Import Dialog
 const CSVImportDialog = lazy(() => import('../CSVImportDialog'));
@@ -233,11 +234,15 @@ export function ManagerView({ user: _user, onBack, inventoryCounts, onClearCount
           )}
 
           {managerState.activeCategory === 'operations' && isOperationsTab(managerState.activeTab) && (
-            <OperationsSection
+            <OperationsTab
               onRefresh={() => {
                 // Refresh operations data if needed
               }}
             />
+          )}
+
+          {managerState.activeCategory === 'feedback' && isFeedbackTab(managerState.activeTab) && (
+            <ElaSection />
           )}
         </div>
 

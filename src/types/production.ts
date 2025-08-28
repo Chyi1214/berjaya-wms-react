@@ -288,6 +288,11 @@ export interface QAStats {
 
 // QA Dashboard Props
 export interface QAViewProps {
+  user: {
+    uid: string;
+    email: string;
+    displayName: string | null;
+  };
   onBack: () => void;
 }
 
