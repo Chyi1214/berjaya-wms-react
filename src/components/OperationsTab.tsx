@@ -1,6 +1,9 @@
 // Operations Tab - Full Batch Management Interface
+import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { BatchManagementCard } from './operations';
+import { OperationsTabs } from './operations/OperationsTabs';
+import { VinMonitorPanel } from './operations/VinMonitorPanel';
 
 interface OperationsTabProps {
   onRefresh?: () => void;
@@ -8,6 +11,7 @@ interface OperationsTabProps {
 
 export function OperationsTab({ onRefresh }: OperationsTabProps) {
   const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState<'batches' | 'vins'>('batches');
 
   return (
     <div className="space-y-6">
@@ -19,8 +23,12 @@ export function OperationsTab({ onRefresh }: OperationsTabProps) {
         </p>
       </div>
 
-      {/* Batch-Centric Interface */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      {/* Tabs */}
+      <OperationsTabs activeTab={activeTab} onTabChange={setActiveTab} />
+
+      {/* Content */}
+      {activeTab === 'batches' && (
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         
         {/* Left Sidebar - Upload & Quick Actions */}
         <div className="lg:col-span-1 space-y-4">
@@ -247,6 +255,11 @@ export function OperationsTab({ onRefresh }: OperationsTabProps) {
           </div>
         </div>
       </div>
+      )}
+
+      {activeTab === 'vins' && (
+        <VinMonitorPanel />
+      )}
     </div>
   );
 }

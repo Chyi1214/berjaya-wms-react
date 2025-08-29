@@ -21,7 +21,8 @@ export const BatchManagementCard = memo(function BatchManagementCard({
 }: BatchManagementCardProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
-  const [uploadType, setUploadType] = useState<'carTypes' | 'batches'>('carTypes');
+  const [uploadType, setUploadType] = useState<'carTypes' | 'batches' | 'vinPlans' | 'packingList'>('carTypes');
+  const [healthBatchId, setHealthBatchId] = useState('');
   
   // Handle CSV file upload
   const handleCSVUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -37,8 +38,12 @@ export const BatchManagementCard = memo(function BatchManagementCard({
       
       if (uploadType === 'carTypes') {
         result = await batchManagementService.uploadCarTypesFromCSV(text, user.email);
-      } else {
+      } else if (uploadType === 'batches') {
         result = await batchManagementService.uploadBatchesFromCSV(text, user.email);
+      } else if (uploadType === 'vinPlans') {
+        result = await batchManagementService.uploadVinPlansFromCSV(text, user.email);
+      } else {
+        result = await batchManagementService.uploadPackingListFromCSV(text, user.email);
       }
       
       setUploadResult(result);
@@ -186,14 +191,14 @@ T9_Blue_Low,Truck Model 9 - Blue Basic,Basic blue truck with standard features`;
         
         {/* Upload Type Selection */}
         <div className="mb-4">
-          <div className="flex justify-center space-x-4">
+          <div className="flex justify-center space-x-4 flex-wrap gap-2">
             <label className="flex items-center">
               <input
                 type="radio"
                 name="uploadType"
                 value="carTypes"
                 checked={uploadType === 'carTypes'}
-                onChange={(e) => setUploadType(e.target.value as 'carTypes' | 'batches')}
+                onChange={(e) => setUploadType(e.target.value as any)}
                 className="mr-2"
               />
               <span className="text-sm">Car Types</span>
@@ -204,10 +209,32 @@ T9_Blue_Low,Truck Model 9 - Blue Basic,Basic blue truck with standard features`;
                 name="uploadType" 
                 value="batches"
                 checked={uploadType === 'batches'}
-                onChange={(e) => setUploadType(e.target.value as 'carTypes' | 'batches')}
+                onChange={(e) => setUploadType(e.target.value as any)}
                 className="mr-2"
               />
               <span className="text-sm">Batches + VINs</span>
+            </label>
+            <label className="flex items-center">
+              <input
+                type="radio"
+                name="uploadType" 
+                value="vinPlans"
+                checked={uploadType === 'vinPlans'}
+                onChange={(e) => setUploadType(e.target.value as any)}
+                className="mr-2"
+              />
+              <span className="text-sm">VIN Plan CSV</span>
+            </label>
+            <label className="flex items-center">
+              <input
+                type="radio"
+                name="uploadType" 
+                value="packingList"
+                checked={uploadType === 'packingList'}
+                onChange={(e) => setUploadType(e.target.value as any)}
+                className="mr-2"
+              />
+              <span className="text-sm">Packing List CSV</span>
             </label>
           </div>
         </div>
@@ -247,7 +274,7 @@ T9_Blue_Low,Truck Model 9 - Blue Basic,Basic blue truck with standard features`;
           </div>
 
           {/* Template Downloads */}
-          <div className="flex justify-center space-x-2">
+          <div className="flex justify-center space-x-2 flex-wrap gap-2">
             <button
               onClick={() => downloadTemplate('carTypes')}
               className="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded"
@@ -259,6 +286,36 @@ T9_Blue_Low,Truck Model 9 - Blue Basic,Basic blue truck with standard features`;
               className="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded"
             >
               📄 Batches Template
+            </button>
+            <button
+              onClick={() => {
+                const csv = `batchId,vin,carType\n603,VIN001603,TK1_Red_High\n603,VIN002603,TK1_Red_High\n603,VIN003603,TK1_Red_High`;
+                const blob = new Blob([csv], { type: 'text/csv' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'vin-plan-template.csv';
+                a.click();
+                window.URL.revokeObjectURL(url);
+              }}
+              className="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded"
+            >
+              📄 VIN Plan Template
+            </button>
+            <button
+              onClick={() => {
+                const csv = `batchId,sku,quantity,location,boxId,notes\n603,A001,50,logistics,BOX-1,\n603,B001,25,logistics,BOX-1,\n603,C001,10,logistics,BOX-2,`;
+                const blob = new Blob([csv], { type: 'text/csv' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'packing-list-template.csv';
+                a.click();
+                window.URL.revokeObjectURL(url);
+              }}
+              className="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded"
+            >
+              📄 Packing List Template
             </button>
           </div>
 
@@ -292,6 +349,31 @@ T9_Blue_Low,Truck Model 9 - Blue Basic,Basic blue truck with standard features`;
             >
               🏥 Health Check
             </button>
+            <div className="flex items-center space-x-2">
+              <input
+                type="text"
+                placeholder="Batch ID for VIN Health"
+                value={healthBatchId}
+                onChange={(e) => setHealthBatchId(e.target.value)}
+                className="px-2 py-1 text-sm border rounded"
+              />
+              <button
+                onClick={async () => {
+                  if (!healthBatchId) { alert('Enter a Batch ID'); return; }
+                  try {
+                    const report = await batchManagementService.computeBatchHealthByVIN(healthBatchId);
+                    console.log('📊 VIN-level Health Report:', report);
+                    alert(`VIN Health for ${healthBatchId}:\nReady: ${report.summary.readyVins}\nBlocked: ${report.summary.blockedVins}`);
+                  } catch (err) {
+                    console.error('VIN health failed:', err);
+                    alert('Failed to compute VIN health');
+                  }
+                }}
+                className="px-3 py-2 text-sm font-medium rounded-md bg-blue-100 text-blue-800 hover:bg-blue-200"
+              >
+                🚗 VIN Health
+              </button>
+            </div>
           </div>
         </div>
 

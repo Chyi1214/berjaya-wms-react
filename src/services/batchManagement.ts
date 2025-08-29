@@ -1,8 +1,10 @@
 // Batch Management Service - Section 5.3 Implementation
 import { collection, addDoc, getDocs, query, where, doc, setDoc, updateDoc, orderBy } from 'firebase/firestore';
 import { db } from './firebase';
-import { CarType, Batch, ZoneBOMMapping, BatchHealthCheck, BatchItem } from '../types/inventory';
+import { CarType, Batch, ZoneBOMMapping, BatchHealthCheck, BatchItem, VinPlan, BatchReceiptLine, BatchVinHealthReport, VinHealthResult } from '../types/inventory';
 import { createModuleLogger } from './logger';
+import { tableStateService } from './tableState';
+import { bomService } from './bom';
 
 const logger = createModuleLogger('BatchManagement');
 
@@ -332,6 +334,169 @@ class BatchManagementService {
       logger.error('Failed to perform batch health check:', error);
       throw error;
     }
+  }
+
+  // ========= New Section: CSV Ingestion (VIN plan, Packing list) =========
+  async uploadVinPlansFromCSV(csvData: string, _updatedBy: string): Promise<{
+    success: number;
+    errors: string[];
+    stats: { totalRows: number; skippedRows: number };
+  }> {
+    logger.info('Starting VIN plans CSV upload');
+    const lines = csvData.trim().split('\n');
+    const header = lines[0]?.toLowerCase();
+    if (!header || !header.includes('batchid') || !header.includes('vin') || !header.includes('cartype')) {
+      throw new Error('CSV must contain batchId, vin, carType columns');
+    }
+
+    const results = { success: 0, errors: [] as string[], stats: { totalRows: Math.max(lines.length - 1, 0), skippedRows: 0 } };
+    const vinPlansCol = collection(db, 'vin_plans');
+    for (let i = 1; i < lines.length; i++) {
+      const raw = lines[i].trim();
+      if (!raw) { results.stats.skippedRows++; continue; }
+      const parts = raw.split(',').map(s => s.trim());
+      const [batchId, vin, carType] = parts;
+      if (!batchId || !vin || !carType) {
+        results.errors.push(`Row ${i + 1}: Missing batchId, vin, or carType`);
+        results.stats.skippedRows++;
+        continue;
+      }
+      const plan: VinPlan = { batchId, vin: vin.toUpperCase(), carType, createdAt: new Date(), updatedAt: new Date() };
+      try {
+        await addDoc(vinPlansCol, plan);
+        results.success++;
+      } catch (err) {
+        results.errors.push(`Row ${i + 1}: Failed to save VIN ${vin} - ${err}`);
+        results.stats.skippedRows++;
+      }
+    }
+    logger.info('VIN plans CSV upload completed', results);
+    return results;
+  }
+
+  async uploadPackingListFromCSV(csvData: string, uploadedBy: string): Promise<{
+    success: number;
+    errors: string[];
+    stats: { totalRows: number; skippedRows: number };
+  }> {
+    logger.info('Starting packing list CSV upload');
+    const lines = csvData.trim().split('\n');
+    const header = lines[0]?.toLowerCase();
+    if (!header || !header.includes('batchid') || !header.includes('sku') || !header.includes('quantity')) {
+      throw new Error('CSV must contain batchId, sku, quantity columns');
+    }
+
+    const results = { success: 0, errors: [] as string[], stats: { totalRows: Math.max(lines.length - 1, 0), skippedRows: 0 } };
+    const receiptsCol = collection(db, 'batch_receipts');
+    for (let i = 1; i < lines.length; i++) {
+      const raw = lines[i].trim();
+      if (!raw) { results.stats.skippedRows++; continue; }
+      // Allow optional columns: location, boxId, notes
+      const parts = raw.split(',').map(s => s.trim());
+      const [batchId, sku, quantityStr, location, boxId, notes] = parts;
+      const quantity = parseInt(quantityStr, 10);
+      if (!batchId || !sku || isNaN(quantity) || quantity <= 0) {
+        results.errors.push(`Row ${i + 1}: Invalid batchId/sku/quantity`);
+        results.stats.skippedRows++;
+        continue;
+      }
+      const line: BatchReceiptLine = { batchId, sku, quantity, location: location || undefined, boxId: boxId || undefined, notes: notes || undefined, uploadedAt: new Date(), uploadedBy };
+      try {
+        await addDoc(receiptsCol, line);
+        results.success++;
+      } catch (err) {
+        results.errors.push(`Row ${i + 1}: Failed to save receipt for ${sku} - ${err}`);
+        results.stats.skippedRows++;
+      }
+    }
+    logger.info('Packing list CSV upload completed', results);
+    return results;
+  }
+
+  // ========= New Section: VIN-level Batch Health (uses expected inventory totals) =========
+  async computeBatchHealthByVIN(batchId: string): Promise<BatchVinHealthReport> {
+    logger.info('Computing VIN-level batch health', { batchId });
+
+    // Load VIN plans for this batch
+    const plansSnap = await getDocs(query(collection(db, 'vin_plans'), where('batchId', '==', batchId)));
+    const plans: VinPlan[] = plansSnap.docs.map(d => d.data() as VinPlan);
+    const totalVins = plans.length;
+
+    // Aggregate expected inventory totals by SKU
+    const expectedEntries = await tableStateService.getExpectedInventory();
+    const availableBySku = new Map<string, number>();
+    expectedEntries.forEach(e => {
+      const current = availableBySku.get(e.sku) || 0;
+      availableBySku.set(e.sku, current + (e.amount || 0));
+    });
+
+    // Build required-per-carType cache by summing BOMs from zone mappings (consumeOnCompletion=true)
+    const requiredByCarType = new Map<string, Map<string, number>>();
+    const getRequirementsForCarType = async (carType: string): Promise<Map<string, number>> => {
+      if (requiredByCarType.has(carType)) return requiredByCarType.get(carType)!;
+      const req = new Map<string, number>();
+      const mappings = await this.getZoneBOMMappings(undefined, carType);
+      const consumeMappings = mappings.filter(m => m.consumeOnCompletion);
+      const uniqueBomCodes = [...new Set(consumeMappings.map(m => m.bomCode))];
+      for (const bomCode of uniqueBomCodes) {
+        const bom = await bomService.getBOMByCode(bomCode);
+        if (!bom) continue;
+        for (const c of bom.components) {
+          req.set(c.sku, (req.get(c.sku) || 0) + c.quantity);
+        }
+      }
+      requiredByCarType.set(carType, req);
+      return req;
+    };
+
+    // Allocate inventory across VINs and compute results
+    const results: VinHealthResult[] = [];
+    const shortageTotals = new Map<string, number>();
+    for (const plan of plans) {
+      const perVinReq = await getRequirementsForCarType(plan.carType);
+      // Determine if all requirements can be satisfied with current availableBySku
+      const missing: Array<{ sku: string; required: number; available: number; shortfall: number }> = [];
+      perVinReq.forEach((qty, sku) => {
+        const available = availableBySku.get(sku) || 0;
+        if (available < qty) {
+          missing.push({ sku, required: qty, available, shortfall: qty - available });
+        }
+      });
+
+      if (missing.length === 0) {
+        // Mark as ready and deduct inventory
+        perVinReq.forEach((qty, sku) => {
+          const available = availableBySku.get(sku) || 0;
+          availableBySku.set(sku, Math.max(0, available - qty));
+        });
+        results.push({ vin: plan.vin, carType: plan.carType, status: 'ready' });
+      } else {
+        // Blocked; record shortages but do not deduct
+        results.push({ vin: plan.vin, carType: plan.carType, status: 'blocked', missing });
+        for (const m of missing) {
+          shortageTotals.set(m.sku, (shortageTotals.get(m.sku) || 0) + m.shortfall);
+        }
+      }
+    }
+
+    const readyVins = results.filter(r => r.status === 'ready').length;
+    const blockedVins = totalVins - readyVins;
+    const topShortages = [...shortageTotals.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([sku, totalShortfall]) => ({ sku, totalShortfall }));
+
+    return {
+      summary: {
+        batchId,
+        totalVins,
+        readyVins,
+        blockedVins,
+        topShortages,
+        checkedAt: new Date()
+      },
+      results
+    };
   }
 
   // Batch Consumption Integration

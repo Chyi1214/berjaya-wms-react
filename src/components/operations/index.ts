@@ -2,6 +2,8 @@ export { ScannerOperationsCard } from './ScannerOperationsCard';
 export { CSVUploadInstructionsCard } from './CSVUploadInstructionsCard';
 export { QAManagementCard } from './QAManagementCard';
 export { BatchManagementCard } from './BatchManagementCard';
+export { OperationsTabs } from './OperationsTabs';
+export { VinMonitorPanel } from './VinMonitorPanel';
 export { SystemHealthCard } from './SystemHealthCard';
 export { DataManagementCard } from './DataManagementCard';
 export { APIManagementCard } from './APIManagementCard';

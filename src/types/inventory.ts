@@ -230,3 +230,44 @@ export interface BatchHealthCheck {
   checkedAt: Date;
   checkedBy: string;
 }
+
+// Batch Planning Types - VIN plan and packing receipts (CSV-driven)
+export interface VinPlan {
+  batchId: string;      // Batch this VIN belongs to
+  vin: string;          // Vehicle VIN
+  carType: string;      // Variant code (e.g., TK1_Red_High)
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface BatchReceiptLine {
+  batchId: string;      // Batch reference
+  sku: string;          // Component SKU
+  quantity: number;     // Quantity received in this line
+  location?: string;    // Optional location/area
+  boxId?: string;       // Optional box identifier
+  notes?: string;       // Optional notes
+  uploadedAt: Date;
+  uploadedBy: string;   // Email of uploader
+}
+
+export interface VinHealthResult {
+  vin: string;
+  carType: string;
+  status: 'ready' | 'blocked';
+  missing?: Array<{ sku: string; required: number; available: number; shortfall: number }>;
+}
+
+export interface BatchVinHealthSummary {
+  batchId: string;
+  totalVins: number;
+  readyVins: number;
+  blockedVins: number;
+  topShortages: Array<{ sku: string; totalShortfall: number }>;
+  checkedAt: Date;
+}
+
+export interface BatchVinHealthReport {
+  summary: BatchVinHealthSummary;
+  results: VinHealthResult[];
+}
