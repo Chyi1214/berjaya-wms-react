@@ -1,7 +1,7 @@
 // Operations Tab - Full Batch Management Interface
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { BatchManagementCard } from './operations';
+import { UploadsPanel } from './operations/UploadsPanel';
 import { OperationsTabs } from './operations/OperationsTabs';
 import { VinMonitorPanel } from './operations/VinMonitorPanel';
 
@@ -30,12 +30,9 @@ export function OperationsTab({ onRefresh }: OperationsTabProps) {
       {activeTab === 'batches' && (
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         
-        {/* Left Sidebar - Upload & Quick Actions */}
+        {/* Left Sidebar - Uploads & Quick Actions */}
         <div className="lg:col-span-1 space-y-4">
-          <BatchManagementCard 
-            user={user}
-            onRefresh={onRefresh}
-          />
+          <UploadsPanel userEmail={user?.email} onRefresh={onRefresh} />
           
           {/* Quick Stats */}
           <div className="bg-white border rounded-lg p-4">
