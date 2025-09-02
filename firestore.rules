@@ -68,6 +68,12 @@ service cloud.firestore {
       allow write: if isDevAdmin() || hasRole('manager');
     }
     
+    // Expected inventory (camelCase) - for batch health calculations
+    match /expectedInventory/{document} {
+      allow read: if isActiveUser();  // All authenticated users can read for health calculations
+      allow write: if isDevAdmin() || hasRole('manager');
+    }
+    
     // Yesterday results - historical data, manager+ read/write
     match /yesterday_results/{document} {
       allow read: if isActiveUser() && hasPermission('inventory', 'view');
@@ -204,6 +210,52 @@ service cloud.firestore {
         hasRole('supervisor') || hasRole('manager') || hasRole('viewer')
       );
       allow write: if isDevAdmin() || hasRole('manager');  // Only managers can generate summaries
+    }
+    
+    // Version 5.3 Collections - Batch Management System (Eugene Section 5.3)
+    
+    // Car types - Master list of car type definitions
+    match /carTypes/{carCode} {
+      allow read: if isActiveUser();  // All authenticated users can read car types
+      allow write: if isDevAdmin() || hasRole('manager');  // Only managers can modify car types
+    }
+    
+    // Batches - Production batch definitions and tracking
+    match /batches/{batchId} {
+      allow read: if isActiveUser();  // All authenticated users can read batch info
+      allow write: if isDevAdmin() || hasRole('manager');  // Only managers can modify batches
+    }
+    
+    // Zone BOM mappings - Links zones to BOMs for specific car types
+    match /zoneBOMMappings/{mappingId} {
+      allow read: if isActiveUser();  // All authenticated users can read mappings
+      allow write: if isDevAdmin() || hasRole('manager');  // Only managers can modify mappings
+    }
+    
+    // Batch health checks - Batch feasibility analysis results
+    match /batchHealthChecks/{document} {
+      allow read: if isActiveUser() && (
+        hasRole('supervisor') || hasRole('manager') || hasRole('viewer')
+      );
+      allow write: if isDevAdmin() || hasRole('manager');  // Only managers can perform health checks
+    }
+    
+    // VIN plans - Individual VIN to batch and car type mappings
+    match /vin_plans/{document} {
+      allow read: if isActiveUser();  // All authenticated users can read VIN plans
+      allow write: if isDevAdmin() || hasRole('manager');  // Only managers can modify VIN plans
+    }
+    
+    // Batch receipts - Packing list and component receipt tracking
+    match /batch_receipts/{document} {
+      allow read: if isActiveUser();  // All authenticated users can read receipts
+      allow write: if isDevAdmin() || hasRole('manager') || hasRole('logistics');  // Managers and logistics can add receipts
+    }
+    
+    // Batch requirements - Smart tracking of remaining materials per batch
+    match /batchRequirements/{document} {
+      allow read: if isActiveUser();  // All authenticated users can read requirements
+      allow write: if isDevAdmin() || hasRole('manager');  // Only managers can modify requirements
     }
     
     // Deny all other access

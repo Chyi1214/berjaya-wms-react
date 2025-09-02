@@ -271,3 +271,38 @@ export interface BatchVinHealthReport {
   summary: BatchVinHealthSummary;
   results: VinHealthResult[];
 }
+
+// Smart Batch Health Tracking - Efficient approach
+export interface BatchRequirement {
+  batchId: string;
+  sku: string;
+  name: string;
+  totalNeeded: number;      // Original requirement from packing list
+  consumed: number;         // How much has been used
+  remaining: number;        // totalNeeded - consumed
+  carsCompleted: number;    // How many cars have been finished
+  totalCars: number;        // Total cars in batch
+  updatedAt: Date;
+  createdAt: Date;
+}
+
+export interface BatchHealthStatus {
+  batchId: string;
+  status: 'healthy' | 'warning' | 'critical';
+  carsRemaining: number;
+  totalCars: number;
+  canProduceCars: number;      // How many more cars can be made
+  blockedComponents: Array<{
+    sku: string;
+    name: string;
+    needed: number;
+    available: number;
+    shortfall: number;
+  }>;
+  excessComponents: Array<{
+    sku: string;
+    name: string;
+    excess: number;
+  }>;
+  checkedAt: Date;
+}

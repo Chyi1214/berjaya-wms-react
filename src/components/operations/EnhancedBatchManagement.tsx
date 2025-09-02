@@ -80,29 +80,47 @@ export const EnhancedBatchManagement = memo(function EnhancedBatchManagement({
     }
   };
 
-  // Load health status for ALL active batches
+  // Load health status for ALL active batches with priority allocation
   const loadAllBatchHealthStatuses = async () => {
-    console.log('🏥 Loading health status for all active batches...');
+    console.log('🏥 Loading global batch health with priority allocation...');
     const activeBatches = batches.filter(batch => batch.status === 'in_progress');
     
-    for (const batch of activeBatches) {
-      try {
-        const healthStatus = await batchManagementService.getBatchHealthStatus(batch.batchId);
-        setBatchHealthStatuses(prev => {
-          const newMap = new Map(prev);
-          newMap.set(batch.batchId, healthStatus);
-          return newMap;
-        });
-        console.log(`✅ Loaded health for batch ${batch.batchId}:`, healthStatus.status);
-      } catch (error) {
-        console.error(`❌ Failed to load health for batch ${batch.batchId}:`, error);
-        // Remove failed batch from health statuses
-        setBatchHealthStatuses(prev => {
-          const newMap = new Map(prev);
-          newMap.delete(batch.batchId);
-          return newMap;
-        });
-      }
+    if (activeBatches.length === 0) {
+      setBatchHealthStatuses(new Map());
+      return;
+    }
+    
+    try {
+      // Use new global priority-based health system
+      const globalHealthResults = await batchManagementService.getGlobalBatchHealthStatuses();
+      setBatchHealthStatuses(globalHealthResults);
+      
+      console.log(`✅ Loaded priority-based health for ${globalHealthResults.size} active batches:`, {
+        healthy: [...globalHealthResults.values()].filter(h => h.status === 'healthy').length,
+        warning: [...globalHealthResults.values()].filter(h => h.status === 'warning').length,
+        critical: [...globalHealthResults.values()].filter(h => h.status === 'critical').length
+      });
+      
+      // Log priority order and missing components for debugging
+      const sortedBatches = batches
+        .filter(b => b.status === 'in_progress')
+        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+        
+      sortedBatches.forEach((batch, index) => {
+        const health = globalHealthResults.get(batch.batchId);
+        if (health) {
+          const priorityInfo = `Priority ${index + 1}`;
+          const missingInfo = health.blockedComponents.length > 0 
+            ? `Missing: ${health.blockedComponents.map(c => `${c.sku}*${c.shortfall}`).join(', ')}`
+            : 'No missing components';
+          console.log(`📊 Batch ${batch.batchId} - ${priorityInfo} - ${health.status.toUpperCase()} - ${missingInfo}`);
+        }
+      });
+      
+    } catch (error) {
+      console.error('❌ Failed to load global batch health:', error);
+      // Fallback to empty map on error
+      setBatchHealthStatuses(new Map());
     }
   };
 
@@ -246,6 +264,30 @@ export const EnhancedBatchManagement = memo(function EnhancedBatchManagement({
 
     try {
       const text = await file.text();
+
+      // Safety check: ensure CSV batchId matches currently selected batch (if any)
+      if (selectedBatch) {
+        const lines = text.trim().split('\n');
+        if (lines.length > 1) {
+          const header = lines[0].split(',').map(s => s.trim().toLowerCase());
+          const batchIdIdx = header.indexOf('batchid');
+          if (batchIdIdx >= 0) {
+            const ids = new Set<string>();
+            for (let i = 1; i < lines.length; i++) {
+              const row = lines[i].trim();
+              if (!row) continue;
+              const cols = row.split(',');
+              const id = (cols[batchIdIdx] || '').trim();
+              if (id) ids.add(id);
+            }
+            if (ids.size > 0 && (ids.size !== 1 || !ids.has(selectedBatch.batchId))) {
+              alert(`CSV batchId does not match selected batch.\nSelected: ${selectedBatch.batchId}\nFound in file: ${[...ids].join(', ')}`);
+              return;
+            }
+          }
+        }
+      }
+
       let result: UploadResult;
       
       if (uploadType === 'vinPlans') {
@@ -440,18 +482,13 @@ Material consumption will be tracked automatically as cars complete.`);
   const downloadTemplate = (type: 'vinPlans' | 'packingList') => {
     let csvContent = '';
     let filename = '';
+    const bid = selectedBatch?.batchId || '603';
     
     if (type === 'vinPlans') {
-      csvContent = `batchId,vin,carType
-603,VIN001603,TK1_Red_High
-603,VIN002603,TK1_Red_High
-603,VIN003603,TK1_Red_High`;
+      csvContent = `batchId,vin,carType\n${bid},VIN001${bid},TK1_Red_High\n${bid},VIN002${bid},TK1_Red_High\n${bid},VIN003${bid},TK1_Red_High`;
       filename = 'vin-cartype-template.csv';
     } else {
-      csvContent = `batchId,sku,quantity,location,boxId,notes
-603,A001,50,logistics,BOX-1,Engine components
-603,B001,25,logistics,BOX-2,Body panels
-603,C001,10,logistics,BOX-3,Control modules`;
+      csvContent = `batchId,sku,quantity,location,boxId,notes\n${bid},A001,50,logistics,BOX-1,Engine components\n${bid},B001,25,logistics,BOX-2,Body panels\n${bid},C001,10,logistics,BOX-3,Control modules`;
       filename = 'packing-list-template.csv';
     }
     
@@ -566,16 +603,20 @@ Material consumption will be tracked automatically as cars complete.`);
             </div>
           </div>
 
-          {/* Batch List */}
+          {/* Batch List - Sorted by Priority (Upload Sequence) */}
           <div className="space-y-2 max-h-80 overflow-y-auto">
-            {batches.map((batch) => {
+            {batches
+              .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()) // Priority order: earlier uploaded first
+              .map((batch) => {
               const statusDisplay = getStatusDisplay(batch);
               const isSelected = selectedBatch?.batchId === batch.batchId;
               const healthStatus = batchHealthStatuses.get(batch.batchId);
+              const isActive = batch.status === 'in_progress';
+              const priorityNumber = isActive ? batches.filter(b => b.status === 'in_progress' && b.createdAt <= batch.createdAt).length : null;
               
               // Health indicator for active batches
               const getHealthIndicator = () => {
-                if (batch.status !== 'in_progress') return null;
+                if (!isActive) return null;
                 if (!healthStatus) return '⏳'; // Loading
                 
                 switch (healthStatus.status) {
@@ -584,6 +625,19 @@ Material consumption will be tracked automatically as cars complete.`);
                   case 'healthy': return '🟢';
                   default: return '❓';
                 }
+              };
+              
+              // Missing components summary
+              const getMissingComponentsSummary = () => {
+                if (!isActive || !healthStatus || !healthStatus.blockedComponents.length) return null;
+                
+                const shortSummary = healthStatus.blockedComponents
+                  .slice(0, 2)
+                  .map(c => `${c.sku}*${c.shortfall}`)
+                  .join(', ');
+                
+                const moreCount = healthStatus.blockedComponents.length > 2 ? ` +${healthStatus.blockedComponents.length - 2}` : '';
+                return `Missing: ${shortSummary}${moreCount}`;
               };
               
               return (
@@ -600,6 +654,11 @@ Material consumption will be tracked automatically as cars complete.`);
                     <div className="font-medium text-gray-900 flex items-center gap-2">
                       {statusDisplay.icon} {batch.batchId}
                       {getHealthIndicator()}
+                      {priorityNumber && (
+                        <span className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded text-xs font-medium">
+                          #{priorityNumber}
+                        </span>
+                      )}
                     </div>
                     <span className={`px-2 py-1 rounded text-xs ${statusDisplay.color}`}>
                       {statusDisplay.text}
@@ -607,12 +666,19 @@ Material consumption will be tracked automatically as cars complete.`);
                   </div>
                   <div className="text-xs text-gray-600">
                     {batch.carType || 'No car type'} • {batch.totalCars || 0} cars
-                    {healthStatus && batch.status === 'in_progress' && (
+                    {healthStatus && isActive && (
                       <span className="ml-2 text-xs">
                         • Can produce: {healthStatus.canProduceCars}/{healthStatus.totalCars}
                       </span>
                     )}
                   </div>
+                  
+                  {/* Missing Components Alert */}
+                  {getMissingComponentsSummary() && (
+                    <div className="mt-1 text-xs text-red-600 bg-red-50 px-2 py-1 rounded">
+                      {getMissingComponentsSummary()}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -756,22 +822,37 @@ Material consumption will be tracked automatically as cars complete.`);
                         </div>
                       </div>
 
-                      {/* Missing Components Warning */}
+                      {/* Missing Components Warning - Priority-Based */}
                       {batchHealthStatus.blockedComponents.length > 0 && (
                         <div className="mb-3">
-                          <h5 className="text-xs font-medium text-red-800 mb-2">❌ Missing Components:</h5>
+                          <h5 className="text-xs font-medium text-red-800 mb-2">
+                            ❌ Missing Components (After Priority Allocation):
+                          </h5>
                           <div className="space-y-1">
-                            {batchHealthStatus.blockedComponents.slice(0, 3).map((component, i) => (
-                              <div key={i} className="text-xs text-red-700 flex justify-between">
-                                <span>{component.sku} - {component.name}</span>
-                                <span>Need: {component.needed}, Have: {component.available}</span>
+                            {batchHealthStatus.blockedComponents.map((component, i) => (
+                              <div key={i} className="text-xs bg-red-100 p-2 rounded flex justify-between items-center">
+                                <div>
+                                  <span className="font-medium text-red-800">{component.sku}</span>
+                                  <span className="text-red-700 ml-2">{component.name}</span>
+                                </div>
+                                <div className="text-right">
+                                  <div className="font-medium text-red-800">Short: {component.shortfall}</div>
+                                  <div className="text-red-600 text-xs">Have: {component.available} / Need: {component.needed}</div>
+                                </div>
                               </div>
                             ))}
-                            {batchHealthStatus.blockedComponents.length > 3 && (
-                              <div className="text-xs text-red-600">
-                                ... and {batchHealthStatus.blockedComponents.length - 3} more missing components
-                              </div>
-                            )}
+                          </div>
+                          <div className="mt-2 text-xs text-red-600 bg-red-50 p-2 rounded">
+                            💡 This batch is missing components after higher-priority batches are allocated inventory first.
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Healthy Status with Priority Info */}
+                      {batchHealthStatus.blockedComponents.length === 0 && (
+                        <div className="mb-3">
+                          <div className="text-xs text-green-700 bg-green-50 p-2 rounded">
+                            ✅ All components available after priority allocation. This batch can proceed with production.
                           </div>
                         </div>
                       )}

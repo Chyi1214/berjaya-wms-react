@@ -290,6 +290,36 @@ src/
 # 5. Deploy: firebase deploy --only hosting:berjaya-autotech-4b4f4
 ```
 
+## 🚨 **CRITICAL FIREBASE RULES DEPLOYMENT - FOR ALL FUTURE AI**
+
+**⚠️ MANDATORY: When adding new Firestore collections, you MUST deploy security rules:**
+
+### **Firebase Rules Deployment Pattern:**
+```bash
+# ALWAYS deploy rules when adding new collections
+firebase deploy --only firestore:rules
+
+# Then deploy the app
+firebase deploy --only hosting:berjaya-autotech-4b4f4
+```
+
+### **Common Collections That Need Rules:**
+- `batchRequirements` (smart health tracking)
+- `carTypes`, `batches`, `zoneBOMMappings` (batch management)
+- `elaConversations`, `elaMessages` (AI assistant)
+- `vin_plans`, `batch_receipts` (batch planning)
+- Any new collection will cause "Missing or insufficient permissions" errors
+
+### **Rule Template for New Collections:**
+```javascript
+match /newCollectionName/{document} {
+  allow read: if isActiveUser();  // All authenticated users can read
+  allow write: if isDevAdmin() || hasRole('manager');  // Only managers can modify
+}
+```
+
+**🚨 If you see "FirebaseError: Missing or insufficient permissions" - you forgot to deploy rules!**
+
 ## 🚨 **CRITICAL DEPLOYMENT CHECKLIST - FOR ALL FUTURE AI**
 
 **⚠️ MANDATORY STEPS FOR EVERY DEPLOYMENT:**
