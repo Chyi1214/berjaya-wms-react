@@ -8,8 +8,7 @@ import {
   getDocs, 
   query, 
   where,
-  Timestamp,
-  deleteField
+  Timestamp
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { prepareForFirestore } from '../utils/firestore';
@@ -89,15 +88,23 @@ class WorkStationService {
         return; // No car to clear
       }
 
-      // Update daily stats - direct Firestore update to handle deleteField()
-      const docRef = doc(this.stationsCollection, zoneId.toString());
-      await updateDoc(docRef, {
+      // Update daily stats - set currentCar to null to clear it
+      const updatedStats = {
         carsProcessedToday: station.carsProcessedToday + 1,
         averageProcessingTime: await this.calculateAverageProcessingTime(zoneId),
-        currentCar: deleteField(), // Remove current car from Firestore
+        currentCar: null, // Clear current car
         lastUpdated: new Date()
-      });
+      };
+
+      // Use direct updateDoc to avoid prepareForFirestore filtering out null
+      const docRef = doc(this.stationsCollection, zoneId.toString());
+      console.log('🔧 Updating work station with:', updatedStats);
+      await updateDoc(docRef, updatedStats);
       console.log('✅ Cleared car from work station:', zoneId);
+      
+      // Verify the update worked
+      const verifyStation = await this.getWorkStation(zoneId);
+      console.log('🔍 Verification - station after clear:', verifyStation);
     } catch (error) {
       console.error('Failed to clear car from station:', error);
       throw error;
