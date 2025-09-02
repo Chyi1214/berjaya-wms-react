@@ -148,7 +148,9 @@ class CarTrackingService {
         zoneHistory: updatedHistory
       };
 
+      console.log('🔧 Updating car with:', updatedCar);
       await this.updateCar(vin, updatedCar);
+      console.log('✅ Car currentZone set to null:', vin);
 
       // Log movement
       await this.logCarMovement({
@@ -259,7 +261,22 @@ class CarTrackingService {
 
   // Get cars in specific zone
   async getCarsInZone(zoneId: number): Promise<Car[]> {
-    return this.getCars({ currentZone: zoneId });
+    try {
+      // Use simple query to avoid index requirements
+      const q = query(this.carsCollection, where('currentZone', '==', zoneId));
+      const snapshot = await getDocs(q);
+      const cars: Car[] = [];
+      
+      snapshot.forEach((doc) => {
+        const data = this.convertTimestamps(doc.data());
+        cars.push(data as Car);
+      });
+      
+      return cars;
+    } catch (error) {
+      console.error('Failed to get cars in zone:', zoneId, error);
+      return [];
+    }
   }
 
   // Get today's cars (in production + completed today) for QA
@@ -313,8 +330,13 @@ class CarTrackingService {
   // Private helper methods
   private async updateCar(vin: string, updates: Partial<Car>): Promise<void> {
     const docRef = doc(this.carsCollection, vin.toUpperCase());
-    const cleanedUpdates = prepareForFirestore(updates, { addUpdatedAt: true });
-    await updateDoc(docRef, cleanedUpdates);
+    // Don't use prepareForFirestore to ensure null values are preserved
+    const updatesWithTimestamp = {
+      ...updates,
+      updatedAt: new Date()
+    };
+    console.log('🔧 Direct updateDoc with:', updatesWithTimestamp);
+    await updateDoc(docRef, updatesWithTimestamp);
   }
 
   private async logCarMovement(movement: Omit<CarMovement, 'id'>): Promise<void> {

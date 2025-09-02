@@ -97,6 +97,12 @@ export function CarCompleteView({ user, zoneId, onBack, onCarCompleted }: CarCom
 
       // Get updated car data
       const updatedCar = await carTrackingService.getCarByVIN(currentCar.vin);
+      console.log('🔍 Updated car after completion:', updatedCar);
+      
+      // Check if car is still in zone
+      const carsInZone = await carTrackingService.getCarsInZone(zoneId);
+      console.log('🔍 Cars still in zone after completion:', carsInZone);
+      
       if (updatedCar) {
         setSuccess(`Work completed on car ${currentCar.vin} in Zone ${zoneId}`);
         onCarCompleted(updatedCar);
