@@ -967,9 +967,20 @@ class BatchManagementService {
       const activeBatches = allBatches
         .filter(batch => batch.status === 'in_progress')
         .sort((a, b) => {
-          const aTime = a.createdAt instanceof Date ? a.createdAt.getTime() : new Date(a.createdAt).getTime();
-          const bTime = b.createdAt instanceof Date ? b.createdAt.getTime() : new Date(b.createdAt).getTime();
-          return aTime - bTime;
+          try {
+            const aTime = a.createdAt instanceof Date ? a.createdAt.getTime() : new Date(a.createdAt).getTime();
+            const bTime = b.createdAt instanceof Date ? b.createdAt.getTime() : new Date(b.createdAt).getTime();
+            
+            // Handle invalid dates
+            if (isNaN(aTime) && isNaN(bTime)) return 0;
+            if (isNaN(aTime)) return 1; // Put invalid dates at end
+            if (isNaN(bTime)) return -1;
+            
+            return aTime - bTime;
+          } catch (error) {
+            logger.warn('Date comparison error:', error);
+            return 0; // Keep original order if comparison fails
+          }
         }); // Earlier uploaded = higher priority
       
       if (activeBatches.length === 0) {
@@ -978,7 +989,14 @@ class BatchManagementService {
       }
       
       logger.info(`Processing ${activeBatches.length} active batches in priority order:`, 
-        activeBatches.map(b => `${b.batchId} (${b.createdAt instanceof Date ? b.createdAt.toISOString() : new Date(b.createdAt).toISOString()})`));
+        activeBatches.map(b => {
+          try {
+            const dateStr = b.createdAt instanceof Date ? b.createdAt.toISOString() : new Date(b.createdAt).toISOString();
+            return `${b.batchId} (${dateStr})`;
+          } catch (error) {
+            return `${b.batchId} (date parsing error)`;
+          }
+        }));
       
       // 2. Get current total inventory across all locations
       const { tableStateService } = await import('./tableState');

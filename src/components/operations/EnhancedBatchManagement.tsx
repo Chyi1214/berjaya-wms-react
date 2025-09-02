@@ -105,9 +105,19 @@ export const EnhancedBatchManagement = memo(function EnhancedBatchManagement({
       const sortedBatches = batches
         .filter(b => b.status === 'in_progress')
         .sort((a, b) => {
-          const aTime = a.createdAt instanceof Date ? a.createdAt.getTime() : new Date(a.createdAt).getTime();
-          const bTime = b.createdAt instanceof Date ? b.createdAt.getTime() : new Date(b.createdAt).getTime();
-          return aTime - bTime;
+          try {
+            const aTime = a.createdAt instanceof Date ? a.createdAt.getTime() : new Date(a.createdAt).getTime();
+            const bTime = b.createdAt instanceof Date ? b.createdAt.getTime() : new Date(b.createdAt).getTime();
+            
+            if (isNaN(aTime) && isNaN(bTime)) return 0;
+            if (isNaN(aTime)) return 1;
+            if (isNaN(bTime)) return -1;
+            
+            return aTime - bTime;
+          } catch (error) {
+            console.warn('Batch sorting error:', error);
+            return 0;
+          }
         });
         
       sortedBatches.forEach((batch, index) => {
@@ -611,19 +621,42 @@ Material consumption will be tracked automatically as cars complete.`);
           <div className="space-y-2 max-h-80 overflow-y-auto">
             {batches
               .sort((a, b) => {
-                const aTime = a.createdAt instanceof Date ? a.createdAt.getTime() : new Date(a.createdAt).getTime();
-                const bTime = b.createdAt instanceof Date ? b.createdAt.getTime() : new Date(b.createdAt).getTime();
-                return aTime - bTime;
+                try {
+                  const aTime = a.createdAt instanceof Date ? a.createdAt.getTime() : new Date(a.createdAt).getTime();
+                  const bTime = b.createdAt instanceof Date ? b.createdAt.getTime() : new Date(b.createdAt).getTime();
+                  
+                  // Handle invalid dates
+                  if (isNaN(aTime) && isNaN(bTime)) return 0;
+                  if (isNaN(aTime)) return 1; // Put invalid dates at end
+                  if (isNaN(bTime)) return -1;
+                  
+                  return aTime - bTime;
+                } catch (error) {
+                  console.warn('Date comparison error:', error);
+                  return 0; // Keep original order if comparison fails
+                }
               }) // Priority order: earlier uploaded first
               .map((batch) => {
               const statusDisplay = getStatusDisplay(batch);
               const isSelected = selectedBatch?.batchId === batch.batchId;
               const healthStatus = batchHealthStatuses.get(batch.batchId);
               const isActive = batch.status === 'in_progress';
-              const batchTime = batch.createdAt instanceof Date ? batch.createdAt : new Date(batch.createdAt);
+              const batchTime = (() => {
+                try {
+                  return batch.createdAt instanceof Date ? batch.createdAt : new Date(batch.createdAt);
+                } catch (error) {
+                  console.warn('Batch date parsing error:', error);
+                  return new Date(); // fallback to current date
+                }
+              })();
               const priorityNumber = isActive ? batches.filter(b => {
-                const bTime = b.status === 'in_progress' && (b.createdAt instanceof Date ? b.createdAt : new Date(b.createdAt)) <= batchTime;
-                return bTime;
+                try {
+                  if (b.status !== 'in_progress') return false;
+                  const bTime = b.createdAt instanceof Date ? b.createdAt : new Date(b.createdAt);
+                  return bTime <= batchTime;
+                } catch (error) {
+                  return false;
+                }
               }).length : null;
               
               // Health indicator for active batches
