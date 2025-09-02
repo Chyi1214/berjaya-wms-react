@@ -8,7 +8,8 @@ import {
   getDocs, 
   query, 
   where,
-  Timestamp
+  Timestamp,
+  deleteField
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { prepareForFirestore } from '../utils/firestore';
@@ -88,15 +89,14 @@ class WorkStationService {
         return; // No car to clear
       }
 
-      // Update daily stats
-      const updatedStats = {
+      // Update daily stats - direct Firestore update to handle deleteField()
+      const docRef = doc(this.stationsCollection, zoneId.toString());
+      await updateDoc(docRef, {
         carsProcessedToday: station.carsProcessedToday + 1,
         averageProcessingTime: await this.calculateAverageProcessingTime(zoneId),
-        currentCar: undefined, // Remove current car
+        currentCar: deleteField(), // Remove current car from Firestore
         lastUpdated: new Date()
-      };
-
-      await this.updateWorkStation(zoneId, updatedStats);
+      });
       console.log('✅ Cleared car from work station:', zoneId);
     } catch (error) {
       console.error('Failed to clear car from station:', error);

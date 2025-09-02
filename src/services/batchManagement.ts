@@ -1,491 +1,86 @@
 // Batch Management Service - Section 5.3 Implementation
-import { collection, addDoc, getDocs, query, where, doc, setDoc, updateDoc, orderBy, deleteDoc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, query, where, addDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from './firebase';
-import { CarType, Batch, ZoneBOMMapping, BatchHealthCheck, BatchItem, VinPlan, BatchVinHealthReport, VinHealthResult, BatchRequirement, BatchHealthStatus } from '../types/inventory';
+import { CarType, Batch, ZoneBOMMapping, BatchHealthCheck, VinPlan, BatchVinHealthReport, VinHealthResult, BatchRequirement, BatchHealthStatus } from '../types/inventory';
 import { createModuleLogger } from './logger';
 import { tableStateService } from './tableState';
 import { bomService } from './bom';
+import { batchCoreService } from './batch/batchCore';
+import { batchHealthService } from './batch/batchHealth';
+import { batchCSVService } from './batch/batchCSV';
 
 const logger = createModuleLogger('BatchManagement');
 
 class BatchManagementService {
-  // Car Types Collection
+  // Car Types Collection - Delegated to batchCore
   async createCarType(carType: Omit<CarType, 'createdAt' | 'updatedAt'>): Promise<string> {
-    try {
-      logger.info('Creating car type:', carType.carCode);
-      const newCarType: CarType = {
-        ...carType,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      };
-      
-      await setDoc(doc(db, 'carTypes', carType.carCode), newCarType);
-      logger.info('Car type created successfully:', carType.carCode);
-      return carType.carCode;
-    } catch (error) {
-      logger.error('Failed to create car type:', error);
-      throw error;
-    }
+    return batchCoreService.createCarType(carType);
   }
 
   async getAllCarTypes(): Promise<CarType[]> {
-    try {
-      const carTypesRef = collection(db, 'carTypes');
-      const snapshot = await getDocs(query(carTypesRef, orderBy('carCode')));
-      return snapshot.docs.map(doc => ({ ...doc.data() } as CarType));
-    } catch (error) {
-      logger.error('Failed to get car types:', error);
-      throw error;
-    }
+    return batchCoreService.getAllCarTypes();
   }
 
-  async uploadCarTypesFromCSV(csvData: string, _updatedBy: string): Promise<{
+  // ========= CSV Operations - Delegated to batchCSV =========
+  
+  async uploadCarTypesFromCSV(csvData: string, updatedBy: string): Promise<{
     success: number;
     errors: string[];
     stats: { totalRows: number; skippedRows: number; };
   }> {
-    try {
-      logger.info('Starting car types CSV upload');
-      const lines = csvData.trim().split('\n');
-      const header = lines[0];
-      
-      if (!header.includes('carCode') || !header.includes('name')) {
-        throw new Error('CSV must contain carCode and name columns');
-      }
-      
-      const results: { success: number; errors: string[]; stats: { totalRows: number; skippedRows: number; } } = { 
-        success: 0, 
-        errors: [], 
-        stats: { totalRows: lines.length - 1, skippedRows: 0 }
-      };
-      
-      for (let i = 1; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (!line) {
-          results.stats.skippedRows++;
-          continue;
-        }
-        
-        const parts = line.split(',').map(s => s.trim());
-        const [carCode, name, description = ''] = parts;
-        
-        if (!carCode || !name) {
-          results.errors.push(`Row ${i + 1}: Missing carCode or name`);
-          results.stats.skippedRows++;
-          continue;
-        }
-        
-        try {
-          await this.createCarType({ carCode, name, description: description || undefined });
-          results.success++;
-        } catch (error) {
-          results.errors.push(`Row ${i + 1}: Failed to create ${carCode} - ${error}`);
-          results.stats.skippedRows++;
-        }
-      }
-      
-      logger.info('Car types CSV upload completed:', results);
-      return results;
-    } catch (error) {
-      logger.error('Failed to upload car types CSV:', error);
-      throw error;
-    }
+    return batchCSVService.uploadCarTypesFromCSV(csvData, updatedBy);
   }
 
-  // Batch Collection
+  // Batch Collection - Delegated to batchCore
   async createBatch(batch: Omit<Batch, 'createdAt' | 'updatedAt'>): Promise<string> {
-    try {
-      logger.info('Creating batch:', batch.batchId);
-      const newBatch: Batch = {
-        ...batch,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      };
-      
-      await setDoc(doc(db, 'batches', batch.batchId), newBatch);
-      logger.info('Batch created successfully:', batch.batchId);
-      return batch.batchId;
-    } catch (error) {
-      logger.error('Failed to create batch:', error);
-      throw error;
-    }
+    return batchCoreService.createBatch(batch);
   }
 
   async getBatchById(batchId: string): Promise<Batch | null> {
-    try {
-      const batchDocRef = doc(db, 'batches', batchId);
-      const batchDoc = await getDoc(batchDocRef);
-      if (batchDoc.exists()) {
-        return batchDoc.data() as Batch;
-      }
-      return null;
-    } catch (error) {
-      logger.error(`Failed to get batch by ID: ${batchId}`, error);
-      throw error;
-    }
+    return batchCoreService.getBatchById(batchId);
   }
 
   async getAllBatches(): Promise<Batch[]> {
-    try {
-      const batchesRef = collection(db, 'batches');
-      const snapshot = await getDocs(query(batchesRef, orderBy('batchId')));
-      return snapshot.docs.map(doc => ({ ...doc.data() } as Batch));
-    } catch (error) {
-      logger.error('Failed to get batches:', error);
-      throw error;
-    }
+    return batchCoreService.getAllBatches();
   }
 
-  async uploadBatchesFromCSV(csvData: string, _updatedBy: string): Promise<{
+  async uploadBatchesFromCSV(csvData: string, updatedBy: string): Promise<{
     success: number;
     errors: string[];
     stats: { totalRows: number; skippedRows: number; };
   }> {
-    try {
-      logger.info('Starting batches CSV upload');
-      const lines = csvData.trim().split('\n');
-      const header = lines[0];
-      
-      if (!header.includes('batchId') || !header.includes('carType') || !header.includes('carVins')) {
-        throw new Error('CSV must contain batchId, carType, and carVins columns');
-      }
-      
-      const results: { success: number; errors: string[]; stats: { totalRows: number; skippedRows: number; } } = { 
-        success: 0, 
-        errors: [], 
-        stats: { totalRows: lines.length - 1, skippedRows: 0 }
-      };
-      
-      for (let i = 1; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (!line) {
-          results.stats.skippedRows++;
-          continue;
-        }
-        
-        const parts = line.split(',').map(s => s.trim());
-        const [batchId, carType, carVinsStr, name = '', itemsStr = ''] = parts;
-        
-        if (!batchId || !carType || !carVinsStr) {
-          results.errors.push(`Row ${i + 1}: Missing required fields (batchId, carType, carVins)`);
-          results.stats.skippedRows++;
-          continue;
-        }
-        
-        try {
-          const carVins = carVinsStr.split('|').map(vin => vin.trim()).filter(vin => vin);
-          const items: BatchItem[] = itemsStr ? 
-            itemsStr.split('|').map(item => {
-              const [sku, quantity, itemName] = item.split(':');
-              return { sku: sku.trim(), quantity: parseInt(quantity) || 1, name: itemName?.trim() || sku };
-            }) : [];
-          
-          await this.createBatch({
-            batchId,
-            name: name || undefined,
-            items,
-            carVins,
-            carType,
-            totalCars: carVins.length,
-            status: 'planning'
-          });
-          results.success++;
-        } catch (error) {
-          results.errors.push(`Row ${i + 1}: Failed to create batch ${batchId} - ${error}`);
-          results.stats.skippedRows++;
-        }
-      }
-      
-      logger.info('Batches CSV upload completed:', results);
-      return results;
-    } catch (error) {
-      logger.error('Failed to upload batches CSV:', error);
-      throw error;
-    }
+    return batchCSVService.uploadBatchesFromCSV(csvData, updatedBy);
   }
 
-  // Zone BOM Mapping Collection
+  // Zone BOM Mapping Collection - Delegated to batchCore
   async createZoneBOMMapping(mapping: Omit<ZoneBOMMapping, 'createdAt' | 'updatedAt'>): Promise<string> {
-    try {
-      logger.info('Creating zone BOM mapping:', `${mapping.zoneId}-${mapping.carCode}`);
-      const newMapping: ZoneBOMMapping = {
-        ...mapping,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      };
-      
-      const mappingId = `${mapping.zoneId}_${mapping.carCode}_${mapping.bomCode}`;
-      await setDoc(doc(db, 'zoneBOMMappings', mappingId), newMapping);
-      logger.info('Zone BOM mapping created successfully:', mappingId);
-      return mappingId;
-    } catch (error) {
-      logger.error('Failed to create zone BOM mapping:', error);
-      throw error;
-    }
+    return batchCoreService.createZoneBOMMapping(mapping);
   }
 
   async getZoneBOMMappings(zoneId?: string, carCode?: string): Promise<ZoneBOMMapping[]> {
-    try {
-      const mappingsRef = collection(db, 'zoneBOMMappings');
-      let q = query(mappingsRef);
-      
-      if (zoneId) {
-        q = query(q, where('zoneId', '==', zoneId));
-      }
-      if (carCode) {
-        q = query(q, where('carCode', '==', carCode));
-      }
-      
-      const snapshot = await getDocs(q);
-      return snapshot.docs.map(doc => ({ ...doc.data() } as ZoneBOMMapping));
-    } catch (error) {
-      logger.error('Failed to get zone BOM mappings:', error);
-      throw error;
-    }
+    return batchCoreService.getZoneBOMMappings(zoneId, carCode);
   }
 
-  // Batch Health Checking
+  // Batch Health Checking - Delegated to batchHealth
   async performBatchHealthCheck(batchId: string, checkedBy: string): Promise<BatchHealthCheck> {
-    try {
-      logger.info('Performing batch health check for:', batchId);
-      
-      // Get batch information
-      const batchDoc = await getDocs(query(collection(db, 'batches'), where('batchId', '==', batchId)));
-      if (batchDoc.empty) {
-        throw new Error(`Batch ${batchId} not found`);
-      }
-      
-      const batch = batchDoc.docs[0].data() as Batch;
-      
-      // Get current inventory levels (Expected table represents current availability)
-      const expectedInventoryRef = collection(db, 'expectedInventory');
-      const expectedSnapshot = await getDocs(expectedInventoryRef);
-      const expectedInventory = expectedSnapshot.docs.map(doc => doc.data());
-      
-      // Calculate inventory by SKU (sum across all locations)
-      const inventoryBySkuMap = new Map<string, number>();
-      expectedInventory.forEach((item: any) => {
-        const currentAmount = inventoryBySkuMap.get(item.sku) || 0;
-        inventoryBySkuMap.set(item.sku, currentAmount + (item.amount || 0));
-      });
-      
-      // Check each component requirement against available inventory
-      const missingComponents: Array<{
-        sku: string;
-        name: string;
-        needed: number;
-        available: number;
-        shortfall: number;
-      }> = [];
-      
-      const excessComponents: Array<{
-        sku: string;
-        name: string;
-        excess: number;
-      }> = [];
-      
-      let minProducibleCars = Infinity;
-      
-      batch.items.forEach(item => {
-        const availableInventory = inventoryBySkuMap.get(item.sku) || 0;
-        const totalNeeded = item.quantity * batch.totalCars;
-        const carsProducibleWithThisComponent = Math.floor(availableInventory / item.quantity);
-        
-        minProducibleCars = Math.min(minProducibleCars, carsProducibleWithThisComponent);
-        
-        if (availableInventory < totalNeeded) {
-          missingComponents.push({
-            sku: item.sku,
-            name: item.name,
-            needed: totalNeeded,
-            available: availableInventory,
-            shortfall: totalNeeded - availableInventory
-          });
-        }
-        
-        // Check for significant excess (more than 2x batch requirement)
-        const excessThreshold = totalNeeded * 2;
-        if (availableInventory > excessThreshold) {
-          excessComponents.push({
-            sku: item.sku,
-            name: item.name,
-            excess: availableInventory - totalNeeded
-          });
-        }
-      });
-      
-      // If no items found, assume we can't produce any cars
-      if (minProducibleCars === Infinity) {
-        minProducibleCars = 0;
-      }
-      
-      // Determine health status
-      let healthStatus: 'healthy' | 'warning' | 'critical';
-      if (minProducibleCars >= batch.totalCars) {
-        healthStatus = 'healthy';
-      } else if (minProducibleCars > 0) {
-        healthStatus = 'warning';
-      } else {
-        healthStatus = 'critical';
-      }
-      
-      const healthCheck: BatchHealthCheck = {
-        batchId,
-        healthStatus,
-        availableComponents: minProducibleCars,
-        missingComponents,
-        excessComponents,
-        checkedAt: new Date(),
-        checkedBy
-      };
-      
-      // Save the health check result
-      await setDoc(doc(db, 'batchHealthChecks', `${batchId}_${Date.now()}`), healthCheck);
-      
-      logger.info('Batch health check completed:', healthCheck);
-      return healthCheck;
-    } catch (error) {
-      logger.error('Failed to perform batch health check:', error);
-      throw error;
-    }
+    return batchHealthService.performBatchHealthCheck(batchId, checkedBy);
   }
 
   // ========= New Section: CSV Ingestion (VIN plan, Packing list) =========
-  async uploadVinPlansFromCSV(csvData: string, _updatedBy: string): Promise<{ success: number; errors: string[]; stats: { totalRows: number; skippedRows: number }; }> {
-    logger.info('Starting VIN plans CSV upload');
-    const lines = csvData.trim().split('\n');
-    const header = lines[0]?.toLowerCase();
-    if (!header || !header.includes('batchid') || !header.includes('vin') || !header.includes('cartype')) {
-      throw new Error('CSV must contain batchId, vin, carType columns');
-    }
-
-    const results = { success: 0, errors: [] as string[], stats: { totalRows: Math.max(lines.length - 1, 0), skippedRows: 0 } };
-    const vinPlansCol = collection(db, 'vin_plans');
-    const batchUpdates = new Map<string, { carVins: Set<string>, carType?: string }>();
-
-    for (let i = 1; i < lines.length; i++) {
-      const raw = lines[i].trim();
-      if (!raw) { results.stats.skippedRows++; continue; }
-      const parts = raw.split(',').map(s => s.trim());
-      const [batchId, vin, carType] = parts;
-      if (!batchId || !vin || !carType) {
-        results.errors.push(`Row ${i + 1}: Missing batchId, vin, or carType`);
-        results.stats.skippedRows++;
-        continue;
-      }
-      const plan: VinPlan = { batchId, vin: vin.toUpperCase(), carType, createdAt: new Date(), updatedAt: new Date() };
-      try {
-        await addDoc(vinPlansCol, plan);
-        results.success++;
-        
-        if (!batchUpdates.has(batchId)) {
-          batchUpdates.set(batchId, { carVins: new Set(), carType: carType });
-        }
-        batchUpdates.get(batchId)!.carVins.add(vin.toUpperCase());
-      } catch (err) {
-        results.errors.push(`Row ${i + 1}: Failed to save VIN ${vin} - ${err}`);
-        results.stats.skippedRows++;
-      }
-    }
-    
-    for (const [batchId, update] of batchUpdates.entries()) {
-      try {
-        const batchDocRef = doc(db, 'batches', batchId);
-        const batchDoc = await getDoc(batchDocRef);
-        if (batchDoc.exists()) {
-          const batchData = batchDoc.data() as Batch;
-          const updatedCarVins = [...new Set([...(batchData.carVins || []), ...update.carVins])];
-          await updateDoc(batchDocRef, {
-            carVins: updatedCarVins,
-            totalCars: updatedCarVins.length,
-            carType: batchData.carType || update.carType,
-            updatedAt: new Date()
-          });
-        }
-      } catch (err) {
-        logger.error(`Failed to update batch ${batchId} with VINs:`, err);
-      }
-    }
-
-    logger.info('VIN plans CSV upload completed', results);
-    return results;
+  async uploadVinPlansFromCSV(csvData: string, updatedBy: string): Promise<{ 
+    success: number; 
+    errors: string[]; 
+    stats: { totalRows: number; skippedRows: number }; 
+  }> {
+    return batchCSVService.uploadVinPlansFromCSV(csvData, updatedBy);
   }
 
-  async uploadPackingListFromCSV(csvData: string, uploadedBy: string): Promise<{ success: number; errors: string[]; stats: { totalRows: number; skippedRows: number }; }> {
-    logger.info('Starting packing list CSV upload');
-    const lines = csvData.trim().split('\n');
-    const header = lines[0]?.toLowerCase();
-    if (!header || !header.includes('batchid') || !header.includes('sku') || !header.includes('quantity')) {
-      throw new Error('CSV must contain batchId, sku, quantity columns');
-    }
-
-    const results = { success: 0, errors: [] as string[], stats: { totalRows: Math.max(lines.length - 1, 0), skippedRows: 0 } };
-    const receiptsCol = collection(db, 'batch_receipts');
-    const itemsByBatch = new Map<string, BatchItem[]>();
-
-    for (let i = 1; i < lines.length; i++) {
-      const raw = lines[i].trim();
-      if (!raw) { results.stats.skippedRows++; continue; }
-      // Allow optional columns: location, boxId, notes
-      const parts = raw.split(',').map(s => s.trim());
-      const [batchId, sku, quantityStr, location, boxId, notes] = parts;
-      const quantity = parseInt(quantityStr, 10);
-      if (!batchId || !sku || isNaN(quantity) || quantity <= 0) {
-        results.errors.push(`Row ${i + 1}: Invalid batchId/sku/quantity`);
-        results.stats.skippedRows++;
-        continue;
-      }
-      const lineData = { batchId, sku, quantity, location, boxId, notes, uploadedAt: new Date(), uploadedBy };
-      
-      // Remove properties with undefined values, which are not supported by Firestore
-      const cleanedLine = Object.fromEntries(Object.entries(lineData).filter(([, v]) => v !== undefined));
-
-      try {
-        await addDoc(receiptsCol, cleanedLine);
-        results.success++;
-
-        if (!itemsByBatch.has(batchId)) {
-          itemsByBatch.set(batchId, []);
-        }
-        itemsByBatch.get(batchId)!.push({ sku, quantity, name: sku }); // Use SKU as name
-
-      } catch (err) {
-        results.errors.push(`Row ${i + 1}: Failed to save receipt for ${sku} - ${err}`);
-        results.stats.skippedRows++;
-      }
-    }
-
-    for (const [batchId, items] of itemsByBatch.entries()) {
-      try {
-        const batchDocRef = doc(db, 'batches', batchId);
-        const batchDoc = await getDoc(batchDocRef);
-        if (batchDoc.exists()) {
-          const batchData = batchDoc.data() as Batch;
-          const updatedItemsMap = new Map(batchData.items?.map(item => [item.sku, item]));
-          
-          for (const newItem of items) {
-            if (updatedItemsMap.has(newItem.sku)) {
-              const existingItem = updatedItemsMap.get(newItem.sku)!;
-              existingItem.quantity += newItem.quantity;
-              updatedItemsMap.set(newItem.sku, existingItem);
-            } else {
-              updatedItemsMap.set(newItem.sku, newItem);
-            }
-          }
-          
-          const updatedItems = Array.from(updatedItemsMap.values());
-          await updateDoc(batchDocRef, {
-            items: updatedItems,
-            updatedAt: new Date()
-          });
-        }
-      } catch (err) {
-        logger.error(`Failed to update batch ${batchId} with packing list items:`, err);
-      }
-    }
-
-    logger.info('Packing list CSV upload completed', results);
-    return results;
+  async uploadPackingListFromCSV(csvData: string, uploadedBy: string): Promise<{ 
+    success: number; 
+    errors: string[]; 
+    stats: { totalRows: number; skippedRows: number }; 
+  }> {
+    return batchCSVService.uploadPackingListFromCSV(csvData, uploadedBy);
   }
 
   // ========= New Section: VIN-level Batch Health (uses expected inventory totals) =========
@@ -697,49 +292,9 @@ class BatchManagementService {
     }
   }
 
-  // Batch Deletion
+  // Batch Deletion - Delegated to batchCore
   async deleteBatch(batchId: string): Promise<void> {
-    try {
-      logger.info('Deleting batch:', batchId);
-      
-      // Delete batch document
-      const batchQuery = query(collection(db, 'batches'), where('batchId', '==', batchId));
-      const batchSnapshot = await getDocs(batchQuery);
-      
-      if (batchSnapshot.empty) {
-        throw new Error(`Batch ${batchId} not found`);
-      }
-      
-      // Delete the batch document
-      await deleteDoc(batchSnapshot.docs[0].ref);
-      
-      // Clean up related data
-      // Delete batch requirements
-      const batchRequirementsCol = collection(db, 'batchRequirements');
-      const reqSnapshot = await getDocs(query(batchRequirementsCol, where('batchId', '==', batchId)));
-      for (const reqDoc of reqSnapshot.docs) {
-        await deleteDoc(reqDoc.ref);
-      }
-      
-      // Delete VIN plans
-      const vinPlansCol = collection(db, 'vin_plans');
-      const vinSnapshot = await getDocs(query(vinPlansCol, where('batchId', '==', batchId)));
-      for (const vinDoc of vinSnapshot.docs) {
-        await deleteDoc(vinDoc.ref);
-      }
-      
-      // Delete batch receipts
-      const receiptsCol = collection(db, 'batch_receipts');
-      const receiptSnapshot = await getDocs(query(receiptsCol, where('batchId', '==', batchId)));
-      for (const receiptDoc of receiptSnapshot.docs) {
-        await deleteDoc(receiptDoc.ref);
-      }
-      
-      logger.info(`Batch ${batchId} and all related data deleted successfully`);
-    } catch (error) {
-      logger.error('Failed to delete batch:', error);
-      throw error;
-    }
+    return batchCoreService.deleteBatch(batchId);
   }
 
   // ========= Smart Batch Health System - Efficient Tracking =========
@@ -854,302 +409,25 @@ class BatchManagementService {
     }
   }
   
-  // Get real-time batch health status
-  async getBatchHealthStatus(batchId: string): Promise<BatchHealthStatus> {
-    try {
-      logger.info('Getting smart batch health status:', batchId);
-      
-      // Get batch requirements
-      const batchRequirementsCol = collection(db, 'batchRequirements');
-      const reqSnapshot = await getDocs(query(batchRequirementsCol, where('batchId', '==', batchId)));
-      
-      if (reqSnapshot.empty) {
-        throw new Error(`No requirements found for batch ${batchId}. Batch may not be activated.`);
-      }
-      
-      const requirements = reqSnapshot.docs.map(doc => doc.data() as BatchRequirement);
-      
-      // Get current inventory levels from Expected table (the real inventory data)
-      const { tableStateService } = await import('./tableState');
-      const expectedInventory = await tableStateService.getExpectedInventory();
-      
-      // Calculate inventory by SKU (sum across all locations)
-      const inventoryBySkuMap = new Map<string, number>();
-      expectedInventory.forEach((item) => {
-        const currentAmount = inventoryBySkuMap.get(item.sku) || 0;
-        inventoryBySkuMap.set(item.sku, currentAmount + (item.amount || 0));
-      });
-      
-      // Analyze each requirement against current inventory
-      const blockedComponents: Array<{sku: string; name: string; needed: number; available: number; shortfall: number}> = [];
-      const excessComponents: Array<{sku: string; name: string; excess: number}> = [];
-      
-      let minCarsProducible = Infinity;
-      
-      for (const req of requirements) {
-        const available = inventoryBySkuMap.get(req.sku) || 0;
-        const stillNeeded = req.remaining;
-        
-        if (stillNeeded > 0) {
-          const carsLeft = req.totalCars - req.carsCompleted;
-          if (carsLeft > 0) {
-            const avgNeededPerCar = stillNeeded / carsLeft;
-            if (avgNeededPerCar > 0) {
-              const carsProducibleWithThisComponent = Math.floor(available / avgNeededPerCar);
-              minCarsProducible = Math.min(minCarsProducible, carsProducibleWithThisComponent);
-            }
-          }
-          
-          if (available < stillNeeded) {
-            blockedComponents.push({
-              sku: req.sku,
-              name: req.name,
-              needed: stillNeeded,
-              available,
-              shortfall: stillNeeded - available
-            });
-          }
-          
-          // Check for significant excess (more than 2x remaining requirement)
-          if (available > stillNeeded * 2) {
-            excessComponents.push({
-              sku: req.sku,
-              name: req.name,
-              excess: available - stillNeeded
-            });
-          }
-        }
-      }
-      
-      // If no remaining requirements, set to completed cars
-      if (minCarsProducible === Infinity) {
-        minCarsProducible = requirements[0]?.totalCars - requirements[0]?.carsCompleted || 0;
-      }
-      
-      // Determine health status
-      const carsRemaining = requirements[0]?.totalCars - requirements[0]?.carsCompleted || 0;
-      let status: 'healthy' | 'warning' | 'critical';
-      
-      if (minCarsProducible >= carsRemaining) {
-        status = 'healthy';
-      } else if (minCarsProducible > 0) {
-        status = 'warning';
-      } else {
-        status = 'critical';
-      }
-      
-      return {
-        batchId,
-        status,
-        carsRemaining,
-        totalCars: requirements[0]?.totalCars || 0,
-        canProduceCars: Math.max(0, minCarsProducible),
-        blockedComponents,
-        excessComponents,
-        checkedAt: new Date()
-      };
-      
-    } catch (error) {
-      logger.error('Failed to get batch health status:', error);
-      throw error;
-    }
-  }
 
-  // ========= Global Multi-Batch Health System with Priority Allocation =========
+  // ========= Global Multi-Batch Health System - Delegated to batchHealth =========
   
   // Get all active batches with priority-based health status
   async getGlobalBatchHealthStatuses(): Promise<Map<string, BatchHealthStatus>> {
-    try {
-      logger.info('Computing global batch health with priority allocation');
-      
-      // 1. Get all active batches sorted by upload sequence (createdAt ascending)
-      const allBatches = await this.getAllBatches();
-      const activeBatches = allBatches
-        .filter(batch => batch.status === 'in_progress')
-        .sort((a, b) => {
-          try {
-            const aTime = a.createdAt instanceof Date ? a.createdAt.getTime() : new Date(a.createdAt).getTime();
-            const bTime = b.createdAt instanceof Date ? b.createdAt.getTime() : new Date(b.createdAt).getTime();
-            
-            // Handle invalid dates
-            if (isNaN(aTime) && isNaN(bTime)) return 0;
-            if (isNaN(aTime)) return 1; // Put invalid dates at end
-            if (isNaN(bTime)) return -1;
-            
-            return aTime - bTime;
-          } catch (error) {
-            logger.warn('Date comparison error:', error);
-            return 0; // Keep original order if comparison fails
-          }
-        }); // Earlier uploaded = higher priority
-      
-      if (activeBatches.length === 0) {
-        logger.info('No active batches found for global health check');
-        return new Map();
-      }
-      
-      logger.info(`Processing ${activeBatches.length} active batches in priority order:`, 
-        activeBatches.map(b => {
-          try {
-            const dateStr = b.createdAt instanceof Date ? b.createdAt.toISOString() : new Date(b.createdAt).toISOString();
-            return `${b.batchId} (${dateStr})`;
-          } catch (error) {
-            return `${b.batchId} (date parsing error)`;
-          }
-        }));
-      
-      // 2. Get current total inventory across all locations
-      const { tableStateService } = await import('./tableState');
-      const expectedInventory = await tableStateService.getExpectedInventory();
-      
-      // Build inventory map by SKU (sum across all locations)
-      const totalInventoryMap = new Map<string, number>();
-      expectedInventory.forEach((item) => {
-        const currentAmount = totalInventoryMap.get(item.sku) || 0;
-        totalInventoryMap.set(item.sku, currentAmount + (item.amount || 0));
-      });
-      
-      logger.info('Total available inventory:', Object.fromEntries(totalInventoryMap));
-      
-      // 3. Get batch requirements for all active batches
-      const batchRequirementsCol = collection(db, 'batchRequirements');
-      const healthResults = new Map<string, BatchHealthStatus>();
-      
-      // Create a working copy of inventory for allocation simulation
-      const remainingInventoryMap = new Map(totalInventoryMap);
-      
-      // 4. Process each batch in priority order (upload sequence)
-      for (const batch of activeBatches) {
-        logger.info(`Processing batch ${batch.batchId} (priority ${activeBatches.indexOf(batch) + 1})`);
-        
-        try {
-          // Get requirements for this batch
-          const reqSnapshot = await getDocs(query(batchRequirementsCol, where('batchId', '==', batch.batchId)));
-          
-          if (reqSnapshot.empty) {
-            logger.warn(`No requirements found for batch ${batch.batchId} - skipping`);
-            continue;
-          }
-          
-          const requirements = reqSnapshot.docs.map(doc => doc.data() as BatchRequirement);
-          
-          // Check what's missing for this batch with current remaining inventory
-          const missingComponents: Array<{sku: string; name: string; needed: number; available: number; shortfall: number}> = [];
-          let canProduceCars = Infinity;
-          
-          for (const req of requirements) {
-            const remainingNeeded = req.remaining; // What this batch still needs
-            const availableNow = remainingInventoryMap.get(req.sku) || 0;
-            
-            if (remainingNeeded > 0) {
-              const carsLeft = req.totalCars - req.carsCompleted;
-              if (carsLeft > 0) {
-                const avgNeededPerCar = remainingNeeded / carsLeft;
-                if (avgNeededPerCar > 0) {
-                  const carsProducibleWithThisComponent = Math.floor(availableNow / avgNeededPerCar);
-                  canProduceCars = Math.min(canProduceCars, carsProducibleWithThisComponent);
-                }
-              }
-              
-              // Track missing components
-              if (availableNow < remainingNeeded) {
-                missingComponents.push({
-                  sku: req.sku,
-                  name: req.name,
-                  needed: remainingNeeded,
-                  available: availableNow,
-                  shortfall: remainingNeeded - availableNow
-                });
-              }
-            }
-          }
-          
-          // Determine health status
-          if (canProduceCars === Infinity) {
-            canProduceCars = requirements[0]?.totalCars - requirements[0]?.carsCompleted || 0;
-          }
-          canProduceCars = Math.max(0, canProduceCars);
-          
-          const carsRemaining = requirements[0]?.totalCars - requirements[0]?.carsCompleted || 0;
-          let status: 'healthy' | 'warning' | 'critical';
-          
-          if (missingComponents.length === 0) {
-            status = 'healthy';
-          } else if (canProduceCars > 0) {
-            status = 'warning';
-          } else {
-            status = 'critical';
-          }
-          
-          // Store health result
-          healthResults.set(batch.batchId, {
-            batchId: batch.batchId,
-            status,
-            carsRemaining,
-            totalCars: requirements[0]?.totalCars || 0,
-            canProduceCars,
-            blockedComponents: missingComponents, // Only missing components, no excess
-            excessComponents: [], // Not needed for priority allocation view
-            checkedAt: new Date()
-          });
-          
-          // If batch can produce cars, "allocate" its requirements from remaining inventory
-          if (canProduceCars > 0 && missingComponents.length === 0) {
-            for (const req of requirements) {
-              if (req.remaining > 0) {
-                const currentAvailable = remainingInventoryMap.get(req.sku) || 0;
-                const allocated = Math.min(req.remaining, currentAvailable);
-                remainingInventoryMap.set(req.sku, currentAvailable - allocated);
-                
-                logger.info(`Allocated ${allocated} x ${req.sku} to batch ${batch.batchId}, remaining: ${currentAvailable - allocated}`);
-              }
-            }
-          }
-          
-          logger.info(`Batch ${batch.batchId} health: ${status}, missing components: ${missingComponents.length}, can produce: ${canProduceCars}`);
-          
-        } catch (error) {
-          logger.error(`Failed to process batch ${batch.batchId}:`, error);
-          // Add error status for this batch
-          healthResults.set(batch.batchId, {
-            batchId: batch.batchId,
-            status: 'critical',
-            carsRemaining: 0,
-            totalCars: 0,
-            canProduceCars: 0,
-            blockedComponents: [{ sku: 'ERROR', name: 'Health check failed', needed: 0, available: 0, shortfall: 0 }],
-            excessComponents: [],
-            checkedAt: new Date()
-          });
-        }
-      }
-      
-      logger.info('Global batch health computation completed', {
-        totalBatches: activeBatches.length,
-        healthyBatches: [...healthResults.values()].filter(h => h.status === 'healthy').length,
-        warningBatches: [...healthResults.values()].filter(h => h.status === 'warning').length,
-        criticalBatches: [...healthResults.values()].filter(h => h.status === 'critical').length
-      });
-      
-      return healthResults;
-      
-    } catch (error) {
-      logger.error('Failed to compute global batch health statuses:', error);
-      throw error;
-    }
+    return batchHealthService.getGlobalBatchHealthStatuses();
   }
   
   // Get single batch health (backward compatibility) - now uses global system
   async getBatchHealthStatusWithPriority(batchId: string): Promise<BatchHealthStatus> {
-    const globalResults = await this.getGlobalBatchHealthStatuses();
-    const result = globalResults.get(batchId);
-    
-    if (!result) {
-      throw new Error(`Batch ${batchId} not found or not active`);
-    }
-    
-    return result;
+    return batchHealthService.getBatchHealthStatusWithPriority(batchId);
   }
+
+  // Get real-time batch health status
+  async getBatchHealthStatus(batchId: string): Promise<BatchHealthStatus> {
+    return batchHealthService.getBatchHealthStatus(batchId);
+  }
+
+  // ========= Mock Data Generation =========
 
   // Utility functions
   async generateSampleData(updatedBy: string): Promise<void> {
