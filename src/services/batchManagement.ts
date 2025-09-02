@@ -966,7 +966,11 @@ class BatchManagementService {
       const allBatches = await this.getAllBatches();
       const activeBatches = allBatches
         .filter(batch => batch.status === 'in_progress')
-        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()); // Earlier uploaded = higher priority
+        .sort((a, b) => {
+          const aTime = a.createdAt instanceof Date ? a.createdAt.getTime() : new Date(a.createdAt).getTime();
+          const bTime = b.createdAt instanceof Date ? b.createdAt.getTime() : new Date(b.createdAt).getTime();
+          return aTime - bTime;
+        }); // Earlier uploaded = higher priority
       
       if (activeBatches.length === 0) {
         logger.info('No active batches found for global health check');
@@ -974,7 +978,7 @@ class BatchManagementService {
       }
       
       logger.info(`Processing ${activeBatches.length} active batches in priority order:`, 
-        activeBatches.map(b => `${b.batchId} (${b.createdAt.toISOString()})`));
+        activeBatches.map(b => `${b.batchId} (${b.createdAt instanceof Date ? b.createdAt.toISOString() : new Date(b.createdAt).toISOString()})`));
       
       // 2. Get current total inventory across all locations
       const { tableStateService } = await import('./tableState');

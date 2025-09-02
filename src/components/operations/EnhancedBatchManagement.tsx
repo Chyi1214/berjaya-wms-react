@@ -104,7 +104,11 @@ export const EnhancedBatchManagement = memo(function EnhancedBatchManagement({
       // Log priority order and missing components for debugging
       const sortedBatches = batches
         .filter(b => b.status === 'in_progress')
-        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+        .sort((a, b) => {
+          const aTime = a.createdAt instanceof Date ? a.createdAt.getTime() : new Date(a.createdAt).getTime();
+          const bTime = b.createdAt instanceof Date ? b.createdAt.getTime() : new Date(b.createdAt).getTime();
+          return aTime - bTime;
+        });
         
       sortedBatches.forEach((batch, index) => {
         const health = globalHealthResults.get(batch.batchId);
@@ -606,13 +610,21 @@ Material consumption will be tracked automatically as cars complete.`);
           {/* Batch List - Sorted by Priority (Upload Sequence) */}
           <div className="space-y-2 max-h-80 overflow-y-auto">
             {batches
-              .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()) // Priority order: earlier uploaded first
+              .sort((a, b) => {
+                const aTime = a.createdAt instanceof Date ? a.createdAt.getTime() : new Date(a.createdAt).getTime();
+                const bTime = b.createdAt instanceof Date ? b.createdAt.getTime() : new Date(b.createdAt).getTime();
+                return aTime - bTime;
+              }) // Priority order: earlier uploaded first
               .map((batch) => {
               const statusDisplay = getStatusDisplay(batch);
               const isSelected = selectedBatch?.batchId === batch.batchId;
               const healthStatus = batchHealthStatuses.get(batch.batchId);
               const isActive = batch.status === 'in_progress';
-              const priorityNumber = isActive ? batches.filter(b => b.status === 'in_progress' && b.createdAt <= batch.createdAt).length : null;
+              const batchTime = batch.createdAt instanceof Date ? batch.createdAt : new Date(batch.createdAt);
+              const priorityNumber = isActive ? batches.filter(b => {
+                const bTime = b.status === 'in_progress' && (b.createdAt instanceof Date ? b.createdAt : new Date(b.createdAt)) <= batchTime;
+                return bTime;
+              }).length : null;
               
               // Health indicator for active batches
               const getHealthIndicator = () => {
