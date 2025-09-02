@@ -2,6 +2,20 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with the Berjaya WMS React project.
 
+## 🚨 **CRITICAL REMINDER FOR ALL FUTURE CLAUDE SESSIONS**
+
+**⚠️ MANDATORY: ALWAYS UPDATE VERSION FOOTER AFTER ANY DEPLOYMENT!**
+
+After every fix, feature, or deployment, you MUST:
+1. **Update `package.json` version** (increment patch number: 5.4.12 → 5.4.13)
+2. **Update `src/components/VersionFooter.tsx` version** (keep in sync with package.json)  
+3. **Update CLAUDE.md current status** (shows what this version contains)
+4. **Deploy with version updates included**
+
+**Why this is critical:** User needs to know which version is running in production to track fixes and features. Version footer appears on every page - it's the user's primary way to confirm they're using the latest deployment.
+
+**Example commit pattern:** "v5.4.12 - Car Completion Fix - Production Line Fully Functional"
+
 ## 🎯 PROJECT PHILOSOPHY - CRITICAL
 
 **USER PRIORITY: MAINTAINABILITY ABOVE ALL ELSE**
@@ -16,7 +30,7 @@ The user has explicitly stated that **maintainability is the highest priority**.
 
 ## 📋 Project Overview
 
-**Current Status**: v5.3.1 - Refined Batch Management Interface with VIN-per-row Design (August 27, 2025)
+**Current Status**: v5.4.12 - Car Completion Fix - Production Line Fully Functional (September 2, 2025)
 **IMPORTANT**: Read Eugene_note.md first! Contains complete roadmap and vision.
 **MAJOR MILESTONE**: Version 4.1 Quality Assurance system COMPLETE!
 - **Original Problem**: Complex event management, scope issues, Firebase integration chaos
