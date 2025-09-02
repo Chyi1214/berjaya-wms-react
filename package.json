@@ -1,6 +1,6 @@
 {
   "name": "berjaya-wms-react",
-  "version": "5.4.14",
+  "version": "5.4.15",
   "description": "Berjaya Warehouse Management System - React Version with Ela AI Assistant",
   "private": true,
   "type": "module",

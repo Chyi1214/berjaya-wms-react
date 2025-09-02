@@ -143,13 +143,16 @@ class CarTrackingService {
       });
 
       // Update car - clear current zone, update history
-      const updatedCar: Partial<Car> = {
-        currentZone: null,
-        zoneHistory: updatedHistory
+      const updatedCar = {
+        currentZone: null as null, // Explicitly type as null
+        zoneHistory: updatedHistory,
+        updatedAt: new Date()
       };
 
       console.log('🔧 Updating car with:', updatedCar);
-      await this.updateCar(vin, updatedCar);
+      // Direct updateDoc to avoid any data processing that might convert null to undefined
+      const docRef = doc(this.carsCollection, vin.toUpperCase());
+      await updateDoc(docRef, updatedCar);
       console.log('✅ Car currentZone set to null:', vin);
 
       // Log movement

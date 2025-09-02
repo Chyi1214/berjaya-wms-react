@@ -92,7 +92,7 @@ class WorkStationService {
       const updatedStats = {
         carsProcessedToday: station.carsProcessedToday + 1,
         averageProcessingTime: await this.calculateAverageProcessingTime(zoneId),
-        currentCar: null, // Clear current car
+        currentCar: null as null, // Explicitly type as null to clear current car
         lastUpdated: new Date()
       };
 
