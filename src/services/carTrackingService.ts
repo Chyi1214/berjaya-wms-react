@@ -131,13 +131,20 @@ class CarTrackingService {
           const exitedAt = new Date();
           const timeSpent = Math.floor((exitedAt.getTime() - entry.enteredAt.getTime()) / (1000 * 60));
           
-          return {
+          // Build entry with conditionally included notes to avoid undefined values
+          const completedEntry = {
             ...entry,
             exitedAt,
             completedBy,
-            timeSpent,
-            notes
+            timeSpent
           };
+          
+          // Only add notes if it has a value (not undefined)
+          if (notes !== undefined && notes.trim() !== '') {
+            completedEntry.notes = notes;
+          }
+          
+          return completedEntry;
         }
         return entry;
       });
