@@ -17,8 +17,8 @@ export const ZoneStatusGrid = memo(function ZoneStatusGrid({
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
           {Array.from({ length: 23 }, (_, i) => i + 1).map(zoneId => {
             const station = workStations.find(s => s.zoneId === zoneId);
-            const hasWorker = station?.currentWorker !== undefined;
-            const hasCar = station?.currentCar !== undefined;
+            const hasWorker = station?.currentWorker !== undefined && station?.currentWorker !== null;
+            const hasCar = station?.currentCar !== undefined && station?.currentCar !== null;
             
             return (
               <div
@@ -34,9 +34,9 @@ export const ZoneStatusGrid = memo(function ZoneStatusGrid({
                   {zoneId}
                 </div>
                 <div className="text-xs space-y-1">
-                  {hasCar && (
+                  {hasCar && station?.currentCar && (
                     <div className="text-green-600">
-                      🚗 {station!.currentCar!.vin.slice(-6)}
+                      🚗 {station.currentCar.vin.slice(-6)}
                     </div>
                   )}
                   {hasWorker && (

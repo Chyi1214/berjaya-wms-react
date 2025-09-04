@@ -10,6 +10,7 @@ import CarCompleteView from './production/CarCompleteView';
 import WorkerCheckInView from './production/WorkerCheckInView';
 import ZoneStatusDisplay from './production/ZoneStatusDisplay';
 import ProductionLineView from './production/ProductionLineView';
+import ProductionInfoBoard from './production/ProductionInfoBoard';
 import { ElaMenu } from './ela/ElaMenu';
 import { ElaChat } from './ela/ElaChat';
 
@@ -29,7 +30,7 @@ interface ProductionViewProps {
 export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCounts, transactions, onTransactionConfirm, onTransactionReject }: ProductionViewProps) {
   const { t } = useLanguage();
   const [selectedZone, setSelectedZone] = useState<number | null>(null);
-  const [selectedAction, setSelectedAction] = useState<'menu' | 'check' | 'transaction' | 'scan_car' | 'complete_car' | 'check_in'>('menu');
+  const [selectedAction, setSelectedAction] = useState<'menu' | 'check' | 'transaction' | 'scan_car' | 'complete_car' | 'check_in' | 'info_board'>('menu');
   const [isWorkerCheckedIn, setIsWorkerCheckedIn] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [showElaMenu, setShowElaMenu] = useState(false);
@@ -108,7 +109,7 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
   const zonePrefix = selectedZone ? `production_zone_${selectedZone}` : '';
   const zoneCounts = counts.filter(count => count.location === zonePrefix);
   
-  // If no zone selected, show zone selection
+  // If no zone selected, show zone selection OR info board
   if (!selectedZone) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -154,8 +155,57 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
           </div>
         </header>
 
-        {/* Main Content - Production Line View */}
-        <ProductionLineView onZoneSelect={handleZoneSelect} />
+        {/* Main Content */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+          {selectedAction === 'info_board' ? (
+            <>
+              {/* Info Board View */}
+              <div className="text-center mb-6">
+                <div className="text-4xl mb-2">📺</div>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                  Production Info Board
+                </h2>
+                <p className="text-gray-600">
+                  Real-time zone status across all production lines
+                </p>
+              </div>
+
+              <ProductionInfoBoard />
+
+              {/* Back Button */}
+              <div className="flex justify-center mt-6">
+                <button
+                  onClick={() => setSelectedAction('menu')}
+                  className="btn-secondary"
+                >
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                  Back to Zone Selection
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Info Board Button */}
+              <div className="text-center">
+                <button
+                  onClick={() => setSelectedAction('info_board')}
+                  className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold rounded-xl shadow-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 transform hover:scale-105"
+                >
+                  <span className="text-2xl mr-3">📺</span>
+                  <span>Production Info Board</span>
+                  <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+              
+              {/* Production Line View - Zone Selection */}
+              <ProductionLineView onZoneSelect={handleZoneSelect} />
+            </>
+          )}
+        </div>
 
         {/* Ela Chat Modal */}
         {showElaChat && (
@@ -506,6 +556,7 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
               </div>
             </>
           )}
+
 
         </div>
       </main>

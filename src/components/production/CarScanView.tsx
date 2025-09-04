@@ -26,17 +26,7 @@ export function CarScanView({ user, zoneId, onBack, onCarScanned }: CarScanViewP
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [manualVin, setManualVin] = useState('');
   
-  // Car creation state
-  const [showCarForm, setShowCarForm] = useState(false);
-  const [scannedVin, setScannedVin] = useState('');
-  const [carFormData, setCarFormData] = useState<CarScanFormData>({
-    vin: '',
-    type: '',
-    color: '',
-    series: '',
-    status: CarStatus.IN_PRODUCTION,
-    currentZone: null
-  });
+  // Removed car form state - now creating cars automatically with default values
 
   // Loading states
   const [isProcessing, setIsProcessing] = useState(false);
@@ -142,6 +132,39 @@ export function CarScanView({ user, zoneId, onBack, onCarScanned }: CarScanViewP
     }
   };
 
+  // Create car automatically with default values - focus on VIN and time tracking only
+  const createCarAutomatically = async (vin: string) => {
+    const autoCarData: CarScanFormData = {
+      vin,
+      type: 'Standard',        // Default type for time tracking
+      color: 'Unknown',        // Default color - not important for time tracking
+      series: 'Production',    // Default series - not important for time tracking
+      status: CarStatus.IN_PRODUCTION,
+      currentZone: null
+    };
+
+    try {
+      // Create the car
+      await carTrackingService.createCar(autoCarData);
+      
+      // Immediately scan into zone
+      await carTrackingService.scanCarIntoZone(vin, zoneId, user.email);
+      await workStationService.updateStationWithCar(zoneId, vin);
+      
+      // Get the created car
+      const newCar = await carTrackingService.getCarByVIN(vin);
+      if (newCar) {
+        setSuccess(`Car ${vin} created and scanned into Zone ${zoneId} - Time tracking started!`);
+        onCarScanned(newCar);
+        
+        // Play success sound
+        scannerService.triggerFeedback();
+      }
+    } catch (error) {
+      throw new Error(`Failed to create car: ${error}`);
+    }
+  };
+
   const processVinScan = async (vin: string) => {
     try {
       // Check if car already exists
@@ -166,10 +189,8 @@ export function CarScanView({ user, zoneId, onBack, onCarScanned }: CarScanViewP
           scannerService.triggerFeedback();
         }
       } else {
-        // New car, need to create it first
-        setScannedVin(vin);
-        setCarFormData({ ...carFormData, vin });
-        setShowCarForm(true);
+        // New car, create automatically with default values for time tracking only
+        await createCarAutomatically(vin);
       }
       
       setIsProcessing(false);
@@ -178,66 +199,13 @@ export function CarScanView({ user, zoneId, onBack, onCarScanned }: CarScanViewP
     }
   };
 
-  const handleCreateCar = async () => {
-    if (!carFormData.type || !carFormData.color || !carFormData.series) {
-      setError('Please fill in all car details');
-      return;
-    }
-
-    setIsProcessing(true);
-    setError(null);
-
-    try {
-      // Create new car
-      await carTrackingService.createCar(carFormData);
-      
-      // Scan into zone
-      await carTrackingService.scanCarIntoZone(carFormData.vin, zoneId, user.email);
-      await workStationService.updateStationWithCar(zoneId, carFormData.vin);
-      
-      // Get car data
-      const newCar = await carTrackingService.getCarByVIN(carFormData.vin);
-      if (newCar) {
-        setSuccess(`New car ${carFormData.vin} created and scanned into Zone ${zoneId}`);
-        onCarScanned(newCar);
-        
-        // Play success sound
-        scannerService.triggerFeedback();
-      }
-
-      // Reset form
-      setShowCarForm(false);
-      setScannedVin('');
-      setCarFormData({ 
-        vin: '', 
-        type: '', 
-        color: '', 
-        series: '',
-        status: CarStatus.IN_PRODUCTION,
-        currentZone: null
-      });
-      setIsProcessing(false);
-    } catch (error) {
-      setError(`Failed to create car: ${error}`);
-      setIsProcessing(false);
-    }
-  };
+  // Removed handleCreateCar - now using createCarAutomatically instead
 
   const resetScanState = () => {
     setError(null);
     setSuccess(null);
-    setScannedVin('');
-    setShowCarForm(false);
     setShowManualEntry(false);
     setManualVin('');
-    setCarFormData({ 
-      vin: '', 
-      type: '', 
-      color: '', 
-      series: '',
-      status: CarStatus.IN_PRODUCTION,
-      currentZone: null
-    });
   };
 
   return (
@@ -322,99 +290,10 @@ export function CarScanView({ user, zoneId, onBack, onCarScanned }: CarScanViewP
             </div>
           )}
 
-          {/* Car Creation Form */}
-          {showCarForm && (
-            <div className="bg-white rounded-lg shadow-md p-6 border">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                New Car Details - VIN: {scannedVin}
-              </h3>
-              
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Car Type *
-                    </label>
-                    <select
-                      value={carFormData.type}
-                      onChange={(e) => setCarFormData({ ...carFormData, type: e.target.value })}
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      required
-                    >
-                      <option value="">Select Type</option>
-                      <option value="Basic">Basic</option>
-                      <option value="Premium">Premium</option>
-                      <option value="Series3">Series3</option>
-                      <option value="Luxury">Luxury</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Color *
-                    </label>
-                    <select
-                      value={carFormData.color}
-                      onChange={(e) => setCarFormData({ ...carFormData, color: e.target.value })}
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      required
-                    >
-                      <option value="">Select Color</option>
-                      <option value="Red">Red</option>
-                      <option value="Blue">Blue</option>
-                      <option value="Silver">Silver</option>
-                      <option value="Black">Black</option>
-                      <option value="White">White</option>
-                      <option value="Gray">Gray</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Series *
-                    </label>
-                    <select
-                      value={carFormData.series}
-                      onChange={(e) => setCarFormData({ ...carFormData, series: e.target.value })}
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      required
-                    >
-                      <option value="">Select Series</option>
-                      <option value="Standard">Standard</option>
-                      <option value="Premium">Premium</option>
-                      <option value="Series3">Series3</option>
-                      <option value="Limited">Limited</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="flex gap-3 pt-4">
-                  <button
-                    onClick={handleCreateCar}
-                    disabled={isProcessing}
-                    className="flex-1 btn-primary disabled:opacity-50"
-                  >
-                    {isProcessing ? 'Creating...' : 'Create Car & Scan Into Zone'}
-                  </button>
-                  
-                  <button
-                    onClick={() => {
-                      setShowCarForm(false);
-                      setScannedVin('');
-                      resetScanState();
-                    }}
-                    disabled={isProcessing}
-                    className="flex-1 btn-secondary"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+          {/* Car form removed - cars are now created automatically with default values */}
 
           {/* Scanner Interface */}
-          {!showCarForm && !success && (
+          {!success && (
             <div className="bg-white rounded-lg shadow-md p-6">
               
               {/* Camera Scanner */}
@@ -515,19 +394,17 @@ export function CarScanView({ user, zoneId, onBack, onCarScanned }: CarScanViewP
           )}
 
           {/* Back Button */}
-          {!showCarForm && (
-            <div className="text-center">
-              <button
-                onClick={onBack}
-                className="btn-secondary"
-              >
-                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-                Back to Zone Menu
-              </button>
-            </div>
-          )}
+          <div className="text-center">
+            <button
+              onClick={onBack}
+              className="btn-secondary"
+            >
+              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              Back to Zone Menu
+            </button>
+          </div>
 
         </div>
       </main>

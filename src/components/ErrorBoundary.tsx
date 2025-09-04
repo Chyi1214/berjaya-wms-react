@@ -110,7 +110,7 @@ class ErrorBoundary extends Component<Props, State> {
             </div>
             
             <p className="text-xs text-gray-500 mt-4">
-              Berjaya WMS v5.4.16 - Error ID: {Date.now().toString(36).toUpperCase()}
+              Berjaya WMS v5.4.24 - Error ID: {Date.now().toString(36).toUpperCase()}
             </p>
           </div>
         </div>

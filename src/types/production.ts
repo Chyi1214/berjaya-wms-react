@@ -143,9 +143,9 @@ export interface ProductionStats {
 // Form Data Types for V4.0
 export interface CarScanFormData {
   vin: string;
-  type: string;
-  color: string; 
-  series: string;
+  type: string;          // Will be set to default value automatically
+  color: string;         // Will be set to default value automatically
+  series: string;        // Will be set to default value automatically
   status: CarStatus;
   currentZone: number | null;
 }
