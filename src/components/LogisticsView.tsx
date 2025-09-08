@@ -9,6 +9,7 @@ import ScannerView from './scanner/ScannerView';
 import ScanInView from './scanner/ScanInView';
 import { ElaMenu } from './ela/ElaMenu';
 import { ElaChat } from './ela/ElaChat';
+import PersonalSettings from './PersonalSettings';
 
 interface LogisticsViewProps {
   user: User;
@@ -25,6 +26,7 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onTransacti
   const [transactionResult, setTransactionResult] = useState<{ transaction: Transaction, otp: string } | null>(null);
   const [showElaMenu, setShowElaMenu] = useState(false);
   const [showElaChat, setShowElaChat] = useState(false);
+  const [showPersonalSettings, setShowPersonalSettings] = useState(false);
   
   // Handle new count submission (now supports both single items and BOM expansion)
   const handleCountSubmit = async (entries: InventoryCountEntry[]) => {
@@ -108,6 +110,7 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onTransacti
               {showElaMenu && (
                 <ElaMenu
                   onChatOpen={() => setShowElaChat(true)}
+                  onPersonalSettingsOpen={() => setShowPersonalSettings(true)}
                   onClose={() => setShowElaMenu(false)}
                 />
               )}
@@ -244,6 +247,14 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onTransacti
           user={user}
           userRole="logistics"
           onClose={() => setShowElaChat(false)}
+        />
+      )}
+
+      {/* Personal Settings */}
+      {showPersonalSettings && (
+        <PersonalSettings
+          user={user}
+          onClose={() => setShowPersonalSettings(false)}
         />
       )}
     </div>

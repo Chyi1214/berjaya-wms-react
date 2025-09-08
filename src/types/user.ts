@@ -35,6 +35,9 @@ export interface UserRecord {
   updatedAt: Date;
   lastLogin?: Date;
   isActive: boolean;
+  // v5.6 Personal Settings
+  displayName?: string;             // User's preferred display name
+  useDisplayName?: boolean;         // Whether to show display name instead of email
 }
 
 // Granular Permissions System

@@ -1,9 +1,13 @@
 // Role Selection Component - Choose user role after login
+import { useState } from 'react';
 import { UserRole, RoleInfo, type RoleSelectionProps } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext'; // Import useAuth
-import LanguageSwitcher from './LanguageSwitcher';
+import { ElaMenu } from './ela/ElaMenu';
+import { ElaChat } from './ela/ElaChat';
+import PersonalSettings from './PersonalSettings';
 import VersionFooter from './VersionFooter';
+import { getDisplayName, getUserInitial } from '../utils/displayName';
 
 // Role definitions with icons and colors (will be translated)
 const getRoles = (t: (key: string) => string): RoleInfo[] => [
@@ -37,6 +41,9 @@ export function RoleSelection({ user, onRoleSelect, onLogout }: RoleSelectionPro
   const { t } = useLanguage();
   const { authenticatedUser, isDevAdmin } = useAuth(); // Get authenticated user and dev admin status
   const roles = getRoles(t);
+  const [showElaMenu, setShowElaMenu] = useState(false);
+  const [showElaChat, setShowElaChat] = useState(false);
+  const [showPersonalSettings, setShowPersonalSettings] = useState(false);
 
   const userRole = authenticatedUser?.userRecord?.role;
 
@@ -47,21 +54,59 @@ export function RoleSelection({ user, onRoleSelect, onLogout }: RoleSelectionPro
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <div className="max-w-2xl w-full">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="mb-4 relative">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      {/* Header Bar */}
+      <div className="bg-white shadow-sm border-b border-gray-200 p-4">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          {/* Logo and Title */}
+          <div className="flex items-center space-x-4">
             <img 
               src="/assets/Berjaya_AutotechLogo.png" 
               alt="Berjaya Autotech" 
-              className="w-20 h-20 mx-auto mb-4 object-contain"
+              className="w-8 h-8 object-contain"
             />
-            {/* Language Switcher */}
-            <div className="absolute top-0 right-0">
-              <LanguageSwitcher size="sm" />
+            <div className="flex items-center space-x-2">
+              <span className="text-2xl">👤</span>
+              <h1 className="text-lg font-bold text-gray-900">{t('roles.selectRole')}</h1>
             </div>
           </div>
+
+          {/* Hamburger Menu */}
+          <div className="relative">
+            <button
+              onClick={() => setShowElaMenu(!showElaMenu)}
+              className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+              aria-label="Open menu"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+
+            {/* Menu Dropdown */}
+            {showElaMenu && (
+              <ElaMenu
+                onChatOpen={() => setShowElaChat(true)}
+                onPersonalSettingsOpen={() => setShowPersonalSettings(true)}
+                onClose={() => setShowElaMenu(false)}
+              />
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex items-center justify-center p-4 pt-8">
+        <div className="max-w-2xl w-full">
+          {/* Header */}
+          <div className="text-center mb-8">
+            <div className="mb-4">
+              <img 
+                src="/assets/Berjaya_AutotechLogo.png" 
+                alt="Berjaya Autotech" 
+                className="w-20 h-20 mx-auto mb-4 object-contain"
+              />
+            </div>
           
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
             Berjaya WMS
@@ -82,14 +127,14 @@ export function RoleSelection({ user, onRoleSelect, onLogout }: RoleSelectionPro
               ) : (
                 <div className="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center">
                   <span className="text-gray-600 font-medium">
-                    {(user.displayName || user.email).charAt(0).toUpperCase()}
+                    {getUserInitial(user, authenticatedUser?.userRecord)}
                   </span>
                 </div>
               )}
               <div className="text-left">
                 <p className="text-sm text-gray-600">{t('auth.loggedInAs')}:</p>
                 <p className="font-medium text-gray-900">
-                  {user.displayName || user.email}
+                  {getDisplayName(user, authenticatedUser?.userRecord)}
                 </p>
               </div>
             </div>
@@ -144,7 +189,25 @@ export function RoleSelection({ user, onRoleSelect, onLogout }: RoleSelectionPro
         </div>
 
         <VersionFooter className="mt-8" />
+        </div>
       </div>
+
+      {/* Ela Chat */}
+      {showElaChat && (
+        <ElaChat
+          user={user}
+          userRole={userRole || 'unknown'}
+          onClose={() => setShowElaChat(false)}
+        />
+      )}
+
+      {/* Personal Settings */}
+      {showPersonalSettings && (
+        <PersonalSettings
+          user={user}
+          onClose={() => setShowPersonalSettings(false)}
+        />
+      )}
     </div>
   );
 }

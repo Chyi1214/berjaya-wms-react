@@ -184,6 +184,7 @@ const QAView: React.FC<QAViewProps> = ({ user, onBack }) => {
                 {showElaMenu && (
                   <ElaMenu
                     onChatOpen={() => setShowElaChat(true)}
+                    onPersonalSettingsOpen={() => {}}
                     onClose={() => setShowElaMenu(false)}
                   />
                 )}

@@ -13,6 +13,7 @@ import ProductionLineView from './production/ProductionLineView';
 import ProductionInfoBoard from './production/ProductionInfoBoard';
 import { ElaMenu } from './ela/ElaMenu';
 import { ElaChat } from './ela/ElaChat';
+import PersonalSettings from './PersonalSettings';
 
 interface ProductionViewProps {
   user: User;
@@ -35,6 +36,7 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
   const [refreshKey, setRefreshKey] = useState(0);
   const [showElaMenu, setShowElaMenu] = useState(false);
   const [showElaChat, setShowElaChat] = useState(false);
+  const [showPersonalSettings, setShowPersonalSettings] = useState(false);
   
   // Handle zone selection
   const handleZoneSelect = (zoneId: number) => {
@@ -147,6 +149,7 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
                 {showElaMenu && (
                   <ElaMenu
                     onChatOpen={() => setShowElaChat(true)}
+                    onPersonalSettingsOpen={() => setShowPersonalSettings(true)}
                     onClose={() => setShowElaMenu(false)}
                   />
                 )}
@@ -256,6 +259,7 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
               {showElaMenu && (
                 <ElaMenu
                   onChatOpen={() => setShowElaChat(true)}
+                  onPersonalSettingsOpen={() => setShowPersonalSettings(true)}
                   onClose={() => setShowElaMenu(false)}
                 />
               )}
@@ -567,6 +571,14 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
           user={user}
           userRole={`production-zone-${selectedZone}`}
           onClose={() => setShowElaChat(false)}
+        />
+      )}
+
+      {/* Personal Settings */}
+      {showPersonalSettings && (
+        <PersonalSettings
+          user={user}
+          onClose={() => setShowPersonalSettings(false)}
         />
       )}
     </div>

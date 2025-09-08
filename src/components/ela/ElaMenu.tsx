@@ -1,7 +1,7 @@
 // Ela Menu Dropdown Component
 import { ElaMenuProps } from '../../types/ela';
 
-export function ElaMenu({ onChatOpen, onClose }: ElaMenuProps) {
+export function ElaMenu({ onChatOpen, onPersonalSettingsOpen, onClose }: ElaMenuProps) {
 
   return (
     <>
@@ -28,14 +28,16 @@ export function ElaMenu({ onChatOpen, onClose }: ElaMenuProps) {
         {/* Divider */}
         <div className="border-t border-gray-100 my-1" />
         
-        {/* Language switcher placeholder */}
+        {/* Personal Settings */}
         <button
-          onClick={onClose}
-          className="w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors flex items-center space-x-2 text-gray-500"
+          onClick={() => {
+            onPersonalSettingsOpen();
+            onClose();
+          }}
+          className="w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors flex items-center space-x-2"
         >
-          <span className="text-xl">🌐</span>
-          <span className="font-medium">Language</span>
-          <span className="text-sm ml-auto">(Coming soon)</span>
+          <span className="text-xl">⚙️</span>
+          <span className="font-medium text-gray-900">Personal Settings</span>
         </button>
         
         {/* Divider */}

@@ -358,6 +358,47 @@ class UserManagementService {
         return false;
     }
   }
+
+  // v5.6 Personal Settings - Display Name Support
+  async updateUserDisplayName(
+    email: string, 
+    displaySettings: { displayName: string; useDisplayName: boolean }
+  ): Promise<void> {
+    try {
+      // DevAdmin special handling (create virtual record)
+      if (this.isDevAdmin(email)) {
+        const devAdminRef = doc(this.usersCollection, email);
+        await setDoc(devAdminRef, {
+          email: email,
+          role: UserRole.DEV_ADMIN,
+          permissions: this.getDevAdminPermissions(),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          isActive: true,
+          displayName: displaySettings.displayName,
+          useDisplayName: displaySettings.useDisplayName
+        });
+        return;
+      }
+
+      // Regular user update
+      const userRef = doc(this.usersCollection, email);
+      const userDoc = await getDoc(userRef);
+
+      if (!userDoc.exists()) {
+        throw new Error('User record not found. Contact administrator to create your account.');
+      }
+
+      await updateDoc(userRef, {
+        displayName: displaySettings.displayName,
+        useDisplayName: displaySettings.useDisplayName,
+        updatedAt: new Date()
+      });
+    } catch (error) {
+      console.error('Failed to update user display name:', error);
+      throw error;
+    }
+  }
 }
 
 export const userManagementService = new UserManagementService();
