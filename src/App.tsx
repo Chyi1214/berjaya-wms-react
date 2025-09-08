@@ -5,12 +5,12 @@ import { LanguageProvider } from './contexts/LanguageContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import Login from './components/Login';
 import RoleSelection from './components/RoleSelection';
-import LogisticsView from './components/LogisticsView';
 import { createModuleLogger } from './services/logger';
 
 const logger = createModuleLogger('App');
 
 // Lazy load heavy components for better performance
+const LogisticsView = lazy(() => import('./components/LogisticsView'));
 const ProductionView = lazy(() => import('./components/ProductionView'));
 const QAView = lazy(() => import('./components/QAView'));
 import { UserRole, AppSection, InventoryCountEntry, Transaction, TransactionStatus, TransactionFormData } from './types';

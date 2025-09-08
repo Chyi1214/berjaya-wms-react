@@ -1,6 +1,7 @@
 import { useState, useEffect, memo } from 'react';
 import { WorkStation } from '../../types';
 import { workStationService } from '../../services/workStationService';
+import { reportService, WorkerReport } from '../../services/reportService';
 import ZoneTimeChart from './ZoneTimeChart';
 
 interface ProductionInfoBoardProps {
@@ -19,6 +20,7 @@ export const ProductionInfoBoard = memo(function ProductionInfoBoard({
   const [zones, setZones] = useState<ZoneInfo[]>([]);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [isLoading, setIsLoading] = useState(true);
+  const [activeReports, setActiveReports] = useState<WorkerReport[]>([]);
 
   const loadZoneData = async (showLoading = true) => {
     try {
@@ -70,11 +72,29 @@ export const ProductionInfoBoard = memo(function ProductionInfoBoard({
       );
       
       setZones(zoneInfos);
+      
+      // Load active reports - v5.7
+      const reports = await reportService.getActiveReports();
+      setActiveReports(reports);
+      
       setLastUpdated(new Date());
     } catch (error) {
       console.error('Failed to load zone data:', error);
     } finally {
       if (showLoading) setIsLoading(false);
+    }
+  };
+
+  // Handle report dismissal - v5.7
+  const handleDismissReport = async (reportId: string) => {
+    try {
+      await reportService.dismissReport(reportId, 'info-board');
+      // Reload reports immediately
+      const reports = await reportService.getActiveReports();
+      setActiveReports(reports);
+      console.log('✅ Report dismissed:', reportId);
+    } catch (error) {
+      console.error('Failed to dismiss report:', error);
     }
   };
 
@@ -237,6 +257,52 @@ export const ProductionInfoBoard = memo(function ProductionInfoBoard({
           }))}
         />
       </div>
+
+      {/* Worker Reports Signal - v5.7 */}
+      {activeReports.length > 0 && (
+        <div className="px-4 py-2 border-t border-gray-200 bg-orange-50">
+          <div className="flex items-center justify-center space-x-4">
+            {/* Blinking warning signal */}
+            <div className="animate-pulse">
+              <div className="flex items-center space-x-2 px-4 py-2 bg-orange-500 text-white rounded-lg shadow-lg">
+                <span className="text-xl animate-bounce">⚠️</span>
+                <span className="font-bold text-sm">
+                  {activeReports.length} ACTIVE REPORT{activeReports.length > 1 ? 'S' : ''}
+                </span>
+              </div>
+            </div>
+            
+            {/* Report details */}
+            <div className="flex flex-wrap gap-2 max-w-md">
+              {activeReports.slice(0, 3).map((report) => (
+                <div 
+                  key={report.id}
+                  className="bg-white rounded px-3 py-1 shadow-sm border border-orange-200 flex items-center space-x-2"
+                >
+                  <span className="text-xs font-medium text-orange-800">
+                    Zone {report.zoneId}
+                  </span>
+                  <span className="text-xs text-orange-600">
+                    {report.reportedByName}
+                  </span>
+                  <button
+                    onClick={() => handleDismissReport(report.id!)}
+                    className="text-xs text-orange-500 hover:text-orange-700 ml-1"
+                    title="Dismiss report"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+              {activeReports.length > 3 && (
+                <span className="text-xs text-orange-600 self-center">
+                  +{activeReports.length - 3} more
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Auto-refresh notice */}
       <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 text-center text-xs text-gray-500">

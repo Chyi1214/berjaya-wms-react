@@ -14,6 +14,9 @@ import ProductionInfoBoard from './production/ProductionInfoBoard';
 import { ElaMenu } from './ela/ElaMenu';
 import { ElaChat } from './ela/ElaChat';
 import PersonalSettings from './PersonalSettings';
+import { reportService } from '../services/reportService';
+import { getDisplayName } from '../utils/displayName';
+import { useAuth } from '../contexts/AuthContext';
 
 interface ProductionViewProps {
   user: User;
@@ -30,6 +33,7 @@ interface ProductionViewProps {
 
 export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCounts, transactions, onTransactionConfirm, onTransactionReject }: ProductionViewProps) {
   const { t } = useLanguage();
+  const { authenticatedUser } = useAuth();
   const [selectedZone, setSelectedZone] = useState<number | null>(null);
   const [selectedAction, setSelectedAction] = useState<'menu' | 'check' | 'transaction' | 'scan_car' | 'complete_car' | 'check_in' | 'info_board'>('menu');
   const [isWorkerCheckedIn, setIsWorkerCheckedIn] = useState(false);
@@ -74,6 +78,26 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
     console.log('Car scanned:', car.vin, 'Zone:', selectedZone);
     setRefreshKey(prev => prev + 1); // Trigger zone status refresh
     setSelectedAction('menu');
+  };
+
+  // Handle report submission - v5.7 Worker Report Button
+  const handleReportSubmit = async () => {
+    if (!selectedZone) {
+      alert('No zone selected');
+      return;
+    }
+
+    try {
+      const displayName = getDisplayName(user, authenticatedUser?.userRecord);
+      await reportService.submitReport(selectedZone, user.email, displayName);
+      
+      // Show success feedback
+      alert(`⚠️ Report submitted for Zone ${selectedZone}\nThis will be visible on the info board.`);
+      console.log('✅ Report submitted for zone:', selectedZone, 'by:', displayName);
+    } catch (error) {
+      console.error('Failed to submit report:', error);
+      alert('Failed to submit report. Please try again.');
+    }
   };
   
   // Handle car completed
@@ -302,6 +326,25 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
                   <div className="mt-2 text-blue-500 group-hover:text-blue-600">
                     <svg className="w-4 h-4 md:w-5 md:h-5 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                </button>
+
+                {/* Report Button - NEW V5.7 */}
+                <button
+                  onClick={handleReportSubmit}
+                  className="p-3 md:p-4 bg-white rounded-xl border-2 border-gray-200 hover:border-orange-500 hover:bg-orange-50 transition-all duration-200 text-center group"
+                >
+                  <div className="text-2xl md:text-3xl mb-2">⚠️</div>
+                  <h3 className="text-sm md:text-base font-semibold text-gray-900 mb-1">
+                    Report Issue
+                  </h3>
+                  <p className="text-gray-600 text-xs">
+                    Alert supervisors
+                  </p>
+                  <div className="mt-2 text-orange-500 group-hover:text-orange-600">
+                    <svg className="w-4 h-4 md:w-5 md:h-5 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.664-.833-2.464 0L5.268 16.5c-.77.833.192 2.5 1.732 2.5z" />
                     </svg>
                   </div>
                 </button>
