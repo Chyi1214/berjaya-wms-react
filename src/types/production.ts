@@ -62,6 +62,7 @@ export interface WorkStation {
   // Zone statistics
   carsProcessedToday: number;
   averageProcessingTime: number; // Minutes per car
+  averageResetAt?: Date;         // When averages were last reset (v5.8)
   lastUpdated: Date;
 }
 

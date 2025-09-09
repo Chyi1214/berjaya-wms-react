@@ -1,5 +1,5 @@
 // Report Service - v5.7 Worker Report Button System
-import { collection, doc, addDoc, getDocs, updateDoc, query, where, orderBy } from 'firebase/firestore';
+import { collection, doc, addDoc, getDocs, updateDoc, query, where } from 'firebase/firestore';
 import { db } from './firebase';
 
 export interface WorkerReport {
@@ -43,8 +43,7 @@ class ReportService {
     try {
       const q = query(
         this.reportsCollection,
-        where('status', '==', 'active'),
-        orderBy('timestamp', 'desc')
+        where('status', '==', 'active')
       );
       
       const snapshot = await getDocs(q);
@@ -53,7 +52,8 @@ class ReportService {
         ...this.convertTimestamps(doc.data())
       })) as WorkerReport[];
 
-      return reports;
+      // Sort by timestamp in memory (most recent first)
+      return reports.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
     } catch (error) {
       console.error('Failed to get active reports:', error);
       return [];
@@ -89,6 +89,51 @@ class ReportService {
     }
     
     return converted;
+  }
+
+  // Check if worker has active report in zone
+  async hasActiveReport(zoneId: number, workerEmail: string): Promise<boolean> {
+    try {
+      const q = query(
+        this.reportsCollection,
+        where('status', '==', 'active'),
+        where('zoneId', '==', zoneId),
+        where('reportedBy', '==', workerEmail)
+      );
+      
+      const snapshot = await getDocs(q);
+      return !snapshot.empty;
+    } catch (error) {
+      console.error('Failed to check active report:', error);
+      return false;
+    }
+  }
+
+  // Dismiss worker's own report
+  async dismissOwnReport(zoneId: number, workerEmail: string): Promise<void> {
+    try {
+      const q = query(
+        this.reportsCollection,
+        where('status', '==', 'active'),
+        where('zoneId', '==', zoneId),
+        where('reportedBy', '==', workerEmail)
+      );
+      
+      const snapshot = await getDocs(q);
+      if (!snapshot.empty) {
+        const reportDoc = snapshot.docs[0];
+        const reportRef = doc(this.reportsCollection, reportDoc.id);
+        await updateDoc(reportRef, {
+          status: 'dismissed',
+          dismissedBy: workerEmail,
+          dismissedAt: new Date()
+        });
+        console.log('✅ Worker dismissed own report:', reportDoc.id);
+      }
+    } catch (error) {
+      console.error('Failed to dismiss own report:', error);
+      throw error;
+    }
   }
 
   // Get report count by zone (for info board display)

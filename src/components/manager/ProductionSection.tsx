@@ -66,6 +66,34 @@ export function ProductionSection({ activeTab, onTabChange }: ProductionSectionP
     loadProductionData();
   };
 
+  // Handle reset averages - v5.8 Manager Reset Function
+  const handleResetAverages = async () => {
+    const confirmReset = window.confirm(
+      'Are you sure you want to reset all average processing times?\n\n' +
+      'This will:\n' +
+      '• Clear all current average times shown on info board\n' +
+      '• Reset cars processed today counters\n' +
+      '• Keep historical data for audit purposes\n\n' +
+      'This action cannot be undone.'
+    );
+
+    if (!confirmReset) return;
+
+    try {
+      setLoading(true);
+      await workStationService.resetAverageProcessingTimes();
+      
+      // Refresh the data to show updated averages
+      await loadProductionData();
+      
+      alert('✅ Average processing times have been reset successfully!\n\nInfo board will now show fresh averages.');
+      console.log('✅ Manager reset average processing times');
+    } catch (error) {
+      console.error('Failed to reset averages:', error);
+      alert('Failed to reset average processing times. Please try again.');
+    }
+  };
+
   const stats = getProductionStats(cars, workStations, workerActivities);
 
   if (loading) {
@@ -113,16 +141,28 @@ export function ProductionSection({ activeTab, onTabChange }: ProductionSectionP
             Real-time production monitoring and analytics
           </p>
         </div>
-        <button
-          onClick={handleRefresh}
-          disabled={loading}
-          className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
-        >
-          <svg className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-          Refresh
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={handleResetAverages}
+            disabled={loading}
+            className="flex items-center px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 transition-colors"
+          >
+            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Reset Avg Data
+          </button>
+          <button
+            onClick={handleRefresh}
+            disabled={loading}
+            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+          >
+            <svg className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* Production Line Tab */}

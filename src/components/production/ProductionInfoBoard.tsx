@@ -85,18 +85,6 @@ export const ProductionInfoBoard = memo(function ProductionInfoBoard({
     }
   };
 
-  // Handle report dismissal - v5.7
-  const handleDismissReport = async (reportId: string) => {
-    try {
-      await reportService.dismissReport(reportId, 'info-board');
-      // Reload reports immediately
-      const reports = await reportService.getActiveReports();
-      setActiveReports(reports);
-      console.log('✅ Report dismissed:', reportId);
-    } catch (error) {
-      console.error('Failed to dismiss report:', error);
-    }
-  };
 
   useEffect(() => {
     loadZoneData();
@@ -248,7 +236,7 @@ export const ProductionInfoBoard = memo(function ProductionInfoBoard({
       </div>
 
       {/* Zone Time Chart */}
-      <div className="p-3 md:p-4">
+      <div className="p-4">
         <ZoneTimeChart 
           data={zones.map(zone => ({
             zoneId: zone.zoneId,
@@ -285,13 +273,7 @@ export const ProductionInfoBoard = memo(function ProductionInfoBoard({
                   <span className="text-xs text-orange-600">
                     {report.reportedByName}
                   </span>
-                  <button
-                    onClick={() => handleDismissReport(report.id!)}
-                    className="text-xs text-orange-500 hover:text-orange-700 ml-1"
-                    title="Dismiss report"
-                  >
-                    ✕
-                  </button>
+                  <span className="text-xs text-orange-500 ml-1">⚠️</span>
                 </div>
               ))}
               {activeReports.length > 3 && (

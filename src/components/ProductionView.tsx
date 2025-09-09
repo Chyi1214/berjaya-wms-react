@@ -1,5 +1,5 @@
 // Production View Component - Zone-based production management with Version 4.0 Car Tracking
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { User, InventoryCountEntry, Transaction, Car } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import InventoryCountForm from './InventoryCountForm';
@@ -41,12 +41,27 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
   const [showElaMenu, setShowElaMenu] = useState(false);
   const [showElaChat, setShowElaChat] = useState(false);
   const [showPersonalSettings, setShowPersonalSettings] = useState(false);
+  const [hasActiveReport, setHasActiveReport] = useState(false);
   
   // Handle zone selection
   const handleZoneSelect = (zoneId: number) => {
     setSelectedZone(zoneId);
     setSelectedAction('menu'); // Reset to menu when selecting zone
   };
+
+  // Check for active report when zone changes
+  useEffect(() => {
+    const checkActiveReport = async () => {
+      if (selectedZone) {
+        const hasReport = await reportService.hasActiveReport(selectedZone, user.email);
+        setHasActiveReport(hasReport);
+      } else {
+        setHasActiveReport(false);
+      }
+    };
+
+    checkActiveReport();
+  }, [selectedZone, user.email]);
   
   // Handle back to zone selection
   const handleBackToZones = () => {
@@ -80,8 +95,8 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
     setSelectedAction('menu');
   };
 
-  // Handle report submission - v5.7 Worker Report Button
-  const handleReportSubmit = async () => {
+  // Handle report toggle - v5.7 Worker Report Button
+  const handleReportToggle = async () => {
     if (!selectedZone) {
       alert('No zone selected');
       return;
@@ -89,14 +104,35 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
 
     try {
       const displayName = getDisplayName(user, authenticatedUser?.userRecord);
-      await reportService.submitReport(selectedZone, user.email, displayName);
       
-      // Show success feedback
-      alert(`⚠️ Report submitted for Zone ${selectedZone}\nThis will be visible on the info board.`);
-      console.log('✅ Report submitted for zone:', selectedZone, 'by:', displayName);
+      // Check current status from database to be sure
+      const currentHasReport = await reportService.hasActiveReport(selectedZone, user.email);
+      console.log('🔍 Current report status from DB:', currentHasReport, 'UI state:', hasActiveReport);
+      
+      if (currentHasReport) {
+        // Dismiss existing report
+        await reportService.dismissOwnReport(selectedZone, user.email);
+        setHasActiveReport(false);
+        alert(`✅ Report dismissed for Zone ${selectedZone}`);
+        console.log('✅ Report dismissed for zone:', selectedZone, 'by:', displayName);
+      } else {
+        // Submit new report
+        await reportService.submitReport(selectedZone, user.email, displayName);
+        setHasActiveReport(true);
+        alert(`⚠️ Report submitted for Zone ${selectedZone}\nThis will be visible on the info board.`);
+        console.log('✅ Report submitted for zone:', selectedZone, 'by:', displayName);
+      }
+      
+      // Refresh the state from database to ensure consistency
+      setTimeout(async () => {
+        const newStatus = await reportService.hasActiveReport(selectedZone, user.email);
+        setHasActiveReport(newStatus);
+        console.log('🔄 Refreshed report status:', newStatus);
+      }, 500);
+      
     } catch (error) {
-      console.error('Failed to submit report:', error);
-      alert('Failed to submit report. Please try again.');
+      console.error('Failed to toggle report:', error);
+      alert('Failed to update report. Please try again.');
     }
   };
   
@@ -330,19 +366,23 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
                   </div>
                 </button>
 
-                {/* Report Button - NEW V5.7 */}
+                {/* Report Button - NEW V5.7 with Two-Way Feedback */}
                 <button
-                  onClick={handleReportSubmit}
-                  className="p-3 md:p-4 bg-white rounded-xl border-2 border-gray-200 hover:border-orange-500 hover:bg-orange-50 transition-all duration-200 text-center group"
+                  onClick={handleReportToggle}
+                  className={`p-3 md:p-4 rounded-xl border-2 transition-all duration-200 text-center group ${
+                    hasActiveReport
+                      ? 'bg-orange-100 border-orange-500 text-orange-900'
+                      : 'bg-white border-gray-200 hover:border-orange-500 hover:bg-orange-50'
+                  }`}
                 >
                   <div className="text-2xl md:text-3xl mb-2">⚠️</div>
-                  <h3 className="text-sm md:text-base font-semibold text-gray-900 mb-1">
-                    Report Issue
+                  <h3 className="text-sm md:text-base font-semibold mb-1">
+                    {hasActiveReport ? 'Report Active' : 'Report Issue'}
                   </h3>
-                  <p className="text-gray-600 text-xs">
-                    Alert supervisors
+                  <p className="text-xs">
+                    {hasActiveReport ? 'Click to dismiss' : 'Alert supervisors'}
                   </p>
-                  <div className="mt-2 text-orange-500 group-hover:text-orange-600">
+                  <div className={`mt-2 ${hasActiveReport ? 'text-orange-600' : 'text-orange-500 group-hover:text-orange-600'}`}>
                     <svg className="w-4 h-4 md:w-5 md:h-5 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.664-.833-2.464 0L5.268 16.5c-.77.833.192 2.5 1.732 2.5z" />
                     </svg>

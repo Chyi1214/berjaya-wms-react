@@ -258,6 +258,22 @@ service cloud.firestore {
       allow write: if isDevAdmin() || hasRole('manager');  // Only managers can modify requirements
     }
     
+    // Version 5.7 Collections - Worker Report System
+    
+    // Worker reports - Production worker alert system
+    match /workerReports/{document} {
+      allow read: if isActiveUser();  // All authenticated users can read reports
+      allow create: if isActiveUser() && (
+        hasRole('production') || hasRole('logistics') || 
+        hasRole('supervisor') || hasRole('manager')
+      );
+      allow update: if isActiveUser() && (
+        // Only allow dismissing reports (status update)
+        hasRole('supervisor') || hasRole('manager') || hasRole('viewer')
+      );
+      allow delete: if isDevAdmin() || hasRole('manager');
+    }
+    
     // Deny all other access
     match /{document=**} {
       allow read, write: if false;

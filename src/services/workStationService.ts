@@ -182,6 +182,49 @@ class WorkStationService {
     }
   }
 
+  // Reset average processing times for all zones (v5.8 Manager Reset Function)
+  async resetAverageProcessingTimes(): Promise<void> {
+    try {
+      const resetTimestamp = new Date();
+      const resetPromises: Promise<void>[] = [];
+      
+      // Get all existing workStations to see what zones we have
+      const snapshot = await getDocs(this.stationsCollection);
+      const existingZones = new Set<number>();
+      
+      // Reset existing workStations
+      snapshot.docs.forEach((docSnap) => {
+        const data = docSnap.data();
+        const zoneId = data.zoneId || parseInt(docSnap.id);
+        existingZones.add(zoneId);
+        
+        const docRef = doc(this.stationsCollection, docSnap.id);
+        resetPromises.push(
+          updateDoc(docRef, {
+            averageProcessingTime: 0,
+            carsProcessedToday: 0,
+            averageResetAt: resetTimestamp,
+            lastUpdated: resetTimestamp
+          }).then(() => {
+            console.log(`✅ Reset zone ${zoneId} averages`);
+          }).catch((error) => {
+            console.error(`❌ Failed to reset zone ${zoneId}:`, error);
+            throw error;
+          })
+        );
+      });
+
+      await Promise.all(resetPromises);
+      
+      const zoneCount = existingZones.size;
+      const zoneList = Array.from(existingZones).sort((a, b) => a - b);
+      console.log(`✅ Reset average processing times for ${zoneCount} zones [${zoneList.join(', ')}] at:`, resetTimestamp);
+    } catch (error) {
+      console.error('Failed to reset average processing times:', error);
+      throw error;
+    }
+  }
+
   // Get stations with active cars
   async getStationsWithCars(): Promise<WorkStation[]> {
     try {
@@ -284,14 +327,32 @@ class WorkStationService {
 
   private async calculateAverageProcessingTime(zoneId: number): Promise<number> {
     try {
-      // Get recent completed cars in this zone
+      // Get the zone's reset timestamp to filter out old data
+      const station = await this.getWorkStation(zoneId);
+      
+      // If no reset timestamp, return 0 (fresh zone or needs reset)
+      if (!station?.averageResetAt) {
+        console.log(`🔍 Zone ${zoneId} average calc: No reset timestamp found, returning 0`);
+        return 0;
+      }
+      
+      const resetTimestamp = station.averageResetAt;
+      
+      // Get cars completed AFTER the last average reset
       const cars = await carTrackingService.getCars();
       
       const zoneTimes = cars
         .flatMap(car => car.zoneHistory)
-        .filter(entry => entry.zoneId === zoneId && entry.timeSpent)
+        .filter(entry => 
+          entry.zoneId === zoneId && 
+          entry.timeSpent && 
+          entry.exitedAt && 
+          entry.exitedAt >= resetTimestamp // Only count cars completed after reset
+        )
         .map(entry => entry.timeSpent!)
         .slice(-10); // Last 10 cars for average
+      
+      console.log(`🔍 Zone ${zoneId} average calc: ${zoneTimes.length} cars since reset (${resetTimestamp.toLocaleString()})`);
       
       if (zoneTimes.length === 0) return 0;
       
@@ -308,6 +369,10 @@ class WorkStationService {
     // Convert Firestore Timestamps to Dates
     if (result.lastUpdated && result.lastUpdated instanceof Timestamp) {
       result.lastUpdated = result.lastUpdated.toDate();
+    }
+    
+    if (result.averageResetAt && result.averageResetAt instanceof Timestamp) {
+      result.averageResetAt = result.averageResetAt.toDate();
     }
     
     if (result.currentCar?.enteredAt && result.currentCar.enteredAt instanceof Timestamp) {
