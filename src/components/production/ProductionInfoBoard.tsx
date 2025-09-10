@@ -89,11 +89,11 @@ export const ProductionInfoBoard = memo(function ProductionInfoBoard({
   useEffect(() => {
     loadZoneData();
     
-    // Auto-refresh every 30 seconds - smooth data update only
+    // Auto-refresh every 5 seconds - real-time production monitoring
     const interval = setInterval(() => {
       // Update data without showing loading state
       loadZoneData(false);
-    }, 30000);
+    }, 5000);
     return () => clearInterval(interval);
   }, []);
 
@@ -104,7 +104,12 @@ export const ProductionInfoBoard = memo(function ProductionInfoBoard({
     return `${hours}h ${mins}m`;
   };
 
-  const getStatusColor = (status: 'available' | 'occupied' | 'problem') => {
+  const getStatusColor = (status: 'available' | 'occupied' | 'problem', hasActiveReport = false) => {
+    // If zone has active report, use warning colors with blinking animation
+    if (hasActiveReport) {
+      return 'bg-orange-100 border-orange-400 text-orange-900 animate-pulse shadow-lg border-4';
+    }
+    
     switch (status) {
       case 'available': return 'bg-green-50 border-green-200 text-green-800';
       case 'occupied': return 'bg-blue-50 border-blue-200 text-blue-800';
@@ -183,15 +188,21 @@ export const ProductionInfoBoard = memo(function ProductionInfoBoard({
       {/* Zone Grid */}
       <div className="p-3 md:p-4">
         <div className="grid grid-cols-5 md:grid-cols-7 lg:grid-cols-8 xl:grid-cols-10 2xl:grid-cols-12 gap-1 md:gap-2">
-          {zones.map((zone) => (
+          {zones.map((zone) => {
+            // Check if this zone has active reports
+            const hasActiveReport = activeReports.some(report => report.zoneId === zone.zoneId);
+            
+            return (
             <div
               key={zone.zoneId}
-              className={`p-1 md:p-2 rounded border-2 transition-all duration-200 text-xs ${getStatusColor(zone.status)}`}
+              className={`p-1 md:p-2 rounded border-2 transition-all duration-200 text-xs ${getStatusColor(zone.status, hasActiveReport)}`}
             >
               {/* Zone Header */}
               <div className="flex items-center justify-between mb-1">
                 <div className="text-xs md:text-sm font-bold">Z{zone.zoneId}</div>
-                <div className="text-xs md:text-sm">{getStatusIcon(zone.status)}</div>
+                <div className="text-xs md:text-sm">
+                  {hasActiveReport ? '🚨' : getStatusIcon(zone.status)}
+                </div>
               </div>
 
               {/* Car Information */}
@@ -231,7 +242,8 @@ export const ProductionInfoBoard = memo(function ProductionInfoBoard({
                 </div>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -288,7 +300,7 @@ export const ProductionInfoBoard = memo(function ProductionInfoBoard({
 
       {/* Auto-refresh notice */}
       <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 text-center text-xs text-gray-500">
-        🔄 Auto-refreshes every 30 seconds • Built for Production Floor Visibility
+        🔄 Auto-refreshes every 5 seconds • Real-time Production Monitoring
       </div>
     </div>
   );
