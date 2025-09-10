@@ -104,10 +104,23 @@ export const ProductionInfoBoard = memo(function ProductionInfoBoard({
     return `${hours}h ${mins}m`;
   };
 
+  const formatAlertDuration = (alertStartTime: Date): string => {
+    const now = new Date();
+    const diffMs = now.getTime() - alertStartTime.getTime();
+    const diffMinutes = Math.floor(diffMs / (1000 * 60));
+    const diffSeconds = Math.floor(diffMs / 1000);
+    
+    if (diffMinutes > 0) {
+      return `${diffMinutes}m ago`;
+    } else {
+      return `${diffSeconds}s ago`;
+    }
+  };
+
   const getStatusColor = (status: 'available' | 'occupied' | 'problem', hasActiveReport = false) => {
-    // If zone has active report, use warning colors with blinking animation
+    // If zone has active report, use warning colors with sharp blinking animation
     if (hasActiveReport) {
-      return 'bg-orange-100 border-orange-400 text-orange-900 animate-pulse shadow-lg border-4';
+      return 'bg-orange-100 border-orange-400 text-orange-900 shadow-lg border-4';
     }
     
     switch (status) {
@@ -142,7 +155,16 @@ export const ProductionInfoBoard = memo(function ProductionInfoBoard({
   }
 
   return (
-    <div className={`bg-white rounded-xl shadow-lg border ${className}`}>
+    <>
+      {/* Sharp blinking animation CSS */}
+      <style>{`
+        @keyframes sharp-blink {
+          0%, 50% { opacity: 1; }
+          51%, 100% { opacity: 0.3; }
+        }
+      `}</style>
+      
+      <div className={`bg-white rounded-xl shadow-lg border ${className}`}>
       {/* Header */}
       <div className="px-4 py-3 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
         <div className="flex justify-between items-center">
@@ -189,13 +211,23 @@ export const ProductionInfoBoard = memo(function ProductionInfoBoard({
       <div className="p-3 md:p-4">
         <div className="grid grid-cols-5 md:grid-cols-7 lg:grid-cols-8 xl:grid-cols-10 2xl:grid-cols-12 gap-1 md:gap-2">
           {zones.map((zone) => {
-            // Check if this zone has active reports
-            const hasActiveReport = activeReports.some(report => report.zoneId === zone.zoneId);
+            // Check if this zone has active reports and get the earliest report time
+            const zoneReports = activeReports.filter(report => report.zoneId === zone.zoneId);
+            const hasActiveReport = zoneReports.length > 0;
+            const earliestReport = zoneReports.length > 0 
+              ? zoneReports.reduce((earliest, current) => 
+                  current.timestamp < earliest.timestamp ? current : earliest
+                )
+              : null;
             
             return (
             <div
               key={zone.zoneId}
-              className={`p-1 md:p-2 rounded border-2 transition-all duration-200 text-xs ${getStatusColor(zone.status, hasActiveReport)}`}
+              className={`p-1 md:p-2 rounded border-2 transition-all duration-200 text-xs ${getStatusColor(zone.status, hasActiveReport)} ${hasActiveReport ? 'animate-pulse' : ''}`}
+              style={hasActiveReport ? {
+                animation: 'sharp-blink 1s infinite',
+                animationTimingFunction: 'steps(2, start)'
+              } : undefined}
             >
               {/* Zone Header */}
               <div className="flex items-center justify-between mb-1">
@@ -239,6 +271,13 @@ export const ProductionInfoBoard = memo(function ProductionInfoBoard({
               {zone.status === 'problem' && (
                 <div className="mt-1 text-xs bg-red-100 text-red-800 px-1 py-0.5 rounded text-center">
                   Over time!
+                </div>
+              )}
+
+              {/* Active Report Alert Timer */}
+              {hasActiveReport && earliestReport && (
+                <div className="mt-1 text-xs bg-orange-200 text-orange-900 px-1 py-0.5 rounded text-center font-bold">
+                  🚨 {formatAlertDuration(earliestReport.timestamp)}
                 </div>
               )}
             </div>
@@ -303,6 +342,7 @@ export const ProductionInfoBoard = memo(function ProductionInfoBoard({
         🔄 Auto-refreshes every 5 seconds • Real-time Production Monitoring
       </div>
     </div>
+    </>
   );
 });
 
