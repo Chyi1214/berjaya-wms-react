@@ -58,6 +58,7 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
 
   // Get selected item details
   const selectedItem = availableItems.find(item => item.sku === formData.sku);
+  const isBOM = formData.sku.startsWith('BOM');
   const maxAvailableQuantity = selectedItem?.totalQuantity || 0;
 
   // Generate 4-digit OTP
@@ -155,39 +156,46 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
         {/* Amount */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            🔢 {t('transactions.amount')} * {selectedItem && `(${t('transactions.maxAmount', { max: maxAvailableQuantity })})`}
+            🔢 {t('transactions.amount')} * {!isBOM && selectedItem && `(${t('transactions.maxAmount', { max: maxAvailableQuantity })})`}
           </label>
           <input
             type="number"
             min="1"
-            max={maxAvailableQuantity || undefined}
+            max={isBOM ? undefined : (maxAvailableQuantity || undefined)}
             value={formData.amount}
             onChange={(e) => {
               const value = e.target.value;
               const parsedValue = value === '' ? 0 : parseInt(value);
-              if (!isNaN(parsedValue) && parsedValue >= 0 && parsedValue <= maxAvailableQuantity) {
+              if (!isNaN(parsedValue) && parsedValue >= 0 && (isBOM || parsedValue <= maxAvailableQuantity)) {
                 setFormData(prev => ({ ...prev, amount: parsedValue }));
               }
             }}
             className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 ${
-              formData.amount > maxAvailableQuantity ? 'border-red-300 bg-red-50' : 'border-gray-300'
+              (!isBOM && formData.amount > maxAvailableQuantity) ? 'border-red-300 bg-red-50' : 'border-gray-300'
             }`}
             placeholder={t('inventory.enterAmount')}
-            disabled={!selectedItem || maxAvailableQuantity === 0}
+            disabled={isBOM ? false : (!selectedItem || maxAvailableQuantity === 0)}
             required
           />
           
           {/* Show validation error */}
-          {formData.amount > maxAvailableQuantity && selectedItem && (
+          {!isBOM && formData.amount > maxAvailableQuantity && selectedItem && (
             <p className="mt-1 text-sm text-red-600">
               {t('transactions.cannotSendMoreThan', { max: maxAvailableQuantity })}
             </p>
           )}
           
           {/* Show helper text */}
-          {selectedItem && maxAvailableQuantity > 0 && (
+          {!isBOM && selectedItem && maxAvailableQuantity > 0 && (
             <p className="mt-1 text-sm text-gray-500">
               {t('transactions.youCanSendUpTo', { max: maxAvailableQuantity, sku: selectedItem.sku })}
+            </p>
+          )}
+          
+          {/* Show BOM helper text */}
+          {isBOM && formData.sku && (
+            <p className="mt-1 text-sm text-blue-600">
+              📦 BOM will be expanded into individual components when sent
             </p>
           )}
         </div>
@@ -213,8 +221,8 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
         </div>
 
 
-        {/* Summary */}
-        {formData.sku && formData.toLocation && formData.amount > 0 && selectedItem && (
+        {/* Summary for regular items */}
+        {formData.sku && formData.toLocation && formData.amount > 0 && selectedItem && !isBOM && (
           <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
             <h4 className="font-medium text-purple-900 mb-2">📋 {t('transactions.transactionSummary')}:</h4>
             <ul className="text-purple-700 text-sm space-y-1">
@@ -225,6 +233,21 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
               <li><strong>{t('transactions.fromLocation')}:</strong> {t('roles.logistics')}</li>
               <li><strong>{t('transactions.toLocation')}:</strong> {PRODUCTION_ZONES.find(z => z.value === formData.toLocation)?.name}</li>
               <li><strong>{t('transactions.performedBy')}:</strong> {senderEmail}</li>
+            </ul>
+          </div>
+        )}
+
+        {/* Summary for BOMs */}
+        {formData.sku && formData.toLocation && formData.amount > 0 && isBOM && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <h4 className="font-medium text-blue-900 mb-2">📦 BOM {t('transactions.transactionSummary')}:</h4>
+            <ul className="text-blue-700 text-sm space-y-1">
+              <li><strong>BOM:</strong> {formData.sku}</li>
+              <li><strong>{t('transactions.quantity')}:</strong> {formData.amount} BOM(s)</li>
+              <li><strong>{t('transactions.fromLocation')}:</strong> {t('roles.logistics')}</li>
+              <li><strong>{t('transactions.toLocation')}:</strong> {PRODUCTION_ZONES.find(z => z.value === formData.toLocation)?.name}</li>
+              <li><strong>{t('transactions.performedBy')}:</strong> {senderEmail}</li>
+              <li><strong>Note:</strong> BOM will be expanded into individual components</li>
             </ul>
           </div>
         )}
@@ -246,9 +269,7 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
               !formData.sku || 
               !formData.toLocation || 
               formData.amount <= 0 || 
-              formData.amount > maxAvailableQuantity ||
-              !selectedItem ||
-              maxAvailableQuantity === 0
+              (!isBOM && (formData.amount > maxAvailableQuantity || !selectedItem || maxAvailableQuantity === 0))
             }
             className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed flex-1"
           >
