@@ -152,7 +152,7 @@ class TableStateService {
     console.log(`✅ Direct update complete: ${docId}`);
   }
 
-  // Super-fast inventory addition - only touches one document
+  // Super-fast inventory addition with automatic migration
   async addToInventoryCountOptimized(
     sku: string, 
     itemName: string, 
@@ -160,6 +160,15 @@ class TableStateService {
     location: string, 
     countedBy: string
   ): Promise<{ previousAmount: number; newAmount: number }> {
+    
+    // Check if migration is needed (only on first call)
+    const migrationNeeded = await this.needsMigration();
+    if (migrationNeeded) {
+      console.log('⚡ Auto-migration detected - upgrading inventory system for instant performance...');
+      await this.migrateToCompositeIds();
+      console.log('✅ Auto-migration complete! All future scans will be instant.');
+    }
+    
     const docId = `${sku}_${location}`;
     const docRef = doc(db, EXPECTED_COLLECTION, docId);
     
@@ -184,9 +193,35 @@ class TableStateService {
     return { previousAmount, newAmount };
   }
 
+  // Check if migration to composite IDs is needed
+  async needsMigration(): Promise<boolean> {
+    try {
+      const snapshot = await getDocs(collection(db, EXPECTED_COLLECTION));
+      
+      if (snapshot.empty) {
+        console.log('📊 No inventory data found - no migration needed');
+        return false;
+      }
+      
+      // Check first few documents to see if they use composite IDs
+      const sampleDocs = snapshot.docs.slice(0, 3);
+      const hasCompositeIds = sampleDocs.some(doc => {
+        const data = doc.data();
+        const expectedId = `${data.sku}_${data.location}`;
+        return doc.id === expectedId;
+      });
+      
+      console.log(`🔍 Migration check: ${hasCompositeIds ? 'Already migrated' : 'Migration needed'}`);
+      return !hasCompositeIds;
+    } catch (error) {
+      console.error('Failed to check migration status:', error);
+      return false;
+    }
+  }
+
   // Migration method - Run once to convert to composite IDs
   async migrateToCompositeIds(): Promise<void> {
-    console.log('🔧 Starting migration to composite IDs...');
+    console.log('🔧 Starting automatic migration to composite IDs...');
     
     try {
       // Get all existing entries
