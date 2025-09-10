@@ -79,6 +79,51 @@ class TableStateService {
     await Promise.all(deletePromises);
   }
 
+  // Optimized method for adding to inventory count without loading all data
+  async addToInventoryCount(
+    sku: string, 
+    itemName: string, 
+    quantity: number, 
+    location: string, 
+    countedBy: string
+  ): Promise<{ previousAmount: number; newAmount: number }> {
+    console.log(`📦 Adding ${quantity} x ${sku} to ${location} inventory`);
+    
+    // Get current expected inventory - this is still needed but more efficient than loading all
+    const currentExpected = await this.getExpectedInventory();
+    const existingEntry = currentExpected.find(entry => 
+      entry.sku === sku && entry.location === location
+    );
+
+    const previousAmount = existingEntry?.amount || 0;
+    const newAmount = previousAmount + quantity;
+
+    // Create new inventory entry
+    const expectedEntry: InventoryCountEntry = {
+      sku,
+      itemName,
+      amount: newAmount,
+      location,
+      countedBy,
+      timestamp: new Date()
+    };
+
+    // Update inventory efficiently 
+    const updatedExpected = existingEntry 
+      ? currentExpected.map(entry => 
+          (entry.sku === sku && entry.location === location) 
+            ? expectedEntry 
+            : entry
+        )
+      : [...currentExpected, expectedEntry];
+
+    // Save updated inventory
+    await this.saveExpectedInventory(updatedExpected);
+    
+    console.log(`✅ Updated ${sku} inventory: ${previousAmount} → ${newAmount}`);
+    return { previousAmount, newAmount };
+  }
+
   // Yesterday Results Methods
   async saveYesterdayResults(entries: InventoryCountEntry[]): Promise<void> {
     console.log('💾 Saving yesterday results to Firebase:', entries.length, 'entries');

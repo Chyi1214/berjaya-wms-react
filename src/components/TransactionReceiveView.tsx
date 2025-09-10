@@ -1,7 +1,8 @@
 // Transaction Receive View - For production workers to confirm incoming transactions
-import { useState } from 'react';
-import { Transaction, TransactionStatus } from '../types';
+import { useState, useEffect } from 'react';
+import { Transaction, TransactionStatus, BOM } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
+import { bomService } from '../services/bom';
 
 interface TransactionReceiveViewProps {
   pendingTransactions: Transaction[];
@@ -22,6 +23,8 @@ export function TransactionReceiveView({
   const [rejectReason, setRejectReason] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSuccess, setShowSuccess] = useState<{transactionId: string, details: any} | null>(null);
+  const [bomData, setBomData] = useState<{[transactionId: string]: BOM}>({});
+  const [loadingBOMs, setLoadingBOMs] = useState<{[transactionId: string]: boolean}>({});
 
   // Debug logging
   console.log('📱 Mobile Debug - TransactionReceiveView render:', { showSuccess, currentZone, pendingTransactionsCount: pendingTransactions.length });
@@ -30,6 +33,33 @@ export function TransactionReceiveView({
   const zoneTransactions = pendingTransactions.filter(
     txn => txn.toLocation === `production_zone_${currentZone}` && txn.status === TransactionStatus.PENDING
   );
+
+  // Fetch BOM data for BOM transactions
+  useEffect(() => {
+    const fetchBOMData = async () => {
+      const bomTransactions = zoneTransactions.filter(txn => txn.sku.startsWith('BOM'));
+      
+      for (const transaction of bomTransactions) {
+        // Skip if already loading or loaded
+        if (loadingBOMs[transaction.id] || bomData[transaction.id]) continue;
+        
+        setLoadingBOMs(prev => ({ ...prev, [transaction.id]: true }));
+        
+        try {
+          const bom = await bomService.getBOMByCode(transaction.sku);
+          if (bom) {
+            setBomData(prev => ({ ...prev, [transaction.id]: bom }));
+          }
+        } catch (error) {
+          console.error(`Failed to fetch BOM data for ${transaction.sku}:`, error);
+        } finally {
+          setLoadingBOMs(prev => ({ ...prev, [transaction.id]: false }));
+        }
+      }
+    };
+
+    fetchBOMData();
+  }, [zoneTransactions]);
 
   const handleConfirm = async (transactionId: string) => {
     console.log('📱 Mobile Debug - Confirm button clicked:', { transactionId, otpInput, isProcessing });
@@ -275,6 +305,46 @@ export function TransactionReceiveView({
                 </div>
               )}
             </div>
+
+            {/* BOM Content Display */}
+            {transaction.sku.startsWith('BOM') && (
+              <div className="bg-blue-50 rounded-lg p-3 mb-4">
+                <h5 className="font-medium text-blue-900 mb-2">📦 BOM Contents:</h5>
+                {loadingBOMs[transaction.id] ? (
+                  <div className="flex items-center justify-center py-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                    <span className="ml-2 text-blue-700 text-sm">Loading BOM details...</span>
+                  </div>
+                ) : bomData[transaction.id] ? (
+                  <div className="space-y-2">
+                    <div className="bg-white rounded p-2">
+                      <p className="text-sm text-blue-800 mb-1">
+                        <strong>{bomData[transaction.id].name}</strong> 
+                        {bomData[transaction.id].description && ` - ${bomData[transaction.id].description}`}
+                      </p>
+                      <p className="text-xs text-blue-600 mb-2">
+                        Will expand into {bomData[transaction.id].components.length} components:
+                      </p>
+                      <div className="space-y-1 max-h-24 overflow-y-auto">
+                        {bomData[transaction.id].components.map((component, index) => (
+                          <div key={index} className="flex justify-between items-center text-xs bg-blue-25 p-1 rounded">
+                            <span className="font-medium text-blue-900">{component.sku}</span>
+                            <span className="text-blue-700">
+                              {component.quantity} × {transaction.amount} = {component.quantity * transaction.amount}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-2 text-blue-700">
+                    <p className="text-sm">⚠️ Could not load BOM details</p>
+                    <p className="text-xs">BOM will still be processed normally</p>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Action Buttons */}
             {selectedTransaction === transaction.id ? (

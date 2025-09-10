@@ -1,6 +1,6 @@
 // Scan In View - Direct inventory input via barcode scanning
 import { useState, useRef, useEffect } from 'react';
-import { User, ItemMaster, Transaction, TransactionType, TransactionStatus, InventoryCountEntry } from '../../types';
+import { User, ItemMaster, Transaction, TransactionType, TransactionStatus } from '../../types';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { scannerService } from '../../services/scannerService';
 import { itemMasterService } from '../../services/itemMaster';
@@ -143,37 +143,14 @@ export function ScanInView({ user, onBack }: ScanInViewProps) {
     setError(null);
 
     try {
-      // Create new inventory entry for Expected table (not Checked)
-      const expectedEntry: InventoryCountEntry = {
-        sku: scanResult.sku,
-        itemName: scanResult.item.name,
-        amount: qty,
-        location: 'logistics',
-        countedBy: user.email,
-        timestamp: new Date()
-      };
-
-      // Get current expected inventory to calculate new total
-      const currentExpected = await tableStateService.getExpectedInventory();
-      const existingEntry = currentExpected.find(entry => 
-        entry.sku === scanResult.sku && entry.location === 'logistics'
+      // Use the new optimized method that handles the update internally
+      const { previousAmount, newAmount } = await tableStateService.addToInventoryCount(
+        scanResult.sku,
+        scanResult.item.name,
+        qty,
+        'logistics',
+        user.email
       );
-
-      // Calculate new amount (add to existing or create new)
-      const newAmount = (existingEntry?.amount || 0) + qty;
-      expectedEntry.amount = newAmount;
-
-      // Update expected inventory
-      const updatedExpected = existingEntry 
-        ? currentExpected.map(entry => 
-            (entry.sku === scanResult.sku && entry.location === 'logistics') 
-              ? expectedEntry 
-              : entry
-          )
-        : [...currentExpected, expectedEntry];
-
-      // Save to Expected table (not regular inventory)
-      await tableStateService.saveExpectedInventory(updatedExpected);
 
       // Create a TRANSFER_IN transaction for audit trail
       const transaction: Transaction = {
@@ -181,8 +158,8 @@ export function ScanInView({ user, onBack }: ScanInViewProps) {
         sku: scanResult.sku,
         itemName: scanResult.item.name,
         amount: qty,
-        previousAmount: (existingEntry?.amount || 0), // Previous amount
-        newAmount: newAmount, // New amount
+        previousAmount: previousAmount,
+        newAmount: newAmount,
         location: 'logistics',
         transactionType: TransactionType.TRANSFER_IN,
         status: TransactionStatus.COMPLETED, // Auto-complete with trust

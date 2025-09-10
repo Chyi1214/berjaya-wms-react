@@ -1,6 +1,7 @@
 // Transaction OTP Display - Shows OTP after transaction creation
-import { useState } from 'react';
-import { Transaction, TransactionStatus } from '../types';
+import { useState, useEffect } from 'react';
+import { Transaction, TransactionStatus, BOM } from '../types';
+import { bomService } from '../services/bom';
 
 interface TransactionOTPDisplayProps {
   transaction: Transaction;
@@ -11,6 +12,29 @@ interface TransactionOTPDisplayProps {
 
 export function TransactionOTPDisplay({ transaction, otp, onClose, allTransactions }: TransactionOTPDisplayProps) {
   const [copied, setCopied] = useState(false);
+  const [bomData, setBomData] = useState<BOM | null>(null);
+  const [loadingBOM, setLoadingBOM] = useState(false);
+
+  // Check if this is a BOM transaction and fetch BOM data
+  const isBOM = transaction.sku.startsWith('BOM');
+
+  useEffect(() => {
+    const fetchBOMData = async () => {
+      if (!isBOM) return;
+      
+      setLoadingBOM(true);
+      try {
+        const bom = await bomService.getBOMByCode(transaction.sku);
+        setBomData(bom);
+      } catch (error) {
+        console.error('Failed to fetch BOM data:', error);
+      } finally {
+        setLoadingBOM(false);
+      }
+    };
+
+    fetchBOMData();
+  }, [transaction.sku, isBOM]);
   
   // Check if this transaction has been updated in real-time
   const currentTransaction = allTransactions?.find(t => t.id === transaction.id) || transaction;
@@ -185,6 +209,45 @@ export function TransactionOTPDisplay({ transaction, otp, onClose, allTransactio
           </div>
         </div>
       </div>
+
+      {/* BOM Content Display */}
+      {isBOM && (
+        <div className="bg-blue-50 rounded-lg p-4 mb-6">
+          <h4 className="font-medium text-blue-900 mb-3">📦 BOM Contents:</h4>
+          {loadingBOM ? (
+            <div className="flex items-center justify-center py-4">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+              <span className="ml-2 text-blue-700">Loading BOM details...</span>
+            </div>
+          ) : bomData ? (
+            <div className="space-y-3">
+              <div className="bg-white rounded p-3">
+                <p className="text-sm text-blue-800 mb-2">
+                  <strong>{bomData.name}</strong> {bomData.description && `- ${bomData.description}`}
+                </p>
+                <p className="text-xs text-blue-600 mb-2">
+                  This BOM will be expanded into {bomData.components.length} individual components:
+                </p>
+                <div className="space-y-1 max-h-32 overflow-y-auto">
+                  {bomData.components.map((component, index) => (
+                    <div key={index} className="flex justify-between items-center text-xs bg-blue-25 p-2 rounded">
+                      <span className="font-medium text-blue-900">{component.sku}</span>
+                      <span className="text-blue-700">
+                        {component.quantity} × {transaction.amount} = {component.quantity * transaction.amount} units
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-4 text-blue-700">
+              <p className="text-sm">⚠️ Could not load BOM details</p>
+              <p className="text-xs">BOM will still be processed normally</p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* OTP Display */}
       <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-6 mb-6 text-center">
