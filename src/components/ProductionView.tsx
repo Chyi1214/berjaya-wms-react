@@ -7,8 +7,8 @@ import RecentCounts from './RecentCounts';
 import TransactionReceiveView from './TransactionReceiveView';
 import CarScanView from './production/CarScanView';
 import CarCompleteView from './production/CarCompleteView';
-import WorkerCheckInView from './production/WorkerCheckInView';
 import ZoneStatusDisplay from './production/ZoneStatusDisplay';
+import WasteLostView from './production/WasteLostView';
 import ProductionLineView from './production/ProductionLineView';
 import ProductionInfoBoard from './production/ProductionInfoBoard';
 import { ElaMenu } from './ela/ElaMenu';
@@ -35,8 +35,7 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
   const { t } = useLanguage();
   const { authenticatedUser } = useAuth();
   const [selectedZone, setSelectedZone] = useState<number | null>(null);
-  const [selectedAction, setSelectedAction] = useState<'menu' | 'check' | 'transaction' | 'scan_car' | 'complete_car' | 'check_in' | 'info_board'>('menu');
-  const [isWorkerCheckedIn, setIsWorkerCheckedIn] = useState(false);
+  const [selectedAction, setSelectedAction] = useState<'menu' | 'check' | 'transaction' | 'scan_car' | 'complete_car' | 'info_board' | 'waste_lost'>('menu');
   const [refreshKey, setRefreshKey] = useState(0);
   const [showElaMenu, setShowElaMenu] = useState(false);
   const [showElaChat, setShowElaChat] = useState(false);
@@ -143,11 +142,6 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
     setSelectedAction('menu');
   };
   
-  // Handle worker status change
-  const handleWorkerStatusChange = (isCheckedIn: boolean) => {
-    setIsWorkerCheckedIn(isCheckedIn);
-    setRefreshKey(prev => prev + 1); // Trigger zone status refresh
-  };
   
   // Refresh zone data
   const handleZoneRefresh = () => {
@@ -341,167 +335,67 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
                   key={refreshKey}
                   zoneId={selectedZone} 
                   onRefresh={handleZoneRefresh}
+                  onScanCar={() => setSelectedAction('scan_car')}
+                  onCompleteCar={() => setSelectedAction('complete_car')}
                 />
               </div>
               
-              {/* Action Menu - Version 4.0 with 4 buttons */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto">
+              {/* iPhone App Style Action Menu */}
+              <div className="grid grid-cols-4 gap-4 max-w-lg mx-auto">
                 
-                {/* Scan Car Button - NEW V4.0 */}
-                <button
-                  onClick={() => setSelectedAction('scan_car')}
-                  className="p-3 md:p-4 bg-white rounded-xl border-2 border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-all duration-200 text-center group"
-                >
-                  <div className="text-2xl md:text-3xl mb-2">📱</div>
-                  <h3 className="text-sm md:text-base font-semibold text-gray-900 mb-1">
-                    Scan Car
-                  </h3>
-                  <p className="text-gray-600 text-xs">
-                    Scan VIN to register car
-                  </p>
-                  <div className="mt-2 text-blue-500 group-hover:text-blue-600">
-                    <svg className="w-4 h-4 md:w-5 md:h-5 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </div>
-                </button>
-
-                {/* Report Button - NEW V5.7 with Two-Way Feedback */}
-                <button
-                  onClick={handleReportToggle}
-                  className={`p-3 md:p-4 rounded-xl border-2 transition-all duration-200 text-center group ${
-                    hasActiveReport
-                      ? 'bg-orange-100 border-orange-500 text-orange-900'
-                      : 'bg-white border-gray-200 hover:border-orange-500 hover:bg-orange-50'
-                  }`}
-                >
-                  <div className="text-2xl md:text-3xl mb-2">⚠️</div>
-                  <h3 className="text-sm md:text-base font-semibold mb-1">
-                    {hasActiveReport ? 'Report Active' : 'Report Issue'}
-                  </h3>
-                  <p className="text-xs">
-                    {hasActiveReport ? 'Click to dismiss' : 'Alert supervisors'}
-                  </p>
-                  <div className={`mt-2 ${hasActiveReport ? 'text-orange-600' : 'text-orange-500 group-hover:text-orange-600'}`}>
-                    <svg className="w-4 h-4 md:w-5 md:h-5 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.664-.833-2.464 0L5.268 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                    </svg>
-                  </div>
-                </button>
-
-                {/* Complete Work Button - NEW V4.0 */}
-                <button
-                  onClick={() => setSelectedAction('complete_car')}
-                  className="p-3 md:p-4 bg-white rounded-xl border-2 border-gray-200 hover:border-green-500 hover:bg-green-50 transition-all duration-200 text-center group"
-                >
-                  <div className="text-2xl md:text-3xl mb-2">✅</div>
-                  <h3 className="text-sm md:text-base font-semibold text-gray-900 mb-1">
-                    Complete
-                  </h3>
-                  <p className="text-gray-600 text-xs">
-                    Mark work complete
-                  </p>
-                  <div className="mt-2 text-green-500 group-hover:text-green-600">
-                    <svg className="w-4 h-4 md:w-5 md:h-5 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </div>
-                </button>
-
-                {/* Check In/Out Button - NEW V4.0 */}
-                <button
-                  onClick={() => setSelectedAction('check_in')}
-                  className={`p-3 md:p-4 bg-white rounded-xl border-2 transition-all duration-200 text-center group ${
-                    isWorkerCheckedIn 
-                      ? 'border-green-300 bg-green-50 hover:border-green-500 hover:bg-green-100' 
-                      : 'border-gray-200 hover:border-orange-500 hover:bg-orange-50'
-                  }`}
-                >
-                  <div className="text-2xl md:text-3xl mb-2">
-                    {isWorkerCheckedIn ? '⏰' : '🕐'}
-                  </div>
-                  <h3 className="text-sm md:text-base font-semibold text-gray-900 mb-1">
-                    {isWorkerCheckedIn ? 'Checked In' : 'Clock In'}
-                  </h3>
-                  <p className="text-gray-600 text-xs">
-                    {isWorkerCheckedIn ? 'Manage time' : 'Track work time'}
-                  </p>
-                  <div className={`mt-2 group-hover:opacity-75 ${
-                    isWorkerCheckedIn ? 'text-green-500' : 'text-orange-500'
+                {/* Report Issue App Button */}
+                <div className="text-center">
+                  <button
+                    onClick={handleReportToggle}
+                    className={`w-16 h-16 rounded-2xl shadow-lg transition-all duration-200 transform hover:scale-105 active:scale-95 ${
+                      hasActiveReport
+                        ? 'bg-gradient-to-br from-red-400 to-red-600 animate-pulse'
+                        : 'bg-gradient-to-br from-orange-400 to-orange-600'
+                    }`}
+                  >
+                    <div className="text-white text-2xl">⚠️</div>
+                  </button>
+                  <p className={`text-xs mt-1 font-medium ${
+                    hasActiveReport ? 'text-red-700' : 'text-gray-700'
                   }`}>
-                    <svg className="w-4 h-4 md:w-5 md:h-5 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </div>
-                </button>
-                
-                {/* Check Inventory Button - Existing */}
-                <button
-                  onClick={() => setSelectedAction('check')}
-                  className="p-3 md:p-4 bg-white rounded-xl border-2 border-gray-200 hover:border-indigo-500 hover:bg-indigo-50 transition-all duration-200 text-center group"
-                >
-                  <div className="text-2xl md:text-3xl mb-2">📋</div>
-                  <h3 className="text-sm md:text-base font-semibold text-gray-900 mb-1">
-                    Inventory
-                  </h3>
-                  <p className="text-gray-600 text-xs">
-                    Count items
+                    {hasActiveReport ? 'Report Active' : 'Report Issue'}
                   </p>
-                  <div className="mt-2 text-indigo-500 group-hover:text-indigo-600">
-                    <svg className="w-4 h-4 md:w-5 md:h-5 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </div>
-                </button>
-              </div>
-              
-              {/* Transactions Button - Moved below main actions */}
-              <div className="mt-6 max-w-md mx-auto">
-                <button
-                  onClick={() => setSelectedAction('transaction')}
-                  className="w-full p-3 md:p-4 bg-white rounded-xl border-2 border-gray-200 hover:border-purple-500 hover:bg-purple-50 transition-all duration-200 text-center group"
-                >
-                  <div className="flex items-center justify-center space-x-3">
-                    <div className="text-2xl">🔄</div>
-                    <div className="text-left">
-                      <h3 className="text-base font-semibold text-gray-900">
-                        {t('transactions.title')}
-                      </h3>
-                      <p className="text-gray-600 text-sm">
-                        {t('transactions.productionDescription')}
-                      </p>
-                    </div>
-                    <div className="text-purple-500 group-hover:text-purple-600">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
-                    </div>
-                  </div>
-                </button>
+                </div>
+
+                {/* Inventory App Button */}
+                <div className="text-center">
+                  <button
+                    onClick={() => setSelectedAction('check')}
+                    className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-400 to-indigo-600 shadow-lg transition-all duration-200 transform hover:scale-105 active:scale-95"
+                  >
+                    <div className="text-white text-2xl">📋</div>
+                  </button>
+                  <p className="text-xs text-gray-700 mt-1 font-medium">Inventory</p>
+                </div>
+
+                {/* Receive App Button */}
+                <div className="text-center">
+                  <button
+                    onClick={() => setSelectedAction('transaction')}
+                    className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-400 to-blue-600 shadow-lg transition-all duration-200 transform hover:scale-105 active:scale-95"
+                  >
+                    <div className="text-white text-2xl">📬</div>
+                  </button>
+                  <p className="text-xs text-gray-700 mt-1 font-medium">Receive</p>
+                </div>
+
+                {/* Waste & Lost App Button */}
+                <div className="text-center">
+                  <button
+                    onClick={() => setSelectedAction('waste_lost')}
+                    className="w-16 h-16 rounded-2xl bg-gradient-to-br from-red-400 to-red-600 shadow-lg transition-all duration-200 transform hover:scale-105 active:scale-95"
+                  >
+                    <div className="text-white text-2xl">🗑️</div>
+                  </button>
+                  <p className="text-xs text-gray-700 mt-1 font-medium">Waste & Lost</p>
+                </div>
               </div>
 
-              {/* Navigation Buttons */}
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <button
-                  onClick={handleBackToZones}
-                  className="btn-secondary"
-                >
-                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                  </svg>
-                  {t('production.backToZones')}
-                </button>
-                
-                <button
-                  onClick={onBack}
-                  className="btn-secondary"
-                >
-                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                  </svg>
-                  {t('nav.backToRoles')}
-                </button>
-              </div>
             </>
           )}
 
@@ -586,12 +480,12 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
             />
           )}
 
-          {selectedAction === 'check_in' && (
-            <WorkerCheckInView
+
+          {selectedAction === 'waste_lost' && (
+            <WasteLostView
               user={user}
               zoneId={selectedZone!}
               onBack={handleBackToMenu}
-              onWorkerStatusChange={handleWorkerStatusChange}
             />
           )}
 

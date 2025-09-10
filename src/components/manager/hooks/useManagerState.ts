@@ -74,10 +74,16 @@ export function useManagerState(): UseManagerStateReturn {
     // Switch to first tab of the category using type-safe logic
     if (category === 'inventory' && !isInventoryTab(activeTab)) {
       setActiveTab('overview');
-    } else if (category === 'hr' && activeTab !== 'hr') {
-      setActiveTab('hr');
+    } else if (category === 'production' && !['production_line', 'production_stats'].includes(activeTab)) {
+      setActiveTab('production_line');
+    } else if (category === 'qa' && activeTab !== 'qa') {
+      setActiveTab('qa');
     } else if (category === 'operations' && activeTab !== 'operations') {
       setActiveTab('operations');
+    } else if (category === 'feedback' && activeTab !== 'feedback') {
+      setActiveTab('feedback');
+    } else if (category === 'hr' && activeTab !== 'hr') {
+      setActiveTab('hr');
     }
   };
 

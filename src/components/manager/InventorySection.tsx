@@ -11,6 +11,7 @@ import {
 } from '../manager/inventory';
 import { ItemBOMSection } from './ItemBOMSection';
 import { ScannerSection } from './ScannerSection';
+import { WasteInventoryTab } from './WasteInventoryTab';
 
 interface InventorySectionProps {
   activeTab: InventoryTab;
@@ -114,6 +115,10 @@ export function InventorySection({
 
       {activeTab === 'scanner' && (
         <ScannerSection />
+      )}
+
+      {activeTab === 'waste' && (
+        <WasteInventoryTab />
       )}
     </div>
   );

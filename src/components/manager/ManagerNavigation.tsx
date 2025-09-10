@@ -205,6 +205,17 @@ export function ManagerNavigation({
                 <span className="hidden sm:inline">🔍 {t('manager.subTabs.scanner')}</span>
                 <span className="sm:hidden">🔍</span>
               </button>
+              <button
+                onClick={() => onTabChange('waste')}
+                className={`flex-shrink-0 whitespace-nowrap border-b-2 py-4 px-1 text-sm font-medium transition-colors ${
+                  activeTab === 'waste'
+                    ? 'border-red-500 text-red-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <span className="hidden sm:inline">🗑️ Waste & Lost</span>
+                <span className="sm:hidden">🗑️</span>
+              </button>
             </>
           )}
 

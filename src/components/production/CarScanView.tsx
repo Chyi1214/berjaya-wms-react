@@ -33,6 +33,11 @@ export function CarScanView({ user, zoneId, onBack, onCarScanned }: CarScanViewP
 
   useEffect(() => {
     checkCameraSupport();
+    // Auto-start camera when component mounts
+    setTimeout(() => {
+      startScanning();
+    }, 500); // Small delay to ensure component is fully mounted
+    
     return () => {
       stopScanning();
     };
@@ -210,50 +215,10 @@ export function CarScanView({ user, zoneId, onBack, onCarScanned }: CarScanViewP
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-3">
-              <button
-                onClick={onBack}
-                className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-              <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
-                <span className="text-white font-bold text-sm">🚗</span>
-              </div>
-              <h1 className="text-xl font-semibold text-gray-900">
-                Scan Car - Zone {zoneId}
-              </h1>
-            </div>
-            
-            <div className="bg-blue-100 border border-blue-200 rounded-lg px-3 py-1">
-              <span className="text-blue-800 text-sm font-medium">
-                Zone {zoneId}
-              </span>
-            </div>
-          </div>
-        </div>
-      </header>
-
       {/* Main Content */}
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="space-y-6">
 
-          {/* Instructions */}
-          <div className="text-center">
-            <div className="text-4xl mb-4">📱</div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">
-              Scan Car VIN
-            </h2>
-            <p className="text-gray-600">
-              Scan the car's VIN barcode or QR code to register it in Zone {zoneId}
-            </p>
-          </div>
 
           {/* Success Message */}
           {success && (

@@ -160,50 +160,10 @@ export function CarCompleteView({ user, zoneId, onBack, onCarCompleted }: CarCom
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-3">
-              <button
-                onClick={onBack}
-                className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-              <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
-                <span className="text-white font-bold text-sm">✅</span>
-              </div>
-              <h1 className="text-xl font-semibold text-gray-900">
-                Complete Work - Zone {zoneId}
-              </h1>
-            </div>
-            
-            <div className="bg-green-100 border border-green-200 rounded-lg px-3 py-1">
-              <span className="text-green-800 text-sm font-medium">
-                Zone {zoneId}
-              </span>
-            </div>
-          </div>
-        </div>
-      </header>
-
       {/* Main Content */}
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="space-y-6">
 
-          {/* Instructions */}
-          <div className="text-center">
-            <div className="text-4xl mb-4">🔧</div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">
-              Complete Car Work
-            </h2>
-            <p className="text-gray-600">
-              Mark your work as complete on the current car in Zone {zoneId}
-            </p>
-          </div>
 
           {/* Success Message */}
           {success && (
@@ -268,6 +228,29 @@ export function CarCompleteView({ user, zoneId, onBack, onCarCompleted }: CarCom
               <h3 className="text-lg font-semibold text-gray-900 mb-4">
                 Current Car in Zone {zoneId}
               </h3>
+
+              {/* Complete Button - Moved to Top */}
+              <div className="mb-6">
+                <button
+                  onClick={handleCompleteWork}
+                  disabled={isProcessing}
+                  className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-medium py-4 px-6 rounded-lg transition-colors disabled:cursor-not-allowed text-lg"
+                >
+                  {isProcessing ? (
+                    <div className="flex items-center justify-center">
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                      Completing Work...
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center">
+                      <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      Complete Work
+                    </div>
+                  )}
+                </button>
+              </div>
               
               <div className="grid md:grid-cols-2 gap-6 mb-6">
                 {/* Car Details */}
@@ -337,32 +320,12 @@ export function CarCompleteView({ user, zoneId, onBack, onCarCompleted }: CarCom
                 </p>
               </div>
 
-              {/* Complete Button */}
-              <div className="flex gap-3">
-                <button
-                  onClick={handleCompleteWork}
-                  disabled={isProcessing}
-                  className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-medium py-3 px-6 rounded-lg transition-colors disabled:cursor-not-allowed"
-                >
-                  {isProcessing ? (
-                    <div className="flex items-center justify-center">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Completing Work...
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-center">
-                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                      Complete Work
-                    </div>
-                  )}
-                </button>
-                
+              {/* Cancel Button */}
+              <div className="text-center">
                 <button
                   onClick={onBack}
                   disabled={isProcessing}
-                  className="flex-1 btn-secondary disabled:opacity-50"
+                  className="btn-secondary disabled:opacity-50"
                 >
                   Cancel
                 </button>

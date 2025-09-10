@@ -8,9 +8,11 @@ interface ZoneStatusDisplayProps {
   zoneId: number;
   onRefresh?: () => void;
   compact?: boolean; // For smaller displays
+  onScanCar?: () => void;
+  onCompleteCar?: () => void;
 }
 
-export function ZoneStatusDisplay({ zoneId, onRefresh, compact = false }: ZoneStatusDisplayProps) {
+export function ZoneStatusDisplay({ zoneId, onRefresh, compact = false, onScanCar, onCompleteCar }: ZoneStatusDisplayProps) {
   
   // State
   const [workStation, setWorkStation] = useState<WorkStation | null>(null);
@@ -181,11 +183,19 @@ export function ZoneStatusDisplay({ zoneId, onRefresh, compact = false }: ZoneSt
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Current Car Section */}
-        <div className={`rounded-lg p-4 ${workStation.currentCar ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50 border border-gray-200'}`}>
+      <div className="grid grid-cols-1 gap-4">
+        {/* Current Car Section - Clickable but subtle */}
+        <div className={`rounded-lg p-4 cursor-pointer transition-all duration-200 hover:shadow-md ${
+          workStation.currentCar 
+            ? 'bg-blue-50 border border-blue-200 hover:border-blue-300' 
+            : 'bg-gray-50 border border-gray-200 hover:border-gray-300'
+        }`}
+        onClick={workStation.currentCar ? onCompleteCar : onScanCar}
+        >
           <div className="flex items-center mb-3">
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${workStation.currentCar ? 'bg-blue-500' : 'bg-gray-400'}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+              workStation.currentCar ? 'bg-blue-500' : 'bg-gray-400'
+            }`}>
               <span className="text-white text-sm font-bold">🚗</span>
             </div>
             <h4 className="ml-2 font-medium text-gray-900">Current Car</h4>
@@ -213,68 +223,22 @@ export function ZoneStatusDisplay({ zoneId, onRefresh, compact = false }: ZoneSt
                 <span className="text-gray-600">Entered at:</span>
                 <span className="font-medium">{workStation.currentCar.enteredAt.toLocaleTimeString()}</span>
               </div>
+              <div className="mt-3 pt-2 border-t border-blue-200">
+                <p className="text-blue-700 text-xs text-center font-medium">Click to mark work complete</p>
+              </div>
             </div>
           ) : (
             <div className="text-center py-2">
               <p className="text-gray-500 text-sm">No car currently in zone</p>
-              <p className="text-xs text-gray-400 mt-1">Scan a car to start tracking</p>
-            </div>
-          )}
-        </div>
-
-        {/* Worker Section */}
-        <div className={`rounded-lg p-4 ${workStation.currentWorker ? 'bg-green-50 border border-green-200' : 'bg-gray-50 border border-gray-200'}`}>
-          <div className="flex items-center mb-3">
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${workStation.currentWorker ? 'bg-green-500' : 'bg-gray-400'}`}>
-              <span className="text-white text-sm font-bold">👷</span>
-            </div>
-            <h4 className="ml-2 font-medium text-gray-900">Worker Status</h4>
-          </div>
-
-          {workStation.currentWorker ? (
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-gray-600">Name:</span>
-                <span className="font-medium">{workStation.currentWorker.displayName}</span>
+              <p className="text-xs text-gray-400 mt-1">Ready for next car</p>
+              <div className="mt-3 pt-2 border-t border-gray-200">
+                <p className="text-gray-600 text-xs font-medium">Click to scan new car</p>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Email:</span>
-                <span className="font-medium text-xs">{workStation.currentWorker.email}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Working time:</span>
-                <span className="font-medium text-green-600">{formatTime(workStation.currentWorker.timeWorking)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Checked in at:</span>
-                <span className="font-medium">{workStation.currentWorker.checkedInAt.toLocaleTimeString()}</span>
-              </div>
-            </div>
-          ) : (
-            <div className="text-center py-2">
-              <p className="text-gray-500 text-sm">No worker checked in</p>
-              <p className="text-xs text-gray-400 mt-1">Zone is available for work</p>
             </div>
           )}
         </div>
       </div>
 
-      {/* Zone Statistics */}
-      <div className="mt-4 pt-4 border-t border-gray-200">
-        <h4 className="font-medium text-gray-900 mb-2">Today's Statistics</h4>
-        <div className="grid grid-cols-2 gap-4 text-sm">
-          <div className="flex justify-between">
-            <span className="text-gray-600">Cars processed:</span>
-            <span className="font-medium">{workStation.carsProcessedToday}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-600">Avg. time per car:</span>
-            <span className="font-medium">
-              {workStation.averageProcessingTime > 0 ? formatTime(workStation.averageProcessingTime) : 'N/A'}
-            </span>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

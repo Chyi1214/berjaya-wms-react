@@ -1,4 +1,6 @@
 // Overview Tab - Inventory management with batch progress and admin tools
+import { useState } from 'react';
+import { dataCleanupService } from '../../../services/dataCleanup';
 
 interface OverviewTabProps {
   // Remove the unhelpful indices, we'll add needed props later
@@ -14,6 +16,25 @@ export function OverviewTab({
   onClearAllData,
   isLoading 
 }: OverviewTabProps) {
+  const [isCleaningUp, setIsCleaningUp] = useState(false);
+
+  const handleDataCleanup = async () => {
+    if (!confirm('🧹 Clean up inventory data integrity issues?\n\nThis will:\n• Remove BOM entries from inventory tables\n• Fix item name misalignments\n• Exclude waste items from main inventory\n\nThis cannot be undone!')) {
+      return;
+    }
+
+    setIsCleaningUp(true);
+    try {
+      const results = await dataCleanupService.cleanupInventoryData();
+      alert(`✅ Data cleanup completed!\n\n📊 Results:\n• BOM entries removed: ${results.bomsRemoved}\n• Item names fixed: ${results.itemNamesFixed}\n\nNote: Waste items are now preserved for audit tracking.\nPlease refresh the page to see updated inventory.`);
+    } catch (error) {
+      console.error('Failed to cleanup data:', error);
+      alert('❌ Failed to cleanup data. Check console for details.');
+    } finally {
+      setIsCleaningUp(false);
+    }
+  };
+
   return (
     <div className="p-6 space-y-8">
       {/* Header */}
@@ -103,7 +124,7 @@ export function OverviewTab({
       <div className="space-y-6">
         <h4 className="text-lg font-medium text-gray-900">⚙️ Management Tools</h4>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {/* Data Generation */}
           <div className="bg-white border border-gray-200 rounded-lg p-6">
             <h5 className="font-medium text-gray-900 mb-4">🎲 Test Data</h5>
@@ -149,6 +170,19 @@ export function OverviewTab({
               </button>
             </div>
             <p className="text-gray-500 text-xs mt-2">End-of-day and maintenance operations</p>
+          </div>
+
+          {/* Data Cleanup - NEW */}
+          <div className="bg-white border border-gray-200 rounded-lg p-6">
+            <h5 className="font-medium text-gray-900 mb-4">🧹 Data Cleanup</h5>
+            <button
+              onClick={handleDataCleanup}
+              disabled={isCleaningUp}
+              className="w-full bg-yellow-500 hover:bg-yellow-600 disabled:bg-gray-400 text-white text-sm py-2 px-3 rounded transition-colors"
+            >
+              {isCleaningUp ? '🔄 Cleaning...' : '🔧 Fix Data Issues'}
+            </button>
+            <p className="text-gray-500 text-xs mt-2">Remove BOMs from inventory, fix item names</p>
           </div>
         </div>
       </div>

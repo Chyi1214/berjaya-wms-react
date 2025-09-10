@@ -223,16 +223,43 @@ function AppContent() {
       const confirmedTransaction = await transactionService.getTransactionById(transactionId);
       
       if (confirmedTransaction) {
-        // Use optimized method for instant inventory update (no bulk reads/writes!)
+        // CRITICAL FIX: Prevent BOMs from being added to inventory
+        if (confirmedTransaction.sku.startsWith('BOM')) {
+          logger.error('Transaction contains BOM - BOMs should not be in transactions!', {
+            transactionId,
+            sku: confirmedTransaction.sku
+          });
+          throw new Error(`Invalid transaction: BOMs (${confirmedTransaction.sku}) should not be in transactions. BOMs are overlay sets only.`);
+        }
+
+        // CRITICAL FIX: Get correct item name from Item Master catalog (don't trust transaction data)
+        let correctItemName = confirmedTransaction.sku; // fallback to SKU
+        try {
+          const { itemMasterService } = await import('./services/itemMaster');
+          const item = await itemMasterService.getItemBySKU(confirmedTransaction.sku);
+          if (item) {
+            correctItemName = item.name;
+          } else {
+            logger.warn('Item not found in Item Master', { sku: confirmedTransaction.sku });
+          }
+        } catch (error) {
+          logger.warn('Failed to lookup item name from Item Master', { sku: confirmedTransaction.sku, error });
+        }
+
+        // Use optimized method for instant inventory update with CORRECT item name
         await tableStateService.addToInventoryCountOptimized(
           confirmedTransaction.sku,
-          confirmedTransaction.itemName || confirmedTransaction.sku,
+          correctItemName, // ← FIXED: Use correct name from Item Master
           confirmedTransaction.amount,
           confirmedTransaction.toLocation || 'production_zone_1', // Target location for received items
           (confirmedTransaction.approvedBy || user?.email || 'system') as string
         );
         
-        logger.info('Expected inventory updated with optimized method after transaction confirmation');
+        logger.info('Expected inventory updated with correct item name after transaction confirmation', {
+          sku: confirmedTransaction.sku,
+          correctName: correctItemName,
+          transactionName: confirmedTransaction.itemName
+        });
       }
     } catch (error) {
       logger.warn('Failed to update expected inventory', error);
