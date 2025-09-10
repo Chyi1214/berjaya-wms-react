@@ -1,7 +1,7 @@
 // Waste Inventory Tab - Shows waste and lost items reported from production zones
 import { useState, useEffect } from 'react';
 import { InventoryCountEntry } from '../../types';
-import { inventoryService } from '../../services/inventory';
+import { tableStateService } from '../../services/tableState';
 
 interface WasteEntry extends InventoryCountEntry {
   zoneId?: string;
@@ -25,7 +25,8 @@ export function WasteInventoryTab() {
     setIsLoading(true);
     try {
       // Get all inventory entries from waste_lost_zone locations
-      const allCounts = await inventoryService.getAllInventoryCounts();
+      // Waste entries are stored in expected_inventory collection
+      const allCounts = await tableStateService.getExpectedInventory();
       const wasteItems = allCounts.filter(entry => 
         entry.location.startsWith('waste_lost_zone_')
       );
