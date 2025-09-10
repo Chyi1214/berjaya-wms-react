@@ -4,6 +4,7 @@ import {
   doc, 
   setDoc, 
   getDocs, 
+  getDoc,
   onSnapshot, 
   query, 
   orderBy,
@@ -122,6 +123,101 @@ class TableStateService {
     
     console.log(`✅ Updated ${sku} inventory: ${previousAmount} → ${newAmount}`);
     return { previousAmount, newAmount };
+  }
+
+  // NEW OPTIMIZED METHODS - Single Document Updates
+
+  // Update a single inventory item directly by SKU+location
+  async updateSingleInventoryItem(
+    sku: string, 
+    location: string, 
+    newAmount: number,
+    itemName: string,
+    countedBy: string
+  ): Promise<void> {
+    const docId = `${sku}_${location}`;
+    const docRef = doc(db, EXPECTED_COLLECTION, docId);
+    
+    console.log(`🎯 Direct update: ${sku} at ${location} → ${newAmount} units`);
+    
+    await setDoc(docRef, {
+      sku,
+      location,
+      amount: newAmount,
+      itemName,
+      countedBy,
+      timestamp: Timestamp.now()
+    }, { merge: true });
+    
+    console.log(`✅ Direct update complete: ${docId}`);
+  }
+
+  // Super-fast inventory addition - only touches one document
+  async addToInventoryCountOptimized(
+    sku: string, 
+    itemName: string, 
+    quantity: number, 
+    location: string, 
+    countedBy: string
+  ): Promise<{ previousAmount: number; newAmount: number }> {
+    const docId = `${sku}_${location}`;
+    const docRef = doc(db, EXPECTED_COLLECTION, docId);
+    
+    console.log(`⚡ Fast add: ${quantity} x ${sku} to ${location}`);
+    
+    // Get only this specific document (not all inventory!)
+    const docSnap = await getDoc(docRef);
+    const previousAmount = docSnap.exists() ? (docSnap.data().amount || 0) : 0;
+    const newAmount = previousAmount + quantity;
+    
+    // Update only this document
+    await setDoc(docRef, {
+      sku,
+      location,
+      amount: newAmount,
+      itemName,
+      countedBy,
+      timestamp: Timestamp.now()
+    }, { merge: true });
+    
+    console.log(`✅ Fast add complete: ${previousAmount} → ${newAmount} (${docId})`);
+    return { previousAmount, newAmount };
+  }
+
+  // Migration method - Run once to convert to composite IDs
+  async migrateToCompositeIds(): Promise<void> {
+    console.log('🔧 Starting migration to composite IDs...');
+    
+    try {
+      // Get all existing entries
+      const entries = await this.getExpectedInventory();
+      console.log(`📦 Found ${entries.length} existing entries to migrate`);
+      
+      // Clear the old collection
+      console.log('🗑️ Clearing old auto-generated documents...');
+      await this.clearExpectedInventory();
+      
+      // Re-save with composite IDs
+      console.log('💾 Saving with new composite IDs...');
+      for (const entry of entries) {
+        const docId = `${entry.sku}_${entry.location}`;
+        const docRef = doc(db, EXPECTED_COLLECTION, docId);
+        
+        await setDoc(docRef, {
+          sku: entry.sku,
+          itemName: entry.itemName,
+          amount: entry.amount,
+          location: entry.location,
+          countedBy: entry.countedBy,
+          timestamp: Timestamp.fromDate(entry.timestamp)
+        });
+      }
+      
+      console.log('✅ Migration complete! All documents now use composite IDs (SKU_LOCATION)');
+    } catch (error) {
+      console.error('❌ Migration failed:', error);
+      throw error;
+    }
   }
 
   // Yesterday Results Methods

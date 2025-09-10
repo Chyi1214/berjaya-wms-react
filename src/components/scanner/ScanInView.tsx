@@ -143,8 +143,8 @@ export function ScanInView({ user, onBack }: ScanInViewProps) {
     setError(null);
 
     try {
-      // Use the new optimized method that handles the update internally
-      const { previousAmount, newAmount } = await tableStateService.addToInventoryCount(
+      // Use the SUPER-FAST optimized method - only touches one document!
+      const { previousAmount, newAmount } = await tableStateService.addToInventoryCountOptimized(
         scanResult.sku,
         scanResult.item.name,
         qty,
