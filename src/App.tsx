@@ -19,7 +19,6 @@ import { UserRole, AppSection, InventoryCountEntry, Transaction, TransactionStat
 const ManagerView = lazy(() => import('./components/ManagerView').then(module => ({ default: module.ManagerView })));
 import { inventoryService } from './services/inventory';
 import { transactionService } from './services/transactions';
-import { mockDataService } from './services/mockData';
 import { tableStateService } from './services/tableState';
 
 // Main app content (wrapped inside AuthProvider)
@@ -218,30 +217,22 @@ function AppContent() {
     // Remove OTP after successful confirmation
     await transactionService.deleteOTP(transactionId);
 
-    // 🔄 FIXED BASELINE: Use incremental update approach (scalable for 100 workers)
+    // ⚡ OPTIMIZED: Use single-document update instead of bulk operations
     try {
-      // Get current expected inventory from Firebase
-      const currentExpected = await tableStateService.getExpectedInventory();
+      // Get confirmed transaction details
+      const confirmedTransaction = await transactionService.getTransactionById(transactionId);
       
-      if (currentExpected.length > 0) {
-        // Find the confirmed transaction
-        const confirmedTransaction = await transactionService.getTransactionById(transactionId);
+      if (confirmedTransaction) {
+        // Use optimized method for instant inventory update (no bulk reads/writes!)
+        await tableStateService.addToInventoryCountOptimized(
+          confirmedTransaction.sku,
+          confirmedTransaction.itemName || confirmedTransaction.sku,
+          confirmedTransaction.amount,
+          confirmedTransaction.toLocation || 'production_zone_1', // Target location for received items
+          (confirmedTransaction.approvedBy || user?.email || 'system') as string
+        );
         
-        if (confirmedTransaction) {
-          // Apply INCREMENTAL update (only affects specific SKU locations)
-          const updatedExpected = mockDataService.calculateIncrementalExpectedUpdate(
-            currentExpected,
-            confirmedTransaction
-          );
-          
-          // Save updated expected inventory to Firebase
-          await tableStateService.saveExpectedInventory(updatedExpected);
-          
-          logger.info('Expected inventory updated incrementally after transaction confirmation');
-        }
-      } else {
-        // Fallback to full calculation only if expected table is empty
-        logger.debug('Expected table empty, skipping update - will be handled by manager view');
+        logger.info('Expected inventory updated with optimized method after transaction confirmation');
       }
     } catch (error) {
       logger.warn('Failed to update expected inventory', error);

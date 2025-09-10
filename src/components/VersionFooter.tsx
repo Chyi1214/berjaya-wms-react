@@ -6,14 +6,14 @@ interface VersionFooterProps {
 
 export function VersionFooter({ className = '' }: VersionFooterProps) {
   // Get version from package.json via import.meta.env or hardcode
-  const version = '5.9.7';
+  const version = '5.9.8';
   const buildDate = new Date().toLocaleDateString();
 
   return (
     <footer className={`text-center py-4 text-xs text-gray-400 ${className}`}>
       <div className="max-w-7xl mx-auto px-4">
         <p>
-          Berjaya WMS v{version} • Grid Lines Added • Perfect Alignment Chart
+          Berjaya WMS v{version} • BOM Preview Added • Instant OTP Confirmation
         </p>
         <p className="mt-1">
           Built with React + Firebase • {buildDate}

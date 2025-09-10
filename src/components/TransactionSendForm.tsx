@@ -1,8 +1,9 @@
 // Transaction Send Form - For logistics to send items to production zones
-import { useState, useMemo } from 'react';
-import { TransactionType, TransactionFormData, InventoryCountEntry } from '../types';
+import { useState, useMemo, useEffect } from 'react';
+import { TransactionType, TransactionFormData, InventoryCountEntry, BOM } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { SearchAutocomplete } from './common/SearchAutocomplete';
+import { bomService } from '../services/bom';
 
 interface TransactionSendFormProps {
   onSubmit: (transaction: TransactionFormData & { otp: string }) => void;
@@ -32,6 +33,28 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
     reference: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [bomData, setBomData] = useState<BOM | null>(null);
+
+  // Check if selected item is a BOM
+  const isBOM = formData.sku.startsWith('BOM');
+
+  // Fetch BOM data when BOM is selected
+  useEffect(() => {
+    if (isBOM && formData.sku) {
+      const fetchBomData = async () => {
+        try {
+          const bom = await bomService.getBOMByCode(formData.sku);
+          setBomData(bom);
+        } catch (error) {
+          console.error('Failed to fetch BOM data:', error);
+          setBomData(null);
+        }
+      };
+      fetchBomData();
+    } else {
+      setBomData(null);
+    }
+  }, [formData.sku, isBOM]);
 
   // Process inventory counts to get available items with quantities
   const availableItems = useMemo(() => {
@@ -58,7 +81,6 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
 
   // Get selected item details
   const selectedItem = availableItems.find(item => item.sku === formData.sku);
-  const isBOM = formData.sku.startsWith('BOM');
   const maxAvailableQuantity = selectedItem?.totalQuantity || 0;
 
   // Generate 4-digit OTP
@@ -197,6 +219,48 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
             <p className="mt-1 text-sm text-blue-600">
               📦 BOM will be expanded into individual components when sent
             </p>
+          )}
+          
+          {/* BOM Preview */}
+          {isBOM && bomData && (
+            <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <h4 className="font-medium text-blue-900 mb-2">📦 BOM Preview: {bomData.bomCode}</h4>
+              <p className="text-sm text-blue-700 mb-3">{bomData.name}</p>
+              
+              <div className="space-y-2">
+                <div className="text-xs font-medium text-blue-800 uppercase tracking-wide">
+                  Components per BOM:
+                </div>
+                {bomData.components.map((component, index) => (
+                  <div key={index} className="flex justify-between items-center py-1 border-b border-blue-200 last:border-b-0">
+                    <div className="flex-1">
+                      <span className="text-sm font-medium text-blue-900">{component.sku}</span>
+                      {component.name && (
+                        <span className="text-xs text-blue-600 ml-2">- {component.name}</span>
+                      )}
+                    </div>
+                    <div className="text-sm font-medium text-blue-800">
+                      {component.quantity}x
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              {formData.amount > 1 && (
+                <div className="mt-3 pt-2 border-t border-blue-200">
+                  <div className="text-xs font-medium text-blue-800 uppercase tracking-wide mb-1">
+                    Total components for {formData.amount} BOMs:
+                  </div>
+                  <div className="text-sm text-blue-700">
+                    {bomData.components.map((component, index) => (
+                      <span key={index} className="mr-3">
+                        {component.sku}: {component.quantity * formData.amount}x
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           )}
         </div>
 
