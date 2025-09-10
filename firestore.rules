@@ -35,7 +35,7 @@ service cloud.firestore {
     // Users collection - DevAdmin and users can read their own record
     match /users/{email} {
       allow read: if isDevAdmin() || (isAuthenticated() && request.auth.token.email == email);
-      allow write: if isDevAdmin();
+      allow write: if isDevAdmin() || (isAuthenticated() && request.auth.token.email == email);
       allow list: if isDevAdmin();
     }
     
