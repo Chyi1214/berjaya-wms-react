@@ -6,7 +6,7 @@ import { SearchAutocomplete } from './common/SearchAutocomplete';
 import { bomService } from '../services/bom';
 
 interface TransactionSendFormProps {
-  onSubmit: (transaction: TransactionFormData & { otp: string }) => void;
+  onSubmit: (transaction: TransactionFormData & { otp: string; skipOTP?: boolean }) => void;
   onCancel: () => void;
   senderEmail: string;
   inventoryCounts: InventoryCountEntry[];
@@ -104,7 +104,7 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
     
     try {
       const otp = generateOTP();
-      await onSubmit({ ...formData, otp });
+      await onSubmit({ ...formData, otp, skipOTP });
     } catch (error) {
       console.error('Failed to create transaction:', error);
       alert(t('transactions.failedToCreateTransaction'));
@@ -331,12 +331,12 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
               className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
             />
             <label htmlFor="skipOTP" className="text-sm text-gray-700">
-              🚀 Skip OTP verification (use fixed OTP: 0000 for testing)
+              🚀 Complete transaction immediately (no OTP verification needed)
             </label>
           </div>
           {skipOTP && (
             <p className="mt-2 text-xs text-orange-600 bg-orange-50 border border-orange-200 rounded p-2">
-              ⚠️ Testing mode: Production line can use OTP <strong>0000</strong> to receive items immediately
+              ⚠️ Testing mode: Transaction will be completed immediately when you click send. No OTP verification required.
             </p>
           )}
         </div>
@@ -369,7 +369,7 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
               </>
             ) : (
               <>
-                📤 {skipOTP ? 'Send (OTP: 0000)' : t('transactions.sendAndGenerateOTP')}
+                📤 {skipOTP ? 'Send Immediately (No OTP)' : t('transactions.sendAndGenerateOTP')}
               </>
             )}
           </button>

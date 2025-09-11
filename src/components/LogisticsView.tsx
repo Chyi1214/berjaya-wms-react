@@ -52,10 +52,17 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onTransacti
   };
 
   // Handle transaction submission
-  const handleTransactionSubmit = async (transactionData: TransactionFormData & { otp: string }) => {
+  const handleTransactionSubmit = async (transactionData: TransactionFormData & { otp: string; skipOTP?: boolean }) => {
     try {
       const result = await onTransactionCreate(transactionData);
-      setTransactionResult(result);
+      
+      // If skip OTP is enabled, don't show OTP display - transaction is complete
+      if (transactionData.skipOTP) {
+        alert('✅ Transaction completed successfully! Items sent immediately.');
+        handleBackToMenu();
+      } else {
+        setTransactionResult(result);
+      }
     } catch (error) {
       console.error('Failed to create transaction:', error);
       throw error;

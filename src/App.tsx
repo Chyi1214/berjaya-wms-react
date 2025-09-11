@@ -177,16 +177,17 @@ function AppContent() {
     }
   };
 
-  // Handle transaction creation with OTP
-  const handleTransactionCreate = async (transactionData: TransactionFormData & { otp: string }): Promise<{ transaction: Transaction, otp: string }> => {
-    const { otp, ...txnData } = transactionData;
+  // Handle transaction creation with OTP (and optional skip OTP)
+  const handleTransactionCreate = async (transactionData: TransactionFormData & { otp: string; skipOTP?: boolean }): Promise<{ transaction: Transaction, otp: string }> => {
+    const { otp, skipOTP, ...txnData } = transactionData;
     
     const newTransaction: Transaction = {
       ...txnData,
       id: `txn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       timestamp: new Date(),
-      status: TransactionStatus.PENDING,
+      status: skipOTP ? TransactionStatus.COMPLETED : TransactionStatus.PENDING,
       performedBy: user?.email || 'unknown',
+      approvedBy: skipOTP ? user?.email || 'unknown' : undefined,
       // Calculate previous and new amounts based on current inventory
       previousAmount: 0, // In real app, get from current inventory
       newAmount: txnData.amount, // In real app, calculate based on transaction type
@@ -195,9 +196,47 @@ function AppContent() {
     
     // Save to Firebase
     await transactionService.saveTransaction(newTransaction);
-    await transactionService.saveOTP(newTransaction.id, otp);
     
-    logger.info('Transaction created in Firebase', { transactionId: newTransaction.id, otp });
+    if (!skipOTP) {
+      // Only save OTP if not skipping
+      await transactionService.saveOTP(newTransaction.id, otp);
+    }
+    
+    // If skip OTP, also process the inventory changes immediately
+    if (skipOTP) {
+      logger.info('Skip OTP: Processing inventory changes immediately');
+      
+      // Process inventory changes (same logic as in handleTransactionConfirm)
+      try {
+        if (!newTransaction.sku.startsWith('BOM')) {
+          // Get correct item name from Item Master lookup
+          const correctItemName = getItemNameBySku(newTransaction.sku);
+          
+          // Add to expected inventory for the target location
+          await tableStateService.addToInventoryCountOptimized(
+            newTransaction.sku,
+            correctItemName,
+            newTransaction.amount,
+            newTransaction.toLocation || 'production_zone_1',
+            newTransaction.performedBy as string
+          );
+          
+          logger.info('Expected inventory updated immediately for skip OTP transaction', {
+            sku: newTransaction.sku,
+            amount: newTransaction.amount,
+            location: newTransaction.toLocation
+          });
+        }
+      } catch (error) {
+        logger.warn('Failed to update expected inventory for skip OTP transaction', error);
+      }
+    }
+    
+    logger.info('Transaction created in Firebase', { 
+      transactionId: newTransaction.id, 
+      otp: skipOTP ? 'SKIPPED' : otp,
+      status: newTransaction.status
+    });
     return { transaction: newTransaction, otp };
   };
 
