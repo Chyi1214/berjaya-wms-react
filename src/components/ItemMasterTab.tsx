@@ -98,6 +98,7 @@ export function ItemMasterTab({
       // Parse CSV headers
       const headers = lines[0].split(',').map(h => h.trim().replace(/['"]/g, ''));
       console.log('📊 CSV Headers:', headers);
+      console.log('📊 First few lines of CSV:', lines.slice(0, 5));
       
       // Find column indices
       const skuIndex = headers.findIndex(h => h.toLowerCase().includes('sku'));
@@ -124,9 +125,22 @@ export function ItemMasterTab({
         const category = categoryIndex >= 0 ? parts[categoryIndex]?.trim() : undefined;
         const unit = unitIndex >= 0 ? parts[unitIndex]?.trim() : undefined;
 
+        // Debug first few rows
+        if (i <= 3) {
+          console.log(`🔍 Row ${i + 1} debug:`, {
+            parts,
+            skuIndex,
+            nameIndex,
+            sku,
+            name,
+            category,
+            unit
+          });
+        }
+
         // Skip invalid rows
         if (!sku || !name) {
-          console.warn(`Row ${i + 1}: Skipping invalid item - missing SKU or Name`);
+          console.warn(`Row ${i + 1}: Skipping invalid item - missing SKU or Name (sku: "${sku}", name: "${name}")`);
           skippedRows++;
           continue;
         }
@@ -158,7 +172,9 @@ export function ItemMasterTab({
       console.log('✅ Items CSV import completed:', result);
       
       // Refresh data
+      console.log('🔄 Refreshing Item Master data after import...');
       await onDataChange();
+      console.log('✅ Item Master data refresh completed.');
 
     } catch (error) {
       console.error('Items CSV upload failed:', error);

@@ -276,13 +276,24 @@ class ItemMasterService {
       
       // Commit all changes
       if (result.success > 0) {
-        await batch.commit();
-        logger.info('Bulk import completed', { 
-          mode, 
-          success: result.success, 
-          errors: result.errors.length,
-          stats: result.stats 
-        });
+        try {
+          console.log(`🔄 Committing ${result.success} items to Firebase...`);
+          await batch.commit();
+          console.log(`✅ Firebase batch commit successful! ${result.success} items saved.`);
+          
+          logger.info('Bulk import completed', { 
+            mode, 
+            success: result.success, 
+            errors: result.errors.length,
+            stats: result.stats 
+          });
+        } catch (commitError) {
+          console.error('❌ Firebase batch commit failed:', commitError);
+          result.errors.push(`Batch commit failed: ${commitError instanceof Error ? commitError.message : 'Unknown error'}`);
+          result.success = 0; // Reset success count since nothing was actually saved
+        }
+      } else {
+        console.warn('⚠️ No items to commit - all items were skipped or invalid');
       }
       
       return result;
