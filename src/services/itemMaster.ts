@@ -193,61 +193,105 @@ class ItemMasterService {
     logger.info('Item deleted from master list', { sku });
   }
 
-  // Bulk import items (for CSV import)
-  async bulkImportItems(items: Omit<ItemMaster, 'createdAt' | 'updatedAt'>[]): Promise<{
+  // Enhanced bulk import with update/replace modes
+  async bulkImportItems(
+    items: Omit<ItemMaster, 'createdAt' | 'updatedAt'>[], 
+    mode: 'update' | 'replace' = 'update'
+  ): Promise<{
     success: number;
-    failed: Array<{ sku: string; error: string }>;
+    errors: string[];
+    stats?: {
+      totalRows: number;
+      skippedRows: number;
+      updated: number;
+      created: number;
+    };
   }> {
-    logger.info('Starting bulk import', { itemCount: items.length });
+    logger.info('Starting bulk import', { itemCount: items.length, mode });
     
-    const batch = writeBatch(db);
-    const now = new Date();
-    const failed: Array<{ sku: string; error: string }> = [];
-    let success = 0;
+    const result = {
+      success: 0,
+      errors: [] as string[],
+      stats: {
+        totalRows: items.length,
+        skippedRows: 0,
+        updated: 0,
+        created: 0
+      }
+    };
     
-    // Check for duplicates first
-    for (const item of items) {
-      try {
-        const existingItem = await this.getItemBySKU(item.sku);
-        if (existingItem) {
-          failed.push({
-            sku: item.sku,
-            error: `Duplicate SKU: Item "${item.sku}" already exists`
-          });
-          continue;
+    try {
+      if (mode === 'replace') {
+        // Replace mode: clear all existing data first
+        logger.info('Replace mode: clearing all existing items...');
+        await this.clearAllItems();
+      }
+      
+      const batch = writeBatch(db);
+      const now = new Date();
+      
+      for (const item of items) {
+        try {
+          // Validate required fields
+          if (!item.sku || !item.name) {
+            result.errors.push(`Row: Missing required SKU or Name`);
+            result.stats.skippedRows++;
+            continue;
+          }
+          
+          const existingItem = await this.getItemBySKU(item.sku);
+          
+          if (mode === 'update' && existingItem) {
+            // Update mode: skip existing items
+            logger.debug(`Skipping existing item: ${item.sku}`);
+            result.stats.skippedRows++;
+            continue;
+          }
+          
+          // Prepare item data
+          const itemData: ItemMaster = {
+            ...item,
+            sku: item.sku.toUpperCase(), // Normalize SKU
+            createdAt: existingItem?.createdAt || now,
+            updatedAt: now
+          };
+          
+          const docRef = doc(db, ITEM_MASTER_COLLECTION, item.sku.toUpperCase());
+          const firestoreData = mapItemMasterToFirestore(itemData);
+          
+          batch.set(docRef, firestoreData);
+          
+          if (existingItem) {
+            result.stats.updated++;
+          } else {
+            result.stats.created++;
+          }
+          result.success++;
+          
+        } catch (error) {
+          result.errors.push(`SKU ${item.sku}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          result.stats.skippedRows++;
         }
-        
-        // Add to batch
-        const newItem: ItemMaster = {
-          ...item,
-          createdAt: now,
-          updatedAt: now
-        };
-        
-        const docRef = doc(db, ITEM_MASTER_COLLECTION, item.sku);
-        const firestoreData = mapItemMasterToFirestore(newItem);
-        
-        batch.set(docRef, firestoreData);
-        success++;
-        
-      } catch (error) {
-        failed.push({
-          sku: item.sku,
-          error: error instanceof Error ? error.message : 'Unknown error'
+      }
+      
+      // Commit all changes
+      if (result.success > 0) {
+        await batch.commit();
+        logger.info('Bulk import completed', { 
+          mode, 
+          success: result.success, 
+          errors: result.errors.length,
+          stats: result.stats 
         });
       }
+      
+      return result;
+      
+    } catch (error) {
+      logger.error('Bulk import failed', error);
+      result.errors.push(`Import failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      return result;
     }
-    
-    // If any duplicates found, reject the entire import
-    if (failed.length > 0) {
-      throw new Error(`Import failed: ${failed.length} duplicate SKUs found. Fix duplicates and try again.`);
-    }
-    
-    // Commit all at once
-    await batch.commit();
-    
-    logger.info('Bulk import completed', { successCount: success });
-    return { success, failed };
   }
 
   // Clear all items (for testing)

@@ -28,6 +28,10 @@ export function ItemMasterTab({
   const [searchTerm, setSearchTerm] = useState('');
   const [showItemForm, setShowItemForm] = useState(false);
   const [editingItem, setEditingItem] = useState<ItemMaster | null>(null);
+  
+  // CSV Import state
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadResult, setUploadResult] = useState<any>(null);
 
   // Filter items based on search
   const filteredItems = items.filter(item =>
@@ -71,6 +75,124 @@ export function ItemMasterTab({
     setShowItemForm(false);
     setEditingItem(null);
     await onDataChange();
+  };
+
+  // CSV Import functions
+  const handleCSVUpload = async (event: React.ChangeEvent<HTMLInputElement>, replaceMode: boolean = false) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    setUploadResult(null);
+
+    try {
+      console.log(`📥 Uploading Items CSV file: ${file.name} (Replace mode: ${replaceMode})`);
+      
+      const text = await file.text();
+      const lines = text.split('\n').filter(line => line.trim());
+      
+      if (lines.length === 0) {
+        throw new Error('CSV file is empty');
+      }
+
+      // Parse CSV headers
+      const headers = lines[0].split(',').map(h => h.trim().replace(/['"]/g, ''));
+      console.log('📊 CSV Headers:', headers);
+      
+      // Find column indices
+      const skuIndex = headers.findIndex(h => h.toLowerCase().includes('sku'));
+      const nameIndex = headers.findIndex(h => h.toLowerCase().includes('name'));
+      const categoryIndex = headers.findIndex(h => h.toLowerCase().includes('category'));
+      const unitIndex = headers.findIndex(h => h.toLowerCase().includes('unit'));
+
+      if (skuIndex === -1 || nameIndex === -1) {
+        throw new Error('CSV must contain SKU and Name columns');
+      }
+
+      // Parse data rows
+      const itemsToImport: Omit<ItemMaster, 'createdAt' | 'updatedAt'>[] = [];
+      let skippedRows = 0;
+
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+
+        const parts = line.split(',').map(p => p.trim().replace(/['"]/g, ''));
+        
+        const sku = parts[skuIndex]?.trim();
+        const name = parts[nameIndex]?.trim();
+        const category = categoryIndex >= 0 ? parts[categoryIndex]?.trim() : undefined;
+        const unit = unitIndex >= 0 ? parts[unitIndex]?.trim() : undefined;
+
+        // Skip invalid rows
+        if (!sku || !name) {
+          console.warn(`Row ${i + 1}: Skipping invalid item - missing SKU or Name`);
+          skippedRows++;
+          continue;
+        }
+
+        itemsToImport.push({
+          sku: sku.toUpperCase(),
+          name,
+          ...(category && { category }),
+          ...(unit && { unit })
+        });
+      }
+
+      console.log(`📊 Items CSV Summary:`);
+      console.log(`   📥 Total rows processed: ${lines.length - 1}`);
+      console.log(`   ✅ Valid items: ${itemsToImport.length}`);
+      console.log(`   ⚠️ Rows skipped: ${skippedRows}`);
+
+      if (itemsToImport.length === 0) {
+        throw new Error('No valid items found in CSV file');
+      }
+
+      // Import items
+      const result = await itemMasterService.bulkImportItems(
+        itemsToImport, 
+        replaceMode ? 'replace' : 'update'
+      );
+      
+      setUploadResult(result);
+      console.log('✅ Items CSV import completed:', result);
+      
+      // Refresh data
+      await onDataChange();
+
+    } catch (error) {
+      console.error('Items CSV upload failed:', error);
+      setUploadResult({ 
+        success: 0, 
+        errors: [error instanceof Error ? error.message : 'Unknown error'] 
+      });
+    } finally {
+      setIsUploading(false);
+      event.target.value = '';
+    }
+  };
+
+  // Download CSV template
+  const handleDownloadTemplate = () => {
+    const csvContent = [
+      'SKU,Name,Category,Unit',
+      'A001,Engine Part A,Engine,PCS',
+      'B001,Body Panel B,Body,PCS', 
+      'E001,Electronic Module,Electronics,PCS',
+      'F001,Frame Component,Frame,KG'
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'items-template.csv');
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    console.log('✅ Downloaded items CSV template');
   };
 
   return (
@@ -135,6 +257,46 @@ export function ItemMasterTab({
                 📥 Export All
               </button>
             )}
+
+            {/* CSV Import Buttons */}
+            <button
+              onClick={handleDownloadTemplate}
+              className="px-3 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg text-sm"
+            >
+              📄 Template
+            </button>
+
+            <div className="flex items-center space-x-1">
+              <input
+                type="file"
+                accept=".csv"
+                onChange={(e) => handleCSVUpload(e, false)}
+                disabled={isUploading}
+                className="hidden"
+                id="csv-upload-update"
+              />
+              <label
+                htmlFor="csv-upload-update"
+                className="px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm cursor-pointer disabled:opacity-50"
+              >
+                {isUploading ? '⏳ Uploading...' : '📤 Import (Update)'}
+              </label>
+
+              <input
+                type="file"
+                accept=".csv"
+                onChange={(e) => handleCSVUpload(e, true)}
+                disabled={isUploading}
+                className="hidden"
+                id="csv-upload-replace"
+              />
+              <label
+                htmlFor="csv-upload-replace"
+                className="px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm cursor-pointer disabled:opacity-50"
+              >
+                {isUploading ? '⏳ Uploading...' : '📤 Import (Replace)'}
+              </label>
+            </div>
           </div>
           
           {/* Spacer */}
@@ -150,6 +312,69 @@ export function ItemMasterTab({
           </button>
         </div>
       </div>
+
+      {/* Upload Result Display */}
+      {uploadResult && (
+        <div className={`mb-6 p-4 rounded-lg border ${
+          uploadResult.success > 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
+        }`}>
+          <div className="flex items-start space-x-3">
+            <div className="text-2xl">
+              {uploadResult.success > 0 ? '✅' : '❌'}
+            </div>
+            <div className="flex-1">
+              <h4 className={`font-medium ${
+                uploadResult.success > 0 ? 'text-green-900' : 'text-red-900'
+              }`}>
+                Items CSV Import Result
+              </h4>
+              <div className="mt-2 space-y-1 text-sm">
+                {uploadResult.success > 0 && (
+                  <p className="text-green-700">
+                    ✅ Successfully imported {uploadResult.success} items
+                  </p>
+                )}
+                
+                {uploadResult.stats && (
+                  <div className="text-gray-600">
+                    <p>📊 Total rows: {uploadResult.stats.totalRows}</p>
+                    {uploadResult.stats.created > 0 && (
+                      <p>➕ New items created: {uploadResult.stats.created}</p>
+                    )}
+                    {uploadResult.stats.updated > 0 && (
+                      <p>🔄 Items updated: {uploadResult.stats.updated}</p>
+                    )}
+                    {uploadResult.stats.skippedRows > 0 && (
+                      <p>⚠️ Rows skipped: {uploadResult.stats.skippedRows}</p>
+                    )}
+                  </div>
+                )}
+                
+                {uploadResult.errors && uploadResult.errors.length > 0 && (
+                  <div className="text-red-700">
+                    <p className="font-medium">Errors:</p>
+                    <ul className="mt-1 space-y-1">
+                      {uploadResult.errors.slice(0, 5).map((error: string, index: number) => (
+                        <li key={index}>• {error}</li>
+                      ))}
+                      {uploadResult.errors.length > 5 && (
+                        <li>• ... and {uploadResult.errors.length - 5} more errors</li>
+                      )}
+                    </ul>
+                  </div>
+                )}
+              </div>
+              
+              <button
+                onClick={() => setUploadResult(null)}
+                className="mt-3 text-sm text-gray-500 hover:text-gray-700"
+              >
+                ✕ Dismiss
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Items List */}
       {filteredItems.length === 0 ? (
