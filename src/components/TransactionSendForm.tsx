@@ -34,6 +34,7 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [bomData, setBomData] = useState<BOM | null>(null);
+  const [skipOTP, setSkipOTP] = useState(false);
 
   // Check if selected item is a BOM
   const isBOM = formData.sku.startsWith('BOM');
@@ -83,8 +84,11 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
   const selectedItem = availableItems.find(item => item.sku === formData.sku);
   const maxAvailableQuantity = selectedItem?.totalQuantity || 0;
 
-  // Generate 4-digit OTP
+  // Generate 4-digit OTP (or use fixed OTP if skipped)
   const generateOTP = (): string => {
+    if (skipOTP) {
+      return '0000'; // Fixed OTP when skipping verification
+    }
     return Math.floor(1000 + Math.random() * 9000).toString();
   };
 
@@ -316,6 +320,27 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
           </div>
         )}
 
+        {/* OTP Options */}
+        <div className="border-t pt-4">
+          <div className="flex items-center space-x-3">
+            <input
+              type="checkbox"
+              id="skipOTP"
+              checked={skipOTP}
+              onChange={(e) => setSkipOTP(e.target.checked)}
+              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+            />
+            <label htmlFor="skipOTP" className="text-sm text-gray-700">
+              🚀 Skip OTP verification (use fixed OTP: 0000 for testing)
+            </label>
+          </div>
+          {skipOTP && (
+            <p className="mt-2 text-xs text-orange-600 bg-orange-50 border border-orange-200 rounded p-2">
+              ⚠️ Testing mode: Production line can use OTP <strong>0000</strong> to receive items immediately
+            </p>
+          )}
+        </div>
+
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row gap-4">
           <button
@@ -344,7 +369,7 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
               </>
             ) : (
               <>
-                📤 {t('transactions.sendAndGenerateOTP')}
+                📤 {skipOTP ? 'Send (OTP: 0000)' : t('transactions.sendAndGenerateOTP')}
               </>
             )}
           </button>
