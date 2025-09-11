@@ -155,8 +155,8 @@ export const ScannerOperationsCard = memo(function ScannerOperationsCard({
         // Normalize SKU to uppercase for consistency
         sku = sku.toUpperCase();
 
-        // Validate zone format - allow alphanumeric, dashes, underscores
-        if (!/^[A-Za-z0-9\-_]+$/.test(targetZone)) {
+        // Validate zone format - allow alphanumeric, spaces, dashes, underscores
+        if (!/^[A-Za-z0-9\-_ ]+$/.test(targetZone)) {
           console.warn(`Row ${i + 1}: Skipping invalid zone format "${targetZone}" for SKU ${sku}`);
           skippedRows++;
           continue;
