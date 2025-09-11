@@ -100,14 +100,20 @@ export function ItemMasterTab({
       console.log('📊 CSV Headers:', headers);
       console.log('📊 First few lines of CSV:', lines.slice(0, 5));
       
-      // Find column indices
-      const skuIndex = headers.findIndex(h => h.toLowerCase().includes('sku'));
-      const nameIndex = headers.findIndex(h => h.toLowerCase().includes('name'));
+      // Find column indices (look for exact matches first, then partial)
+      let skuIndex = headers.findIndex(h => h.toLowerCase().trim() === 'sku');
+      if (skuIndex === -1) skuIndex = headers.findIndex(h => h.toLowerCase().includes('sku'));
+      
+      let nameIndex = headers.findIndex(h => h.toLowerCase().trim() === 'name');  
+      if (nameIndex === -1) nameIndex = headers.findIndex(h => h.toLowerCase().includes('name'));
+      
       const categoryIndex = headers.findIndex(h => h.toLowerCase().includes('category'));
       const unitIndex = headers.findIndex(h => h.toLowerCase().includes('unit'));
 
+      console.log('📊 Column indices found:', { skuIndex, nameIndex, categoryIndex, unitIndex });
+      
       if (skuIndex === -1 || nameIndex === -1) {
-        throw new Error('CSV must contain SKU and Name columns');
+        throw new Error(`CSV must contain SKU and Name columns. Found headers: ${headers.join(', ')}`);
       }
 
       // Parse data rows
@@ -120,10 +126,16 @@ export function ItemMasterTab({
 
         const parts = line.split(',').map(p => p.trim().replace(/['"]/g, ''));
         
-        const sku = parts[skuIndex]?.trim();
-        const name = parts[nameIndex]?.trim();
-        const category = categoryIndex >= 0 ? parts[categoryIndex]?.trim() : undefined;
-        const unit = unitIndex >= 0 ? parts[unitIndex]?.trim() : undefined;
+        const sku = (parts[skuIndex] || '').trim();
+        const name = (parts[nameIndex] || '').trim();
+        const category = categoryIndex >= 0 ? (parts[categoryIndex] || '').trim() : undefined;
+        const unit = unitIndex >= 0 ? (parts[unitIndex] || '').trim() : undefined;
+        
+        // Clean up empty strings
+        const cleanSku = sku || undefined;
+        const cleanName = name || undefined;
+        const cleanCategory = category && category !== '' ? category : undefined;
+        const cleanUnit = unit && unit !== '' ? unit : undefined;
 
         // Debug first few rows
         if (i <= 3) {
@@ -131,25 +143,25 @@ export function ItemMasterTab({
             parts,
             skuIndex,
             nameIndex,
-            sku,
-            name,
-            category,
-            unit
+            cleanSku,
+            cleanName,
+            cleanCategory,
+            cleanUnit
           });
         }
 
         // Skip invalid rows
-        if (!sku || !name) {
-          console.warn(`Row ${i + 1}: Skipping invalid item - missing SKU or Name (sku: "${sku}", name: "${name}")`);
+        if (!cleanSku || !cleanName) {
+          console.warn(`Row ${i + 1}: Skipping invalid item - missing SKU or Name (sku: "${cleanSku}", name: "${cleanName}")`);
           skippedRows++;
           continue;
         }
 
         itemsToImport.push({
-          sku: sku.toUpperCase(),
-          name,
-          ...(category && { category }),
-          ...(unit && { unit })
+          sku: cleanSku.toUpperCase(),
+          name: cleanName,
+          ...(cleanCategory && { category: cleanCategory }),
+          ...(cleanUnit && { unit: cleanUnit })
         });
       }
 
