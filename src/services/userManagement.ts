@@ -34,6 +34,8 @@ class UserManagementService {
         const data = userDoc.data() as UserRecord;
         return {
           ...data,
+          // Always use current permission template for the role (ensures latest permissions)
+          permissions: this.getPermissionTemplate(data.role),
           createdAt: data.createdAt instanceof Date ? data.createdAt : new Date(data.createdAt),
           updatedAt: data.updatedAt instanceof Date ? data.updatedAt : new Date(data.updatedAt),
           lastLogin: data.lastLogin ? (data.lastLogin instanceof Date ? data.lastLogin : new Date(data.lastLogin)) : undefined
