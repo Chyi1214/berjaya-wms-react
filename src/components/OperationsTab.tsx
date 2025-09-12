@@ -12,7 +12,7 @@ interface OperationsTabProps {
 
 export function OperationsTab({ onRefresh }: OperationsTabProps) {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'batches' | 'vins' | 'setup'>('batches');
+  const [activeTab, setActiveTab] = useState<'batches' | 'vins' | 'setup' | 'tasks'>('batches');
 
   return (
     <div className="space-y-6">

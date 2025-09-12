@@ -236,17 +236,30 @@ export function ManagerNavigation({
 
           {/* Operations Sub-tabs */}
           {activeCategory === 'operations' && (
-            <button
-              onClick={() => onTabChange('operations')}
-              className={`flex-shrink-0 whitespace-nowrap border-b-2 py-4 px-1 text-sm font-medium transition-colors ${
-                activeTab === 'operations'
-                  ? 'border-red-500 text-red-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              <span className="hidden sm:inline">🏭 Batch Management</span>
-              <span className="sm:hidden">🏭</span>
-            </button>
+            <>
+              <button
+                onClick={() => onTabChange('operations')}
+                className={`flex-shrink-0 whitespace-nowrap border-b-2 py-4 px-1 text-sm font-medium transition-colors ${
+                  activeTab === 'operations'
+                    ? 'border-red-500 text-red-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <span className="hidden sm:inline">🏭 Batch Management</span>
+                <span className="sm:hidden">🏭</span>
+              </button>
+              <button
+                onClick={() => onTabChange('tasks')}
+                className={`flex-shrink-0 whitespace-nowrap border-b-2 py-4 px-1 text-sm font-medium transition-colors ${
+                  activeTab === 'tasks'
+                    ? 'border-red-500 text-red-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <span className="hidden sm:inline">📋 Tasks</span>
+                <span className="sm:hidden">📋</span>
+              </button>
+            </>
           )}
 
           {/* Feedback Sub-tabs */}

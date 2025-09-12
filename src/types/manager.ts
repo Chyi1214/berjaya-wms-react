@@ -1,10 +1,10 @@
 // Manager-specific types for better type safety across components
-export type ManagerTab = 'overview' | 'checked' | 'expected' | 'compared' | 'transaction' | 'yesterday' | 'itemmaster' | 'scanner' | 'waste' | 'hr' | 'production_line' | 'production_stats' | 'qa' | 'operations' | 'feedback';
+export type ManagerTab = 'overview' | 'checked' | 'expected' | 'compared' | 'transaction' | 'yesterday' | 'itemmaster' | 'scanner' | 'waste' | 'hr' | 'production_line' | 'production_stats' | 'qa' | 'operations' | 'tasks' | 'feedback';
 export type ManagerCategory = 'inventory' | 'production' | 'qa' | 'hr' | 'operations' | 'feedback';
 export type InventoryTab = 'overview' | 'checked' | 'expected' | 'compared' | 'transaction' | 'yesterday' | 'itemmaster' | 'scanner' | 'waste';
 export type ProductionTab = 'production_line' | 'production_stats';
 export type QATab = 'qa';
-export type OperationsTab = 'operations';
+export type OperationsTab = 'operations' | 'tasks';
 export type FeedbackTab = 'feedback';
 export type ItemTab = 'items' | 'boms';
 
@@ -26,7 +26,7 @@ export function isProductionTab(tab: ManagerTab): tab is ProductionTab {
 }
 
 export function isOperationsTab(tab: ManagerTab): tab is OperationsTab {
-  return tab === 'operations';
+  return ['operations', 'tasks'].includes(tab);
 }
 
 export function isFeedbackTab(tab: ManagerTab): tab is FeedbackTab {

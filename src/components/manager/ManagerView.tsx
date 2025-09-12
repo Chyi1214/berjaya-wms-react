@@ -21,6 +21,7 @@ import { QASection } from './QASection';
 import { ProductionSection } from './ProductionSection';
 import { ElaSection } from './ElaSection';
 import { OperationsTab } from '../OperationsTab';
+import { TaskManagementView } from '../operations/TaskManagementView';
 
 // Lazy load the CSV Import Dialog
 const CSVImportDialog = lazy(() => import('../CSVImportDialog'));
@@ -234,11 +235,22 @@ export function ManagerView({ user: _user, onBack, inventoryCounts, onClearCount
           )}
 
           {managerState.activeCategory === 'operations' && isOperationsTab(managerState.activeTab) && (
-            <OperationsTab
-              onRefresh={() => {
-                // Refresh operations data if needed
-              }}
-            />
+            <>
+              {managerState.activeTab === 'operations' && (
+                <OperationsTab
+                  onRefresh={() => {
+                    // Refresh operations data if needed
+                  }}
+                />
+              )}
+              {managerState.activeTab === 'tasks' && (
+                <TaskManagementView
+                  onRefresh={() => {
+                    // Refresh task data if needed
+                  }}
+                />
+              )}
+            </>
           )}
 
           {managerState.activeCategory === 'feedback' && isFeedbackTab(managerState.activeTab) && (

@@ -468,7 +468,7 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
               </div>
               
               {/* iPhone App Style Action Menu */}
-              <div className="grid grid-cols-5 gap-4 max-w-2xl mx-auto">
+              <div className="grid grid-cols-4 gap-4 max-w-lg mx-auto">
                 
                 {/* Task App Button */}
                 <div className="text-center">
