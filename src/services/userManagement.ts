@@ -184,7 +184,7 @@ class UserManagementService {
           csv: { export: true, import: true },
           scanner: { use: false, admin: true, bulkScan: false },
           qa: { view: true, performChecks: false, manageChecklists: true, viewReports: true },
-          system: { userManagement: false, settings: false, auditLogs: true }
+          system: { userManagement: true, settings: false, auditLogs: true }
         };
       
       case UserRole.SUPERVISOR:
