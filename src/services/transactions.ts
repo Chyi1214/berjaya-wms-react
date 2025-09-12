@@ -36,10 +36,15 @@ class TransactionService {
   // Save a new transaction to Firebase
   async saveTransaction(transaction: Transaction): Promise<void> {
     try {
-      const transactionData: Omit<StoredTransaction, 'id'> = {
+      // Build payload and drop any undefined fields (Firestore rejects undefined)
+      const baseData: any = {
         ...transaction,
         timestamp: Timestamp.fromDate(transaction.timestamp)
       };
+      Object.keys(baseData).forEach((k) => {
+        if (baseData[k] === undefined) delete baseData[k];
+      });
+      const transactionData: Omit<StoredTransaction, 'id'> = baseData;
       
       // Use the transaction ID as the document ID
       await addDoc(collection(db, TRANSACTIONS_COLLECTION), {

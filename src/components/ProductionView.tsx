@@ -1,6 +1,6 @@
 // Production View Component - Zone-based production management with Version 4.0 Car Tracking
 import { useState, useEffect } from 'react';
-import { User, InventoryCountEntry, Transaction, Car } from '../types';
+import { User, InventoryCountEntry, Transaction, Car, Task } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import InventoryCountForm from './InventoryCountForm';
 import RecentCounts from './RecentCounts';
@@ -17,6 +17,7 @@ import PersonalSettings from './PersonalSettings';
 import { reportService } from '../services/reportService';
 import { getDisplayName } from '../utils/displayName';
 import { useAuth } from '../contexts/AuthContext';
+import { taskService } from '../services/taskService';
 
 interface ProductionViewProps {
   user: User;
@@ -35,12 +36,15 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
   const { t } = useLanguage();
   const { authenticatedUser } = useAuth();
   const [selectedZone, setSelectedZone] = useState<number | null>(null);
-  const [selectedAction, setSelectedAction] = useState<'menu' | 'check' | 'transaction' | 'scan_car' | 'complete_car' | 'info_board' | 'waste_lost'>('menu');
+  const [selectedAction, setSelectedAction] = useState<'menu' | 'check' | 'transaction' | 'scan_car' | 'complete_car' | 'info_board' | 'waste_lost' | 'tasks'>('menu');
   const [refreshKey, setRefreshKey] = useState(0);
   const [showElaMenu, setShowElaMenu] = useState(false);
   const [showElaChat, setShowElaChat] = useState(false);
   const [showPersonalSettings, setShowPersonalSettings] = useState(false);
   const [hasActiveReport, setHasActiveReport] = useState(false);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [loadingTasks, setLoadingTasks] = useState(false);
+  const [hasPendingTasks, setHasPendingTasks] = useState(false);
   
   // Handle zone selection
   const handleZoneSelect = (zoneId: number) => {
@@ -61,6 +65,36 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
 
     checkActiveReport();
   }, [selectedZone, user.email]);
+
+  // Load user tasks and set up real-time listener
+  useEffect(() => {
+    const loadUserTasks = async () => {
+      try {
+        setLoadingTasks(true);
+        const tasks = await taskService.getTasksForUser(user.email, false);
+        setTasks(tasks);
+        setHasPendingTasks(tasks.length > 0);
+      } catch (error) {
+        console.error('Failed to load user tasks:', error);
+      } finally {
+        setLoadingTasks(false);
+      }
+    };
+
+    loadUserTasks();
+
+    // Set up real-time listener
+    const unsubscribe = taskService.onTasksChange((tasks) => {
+      const userSpecificTasks = tasks.filter(task => 
+        task.assignedTo.includes(user.email) || 
+        task.assignedTo.includes('broadcast@system')
+      );
+      setTasks(userSpecificTasks);
+      setHasPendingTasks(userSpecificTasks.length > 0);
+    }, { assignedTo: user.email });
+
+    return () => unsubscribe();
+  }, [user.email]);
   
   // Handle back to zone selection
   const handleBackToZones = () => {
@@ -214,7 +248,100 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
 
         {/* Main Content */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-          {selectedAction === 'info_board' ? (
+          {selectedAction === 'tasks' ? (
+            <>
+              {/* Task List View */}
+              <div className="text-center mb-6">
+                <div className="text-4xl mb-2">📋</div>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                  Production Tasks
+                </h2>
+                <p className="text-gray-600">
+                  Tasks assigned to your zone
+                </p>
+              </div>
+
+              {loadingTasks ? (
+                <div className="flex justify-center items-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  <span className="ml-2 text-gray-600">Loading tasks...</span>
+                </div>
+              ) : (
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+                  <div className="p-6">
+                    {tasks.length === 0 ? (
+                      <div className="text-center py-8 text-gray-500">
+                        <div className="text-6xl mb-4">✅</div>
+                        <h3 className="text-lg font-medium">No tasks available</h3>
+                        <p>Check back later for new assignments</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <h3 className="font-semibold text-gray-900">
+                          {tasks.length} task{tasks.length === 1 ? '' : 's'} available
+                        </h3>
+                        {tasks.map((task) => (
+                          <div
+                            key={task.id}
+                            className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center space-x-2 mb-2">
+                                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                    task.config.priority === 'urgent' ? 'bg-red-100 text-red-800' :
+                                    task.config.priority === 'high' ? 'bg-orange-100 text-orange-800' :
+                                    task.config.priority === 'normal' ? 'bg-blue-100 text-blue-800' :
+                                    'bg-gray-100 text-gray-800'
+                                  }`}>
+                                    {task.config.priority.toUpperCase()}
+                                  </span>
+                                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                    task.status === 'assigned' ? 'bg-yellow-100 text-yellow-800' :
+                                    task.status === 'acknowledged' ? 'bg-blue-100 text-blue-800' :
+                                    task.status === 'in_progress' ? 'bg-purple-100 text-purple-800' :
+                                    'bg-gray-100 text-gray-800'
+                                  }`}>
+                                    {task.status.replace('_', ' ').toUpperCase()}
+                                  </span>
+                                </div>
+                                <h4 className="font-semibold text-gray-900 mb-1">{task.config.title}</h4>
+                                <p className="text-gray-600 text-sm mb-2">{task.config.description}</p>
+                                <div className="text-xs text-gray-500">
+                                  Created: {task.createdAt.toLocaleString()}
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => console.log('Task interaction:', task.id)}
+                                className="btn-primary text-sm px-3 py-1 ml-4"
+                              >
+                                {task.status === 'assigned' ? 'Acknowledge' : 
+                                 task.status === 'acknowledged' ? 'Start' :
+                                 task.status === 'in_progress' ? 'Update' : 'View'}
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Back Button */}
+              <div className="flex justify-center mt-6">
+                <button
+                  onClick={() => setSelectedAction('menu')}
+                  className="btn-secondary"
+                >
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                  Back to Menu
+                </button>
+              </div>
+            </>
+          ) : selectedAction === 'info_board' ? (
             <>
               {/* Info Board View */}
               <div className="text-center mb-6">
@@ -341,8 +468,27 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
               </div>
               
               {/* iPhone App Style Action Menu */}
-              <div className="grid grid-cols-4 gap-4 max-w-lg mx-auto">
+              <div className="grid grid-cols-5 gap-4 max-w-2xl mx-auto">
                 
+                {/* Task App Button */}
+                <div className="text-center">
+                  <button
+                    onClick={() => setSelectedAction('tasks')}
+                    className={`w-16 h-16 rounded-2xl shadow-lg transition-all duration-200 transform hover:scale-105 active:scale-95 ${
+                      hasPendingTasks
+                        ? 'bg-gradient-to-br from-purple-400 to-purple-600 animate-pulse'
+                        : 'bg-gradient-to-br from-gray-400 to-gray-600'
+                    }`}
+                  >
+                    <div className={`text-white text-2xl ${hasPendingTasks ? 'animate-bounce' : ''}`}>📋</div>
+                  </button>
+                  <p className={`text-xs mt-1 font-medium ${
+                    hasPendingTasks ? 'text-purple-700' : 'text-gray-700'
+                  }`}>
+                    {hasPendingTasks ? `${tasks.length} Tasks` : 'Tasks'}
+                  </p>
+                </div>
+
                 {/* Report Issue App Button */}
                 <div className="text-center">
                   <button
@@ -368,7 +514,7 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
                     onClick={() => setSelectedAction('check')}
                     className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-400 to-indigo-600 shadow-lg transition-all duration-200 transform hover:scale-105 active:scale-95"
                   >
-                    <div className="text-white text-2xl">📋</div>
+                    <div className="text-white text-2xl">📦</div>
                   </button>
                   <p className="text-xs text-gray-700 mt-1 font-medium">Inventory</p>
                 </div>

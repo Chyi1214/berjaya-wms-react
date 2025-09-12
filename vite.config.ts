@@ -10,7 +10,7 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    sourcemap: true,
+    sourcemap: false, // Disable source maps for smaller bundle
     rollupOptions: {
       output: {
         manualChunks: (id) => {

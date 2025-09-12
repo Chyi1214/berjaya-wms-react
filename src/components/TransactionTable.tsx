@@ -1,5 +1,5 @@
 // Transaction Table - Display transactions in manager dashboard
-import { Transaction, TransactionStatus } from '../types';
+import { Transaction, TransactionStatus, TransactionType } from '../types';
 
 interface TransactionTableProps {
   transactions: Transaction[];
@@ -100,11 +100,19 @@ export function TransactionTable({ transactions }: TransactionTableProps) {
               
               <td className="px-6 py-4 whitespace-nowrap">
                 <div className="text-sm text-gray-900">
-                  <div className="flex items-center space-x-1">
-                    <span>{transaction.location === 'logistics' ? 'Logistics' : transaction.location?.replace('production_zone_', 'Zone ')}</span>
-                    <span className="text-gray-400">→</span>
-                    <span>{transaction.toLocation?.replace('production_zone_', 'Zone ')}</span>
-                  </div>
+                  {transaction.transactionType === TransactionType.TRANSFER_IN ? (
+                    // For TRANSFER_IN (Scan In), show notes instead of FROM/TO
+                    <div className="text-blue-600 font-medium">
+                      {transaction.notes || 'Transfer In'}
+                    </div>
+                  ) : (
+                    // For regular transfers, show FROM/TO
+                    <div className="flex items-center space-x-1">
+                      <span>{transaction.location === 'logistics' ? 'Logistics' : transaction.location?.replace('production_zone_', 'Zone ')}</span>
+                      <span className="text-gray-400">→</span>
+                      <span>{transaction.toLocation?.replace('production_zone_', 'Zone ')}</span>
+                    </div>
+                  )}
                 </div>
               </td>
               

@@ -3,9 +3,12 @@ import { useState, useRef, useEffect } from 'react';
 import { User, ItemMaster, Transaction, TransactionType, TransactionStatus } from '../../types';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { scannerService } from '../../services/scannerService';
-import { itemMasterService } from '../../services/itemMaster';
+import { qrExtractionService } from '../../services/qrExtraction';
 import { transactionService } from '../../services/transactions';
 import { tableStateService } from '../../services/tableState';
+import { inventoryService } from '../../services/inventory';
+import { itemMasterService } from '../../services/itemMaster';
+import { SearchAutocomplete } from '../common/SearchAutocomplete';
 
 interface ScanInViewProps {
   user: User;
@@ -27,8 +30,8 @@ export function ScanInView({ user, onBack }: ScanInViewProps) {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [manualEntry, setManualEntry] = useState('');
   const [showQuantityDialog, setShowQuantityDialog] = useState(false);
+  const [selectedSearchResult, setSelectedSearchResult] = useState<any>(null);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -91,28 +94,79 @@ export function ScanInView({ user, onBack }: ScanInViewProps) {
 
   const processScannedSKU = async (rawCode: string) => {
     try {
-      // Clean the code
-      const cleanedSKU = rawCode.trim().toUpperCase();
+      console.log('📦 Processing scanned code for Scan In:', rawCode);
       
-      // Look up in Item Master
-      const item = await itemMasterService.getItemBySKU(cleanedSKU);
+      // Use QR extraction process (same as Inbound Scanner and Send Items)
+      const extractionResult = await qrExtractionService.extractSKUFromQRCode(rawCode);
       
-      if (!item) {
-        setError(`Item not found: ${cleanedSKU}`);
-        setScanResult({ sku: cleanedSKU, item: null });
-        return;
-      }
+      if (extractionResult.success && extractionResult.extractedSKU && extractionResult.lookupData) {
+        const extractedSKU = extractionResult.extractedSKU;
+        const lookupData = extractionResult.lookupData[0]; // Use first lookup for item info
+        
+        console.log('✅ Successfully extracted SKU:', extractedSKU);
+        console.log('📍 Found in zones:', extractionResult.lookupData.map(l => l.targetZone).join(', '));
+        
+        // Create mock ItemMaster object from lookup data
+        const item: ItemMaster = {
+          sku: extractedSKU,
+          name: lookupData.itemName || extractedSKU,
+          category: lookupData.itemName ? 'Scanned Item' : undefined,
+          unit: undefined,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        };
 
-      // Set the scan result and show quantity dialog
-      setScanResult({ sku: cleanedSKU, item });
-      setShowQuantityDialog(true);
-      setQuantity('1'); // Default quantity
-      
-      // Focus on quantity input
-      setTimeout(() => {
-        const input = document.getElementById('quantity-input');
-        if (input) (input as HTMLInputElement).select();
-      }, 100);
+        // Set the scan result and show quantity dialog
+        setScanResult({ sku: extractedSKU, item });
+        setShowQuantityDialog(true);
+        setQuantity('1'); // Default quantity
+        
+        // Focus on quantity input
+        setTimeout(() => {
+          const input = document.getElementById('quantity-input');
+          if (input) (input as HTMLInputElement).select();
+        }, 100);
+        
+        console.log('📦 Item ready for scanning in:', item);
+        console.log(`🎯 Available in ${extractionResult.lookupData.length} zone(s)`);
+        
+      } else {
+        console.log('⚠️ Scanner lookup failed, trying Item Master directly for Scan In');
+        
+        // FALLBACK: For Scan In, try to find the item directly in Item Master
+        try {
+          const masterItem = await itemMasterService.getItemBySKU(rawCode.trim().toUpperCase());
+          
+          if (masterItem) {
+            console.log('✅ Found item in Item Master:', masterItem);
+            
+            // Set the scan result and show quantity dialog
+            setScanResult({ sku: masterItem.sku, item: masterItem });
+            setShowQuantityDialog(true);
+            setQuantity('1'); // Default quantity
+            
+            // Focus on quantity input
+            setTimeout(() => {
+              const input = document.getElementById('quantity-input');
+              if (input) (input as HTMLInputElement).select();
+            }, 100);
+            
+            console.log('📦 Item ready for scanning in from Item Master:', masterItem);
+            
+          } else {
+            console.log('❌ Item not found in Item Master either');
+            const attemptsList = extractionResult.attemptedLookups.join(', ');
+            setError(`Item not found. Tried scanner lookups: ${attemptsList}, and Item Master: ${rawCode}`);
+            setScanResult({ sku: rawCode, item: null });
+          }
+          
+        } catch (error) {
+          console.error('Failed to check Item Master:', error);
+          const attemptsList = extractionResult.attemptedLookups.join(', ');
+          setError(`No valid SKU found. Tried: ${attemptsList}`);
+          setScanResult({ sku: rawCode, item: null });
+        }
+      }
       
     } catch (error) {
       console.error('Failed to process SKU:', error);
@@ -121,13 +175,19 @@ export function ScanInView({ user, onBack }: ScanInViewProps) {
   };
 
   const handleManualEntry = async () => {
-    if (!manualEntry.trim()) return;
+    if (!selectedSearchResult?.code) return;
     
     setError(null);
     setSuccess(null);
     
-    await processScannedSKU(manualEntry);
-    setManualEntry('');
+    await processScannedSKU(selectedSearchResult.code);
+    setSelectedSearchResult(null);
+  };
+
+  // Handle item selection from SearchAutocomplete
+  const handleItemSelect = (result: any) => {
+    setSelectedSearchResult(result);
+    setError(null);
   };
 
   const handleQuantityConfirm = async () => {
@@ -143,10 +203,25 @@ export function ScanInView({ user, onBack }: ScanInViewProps) {
     setError(null);
 
     try {
+      // Strict: Get canonical name from Item Master; block if not found
+      const masterItem = await itemMasterService.getItemBySKU(scanResult.sku);
+      if (!masterItem) {
+        throw new Error(`SKU ${scanResult.sku} not found in Item Master. Please add it first.`);
+      }
+
       // Use the SUPER-FAST optimized method - only touches one document!
       const { previousAmount, newAmount } = await tableStateService.addToInventoryCountOptimized(
         scanResult.sku,
-        scanResult.item.name,
+        masterItem.name,
+        qty,
+        'logistics',
+        user.email
+      );
+
+      // Keep legacy `inventory_counts` in sync so Send form sees availability
+      await inventoryService.addToInventoryCount(
+        scanResult.sku,
+        masterItem.name,
         qty,
         'logistics',
         user.email
@@ -165,14 +240,14 @@ export function ScanInView({ user, onBack }: ScanInViewProps) {
         status: TransactionStatus.COMPLETED, // Auto-complete with trust
         performedBy: user.email,
         timestamp: new Date(),
-        notes: 'Scanned in via Scan In feature → Expected table'
+        notes: 'Scan in → logistics'
       };
 
       // Save transaction for audit trail
       await transactionService.saveTransaction(transaction);
 
       // Success!
-      setSuccess(`✅ Added ${qty} x ${scanResult.item.name} to Expected table (Total: ${newAmount})`);
+      setSuccess(`✅ Added ${qty} x ${masterItem.name} to Expected table (Total: ${newAmount})`);
       setShowQuantityDialog(false);
       setScanResult(null);
       setQuantity('');
@@ -378,29 +453,31 @@ export function ScanInView({ user, onBack }: ScanInViewProps) {
               </div>
             </div>
 
-            {/* Manual Entry */}
-            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            {/* Manual Entry with Smart Search */}
+            <div className="bg-white rounded-lg border border-gray-200">
               <div className="p-4 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900">⌨️ Manual SKU Entry</h3>
-                <p className="text-sm text-gray-500">Type SKU if scanner is not available</p>
+                <h3 className="text-lg font-semibold text-gray-900">⌨️ Manual Item Entry</h3>
+                <p className="text-sm text-gray-500">Search and select items when scanner is not available</p>
               </div>
               
-              <div className="p-6">
-                <div className="space-y-3">
-                  <input
-                    type="text"
-                    value={manualEntry}
-                    onChange={(e) => setManualEntry(e.target.value.toUpperCase())}
-                    onKeyPress={(e) => e.key === 'Enter' && handleManualEntry()}
-                    placeholder="Enter SKU (e.g., A001, B002)"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              <div className="p-6" style={{ minHeight: '300px' }}>
+                <div className="space-y-3 relative">
+                  <SearchAutocomplete
+                    placeholder="Search items (A001, B002) or BOMs (BOM001)..."
+                    onSelect={handleItemSelect}
+                    value={selectedSearchResult}
+                    onClear={() => {
+                      setSelectedSearchResult(null);
+                      setError(null);
+                    }}
                   />
+                  
                   <button
                     onClick={handleManualEntry}
-                    disabled={!manualEntry.trim()}
+                    disabled={!selectedSearchResult}
                     className="w-full bg-green-500 hover:bg-green-600 disabled:bg-gray-300 text-white font-medium py-3 px-4 rounded-lg transition-colors"
                   >
-                    🔍 Process SKU
+                    🔍 Process Item
                   </button>
                 </div>
               </div>

@@ -11,6 +11,7 @@ import {
   deleteDoc
 } from 'firebase/firestore';
 import { db } from './firebase';
+import { itemMasterService } from './itemMaster';
 import { InventoryCountEntry } from '../types';
 import { createModuleLogger } from './logger';
 
@@ -44,11 +45,22 @@ export const inventoryService = {
   // Add or update inventory count (latest count per SKU per location)
   async saveInventoryCount(entry: InventoryCountEntry): Promise<void> {
     try {
+      // Strict rule: inventory name must follow Item Master
+      const item = await itemMasterService.getItemBySKU(entry.sku);
+      if (!item) {
+        throw new Error(`SKU ${entry.sku} not found in Item Master`);
+      }
+
       // Document ID: sku_location (e.g., "a001_logistics", "b002_production_zone_5")
       const docId = `${entry.sku}_${entry.location}`;
       const docRef = doc(db, INVENTORY_COLLECTION, docId);
       
-      const firestoreData = mapEntryToFirestore(entry);
+      // Always use canonical name from Item Master
+      const canonicalEntry: InventoryCountEntry = {
+        ...entry,
+        itemName: item.name
+      };
+      const firestoreData = mapEntryToFirestore(canonicalEntry);
       
       await setDoc(docRef, firestoreData);
       logger.info('Inventory count saved', { docId, amount: entry.amount });

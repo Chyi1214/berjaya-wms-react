@@ -191,6 +191,7 @@ export function SearchAutocomplete({
         <div
           ref={resultsRef}
           className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto"
+          style={{ top: '100%' }}
         >
           {results.map((result, index) => (
             <div
@@ -234,7 +235,10 @@ export function SearchAutocomplete({
 
       {/* No Results Message */}
       {showResults && !isLoading && results.length === 0 && searchTerm.trim() && (
-        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg p-4 text-center text-gray-500">
+        <div 
+          className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg p-4 text-center text-gray-500"
+          style={{ top: '100%' }}
+        >
           No items or BOMs found for "{searchTerm}"
         </div>
       )}

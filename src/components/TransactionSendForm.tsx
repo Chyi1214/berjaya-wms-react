@@ -1,9 +1,11 @@
 // Transaction Send Form - For logistics to send items to production zones
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { TransactionType, TransactionFormData, InventoryCountEntry, BOM } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { SearchAutocomplete } from './common/SearchAutocomplete';
 import { bomService } from '../services/bom';
+import { scannerService } from '../services/scannerService';
+import { qrExtractionService } from '../services/qrExtraction';
 
 interface TransactionSendFormProps {
   onSubmit: (transaction: TransactionFormData & { otp: string; skipOTP?: boolean }) => void;
@@ -35,6 +37,12 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [bomData, setBomData] = useState<BOM | null>(null);
   const [skipOTP, setSkipOTP] = useState(false);
+  
+  // QR Scanner state
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [selectedSearchResult, setSelectedSearchResult] = useState<any>(null);
 
   // Check if selected item is a BOM
   const isBOM = formData.sku.startsWith('BOM');
@@ -57,13 +65,13 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
     }
   }, [formData.sku, isBOM]);
 
-  // Process inventory counts to get available items with quantities
+  // Process inventory counts to get available items with quantities - FIXED: Only from logistics location
   const availableItems = useMemo(() => {
     const itemMap = new Map<string, { sku: string; name: string; totalQuantity: number; }>();
     
-    // Group inventory counts by SKU and sum quantities
+    // FIXED: Only count items from logistics location (sender's location)
     inventoryCounts.forEach(count => {
-      if (count.sku && count.amount > 0) {
+      if (count.sku && count.location === 'logistics' && count.amount > 0) {
         const existing = itemMap.get(count.sku);
         if (existing) {
           existing.totalQuantity += count.amount;
@@ -80,9 +88,15 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
     return Array.from(itemMap.values()).sort((a, b) => a.sku.localeCompare(b.sku));
   }, [inventoryCounts]);
 
-  // Get selected item details
+  // Get selected item details - with enhanced debugging
   const selectedItem = availableItems.find(item => item.sku === formData.sku);
   const maxAvailableQuantity = selectedItem?.totalQuantity || 0;
+  
+  // Basic debug for selected item
+  if (formData.sku && !selectedItem) {
+    console.log('⚠️ Item not found in expected_inventory:', formData.sku);
+  }
+  
 
   // Generate 4-digit OTP (or use fixed OTP if skipped)
   const generateOTP = (): string => {
@@ -116,7 +130,119 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
   // Handle item selection from SearchAutocomplete
   const handleItemSelect = (result: any) => {
     setFormData(prev => ({ ...prev, sku: result.code }));
+    setSelectedSearchResult(result);
+    setScanError(null);
   };
+
+  // QR Scanner Functions
+  const startScanning = async () => {
+    setScanError(null);
+    
+    try {
+      const hasPermission = await scannerService.requestCameraPermission();
+      if (!hasPermission) {
+        setScanError('Camera permission denied');
+        return;
+      }
+
+      // Set scanning state first to render video element
+      setIsScanning(true);
+      
+      // Wait a moment for video element to be rendered
+      setTimeout(async () => {
+        if (!videoRef.current) {
+          setScanError('Failed to initialize camera');
+          setIsScanning(false);
+          return;
+        }
+
+        try {
+          // Start scanning with proper callback signatures
+          await scannerService.startScanning(
+            videoRef.current,
+            (result: string) => handleScanResult(result),
+            (error: Error) => {
+              console.error('Scanner error:', error);
+              setScanError(`Scanner error: ${error.message}`);
+              setIsScanning(false);
+            }
+          );
+        } catch (error) {
+          console.error('Failed to start scanning:', error);
+          setScanError('Failed to start camera');
+          setIsScanning(false);
+        }
+      }, 100);
+      
+    } catch (error) {
+      console.error('Failed to request camera permission:', error);
+      setScanError('Failed to request camera permission');
+    }
+  };
+
+  const stopScanning = () => {
+    scannerService.stopScanning();
+    setIsScanning(false);
+  };
+
+  const handleScanResult = async (scannedCode: string) => {
+    console.log('📱 Scanned code for Send Items:', scannedCode);
+    
+    // Stop scanning immediately after successful scan
+    stopScanning();
+    
+    try {
+      // Use QR extraction process (same as Inbound Scanner)
+      const extractionResult = await qrExtractionService.extractSKUFromQRCode(scannedCode);
+      
+      if (extractionResult.success && extractionResult.extractedSKU && extractionResult.lookupData) {
+        const extractedSKU = extractionResult.extractedSKU;
+        
+        console.log('✅ Successfully extracted SKU:', extractedSKU);
+        console.log('📍 Found in zones:', extractionResult.lookupData.map(l => l.targetZone).join(', '));
+        
+        // First check if this SKU exists in current inventory
+        const inventoryItem = availableItems.find(item => item.sku === extractedSKU);
+        
+        if (inventoryItem) {
+          // Item exists in inventory - create SearchResult from inventory data
+          const searchResult = {
+            code: inventoryItem.sku,
+            name: inventoryItem.name,
+            type: 'item' as const
+          };
+          
+          setFormData(prev => ({ ...prev, sku: extractedSKU }));
+          setSelectedSearchResult(searchResult);
+          setScanError(null);
+          
+          console.log('📦 Found in inventory via scan:', inventoryItem);
+        } else {
+          // Item only exists in scanner lookup - show not found
+          setScanError(`${extractedSKU} found in scanner data but not in current inventory`);
+          setSelectedSearchResult(null);
+          console.log('⚠️ Item found in scanner lookup but not in inventory');
+        }
+        
+      } else {
+        console.log('⚠️ SKU extraction failed');
+        const attemptsList = extractionResult.attemptedLookups.slice(0, 3).join(', '); // Show first 3 attempts only
+        setScanError(`No valid SKU found. Tried: ${attemptsList}${extractionResult.attemptedLookups.length > 3 ? '...' : ''}`);
+        setSelectedSearchResult(null);
+      }
+    } catch (error) {
+      console.error('QR extraction failed:', error);
+      setScanError('Failed to process scanned QR code');
+      setSelectedSearchResult(null);
+    }
+  };
+
+  // Cleanup scanner on unmount
+  useEffect(() => {
+    return () => {
+      stopScanning();
+    };
+  }, []);
 
   return (
     <div className="bg-white rounded-lg p-6">
@@ -144,7 +270,51 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
           <SearchAutocomplete
             placeholder={t('inventory.searchSKU')}
             onSelect={handleItemSelect}
+            value={selectedSearchResult}
+            onClear={() => {
+              setFormData(prev => ({ ...prev, sku: '' }));
+              setSelectedSearchResult(null);
+              setScanError(null);
+            }}
           />
+          
+          {/* QR Scanner Button - Below the search box */}
+          <div className="mt-3">
+            <button
+              type="button"
+              onClick={isScanning ? stopScanning : startScanning}
+              className={`w-full px-4 py-2 rounded-lg border font-medium ${
+                isScanning 
+                  ? 'bg-red-500 text-white border-red-500 hover:bg-red-600' 
+                  : 'bg-blue-500 text-white border-blue-500 hover:bg-blue-600'
+              }`}
+            >
+              {isScanning ? '⏹️ Stop Scanner' : '📱 Scan QR Code / Barcode'}
+            </button>
+          </div>
+
+          {/* QR Scanner Video */}
+          {isScanning && (
+            <div className="mt-3 bg-black rounded-lg overflow-hidden">
+              <video
+                ref={videoRef}
+                className="w-full h-48 object-cover"
+                autoPlay
+                muted
+                playsInline
+              />
+              <div className="p-2 text-center bg-gray-800 text-white text-sm">
+                📷 Point camera at QR code or barcode
+              </div>
+            </div>
+          )}
+
+          {/* Scanner Error */}
+          {scanError && (
+            <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-600">
+              ⚠️ {scanError}
+            </div>
+          )}
           
           {/* Show selected item details */}
           {selectedItem && (

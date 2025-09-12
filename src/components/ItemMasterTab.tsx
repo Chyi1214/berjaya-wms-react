@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { ItemMaster } from '../types';
 import { itemMasterService } from '../services/itemMaster';
+import { dataCleanupService } from '../services/dataCleanup';
 import { ItemForm } from './ItemForm';
 
 interface ItemMasterTabProps {
@@ -75,6 +76,22 @@ export function ItemMasterTab({
     setShowItemForm(false);
     setEditingItem(null);
     await onDataChange();
+  };
+
+  // One-time alignment: Fix inventory item names to match Item Master
+  const handleAlignInventoryNames = async () => {
+    if (!confirm('Align all inventory item names to match Item Master?')) return;
+    setIsLoading(true);
+    try {
+      const result = await dataCleanupService.cleanupInventoryData();
+      alert(`Alignment complete.\nItem names fixed: ${result.itemNamesFixed}\nBOM entries removed: ${result.bomsRemoved}`);
+      await onDataChange();
+    } catch (error) {
+      console.error('Failed to align inventory names:', error);
+      alert('Failed to align inventory names.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // CSV Import functions
@@ -285,6 +302,16 @@ export function ItemMasterTab({
                 📥 Export All
               </button>
             )}
+
+            {/* Align Inventory Names Button */}
+            <button
+              onClick={handleAlignInventoryNames}
+              disabled={isLoading}
+              className="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm disabled:opacity-50"
+              title="Update all inventory item names to match Item Master"
+            >
+              🛠 Align Inventory Names
+            </button>
 
             {/* CSV Import Buttons */}
             <button

@@ -12,3 +12,6 @@ export * from './production';
 
 // Re-export all common utility types
 export * from './common';
+
+// Re-export all task management types
+export * from './task';

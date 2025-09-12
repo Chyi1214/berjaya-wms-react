@@ -17,9 +17,8 @@ import { UserRole, AppSection, InventoryCountEntry, Transaction, TransactionStat
 
 // Lazy load the heavy ManagerView component for better performance
 const ManagerView = lazy(() => import('./components/ManagerView').then(module => ({ default: module.ManagerView })));
-import { inventoryService } from './services/inventory';
-import { transactionService } from './services/transactions';
-import { tableStateService } from './services/tableState';
+// Lazy service loaders to reduce initial bundle size
+import { getInventoryService, getTransactionService, getTableStateService, getItemMasterService } from './services/lazyServices';
 
 // Main app content (wrapped inside AuthProvider)
 function AppContent() {
@@ -47,17 +46,40 @@ function AppContent() {
       // Load data based on role needs
       switch (role) {
         case UserRole.LOGISTICS:
+          // Logistics needs expected_inventory (where managers add items) not inventory_counts
+          const tableStateService = await getTableStateService();
+          const logisticsTransactionService = await getTransactionService();
+          
+          const logisticsCounts = await tableStateService.getExpectedInventory();
+          setInventoryCounts(logisticsCounts);
+          
+          // Set up real-time listeners for expected inventory
+          const unsubLogisticsInventory = tableStateService.onExpectedInventoryChange((counts: InventoryCountEntry[]) => {
+            setInventoryCounts(counts);
+          });
+          
+          const unsubLogisticsTransactions = logisticsTransactionService.onTransactionsChange((transactions: Transaction[]) => {
+            setTransactions(transactions);
+          });
+          
+          // Store unsubscribe functions for cleanup
+          (window as any).__unsubscribe = { inventory: unsubLogisticsInventory, transactions: unsubLogisticsTransactions };
+          break;
+          
         case UserRole.MANAGER:
-          // These roles need both inventory and transactions
+          // Managers still use the legacy inventory_counts system
+          const inventoryService = await getInventoryService();
+          const transactionService = await getTransactionService();
+          
           const counts = await inventoryService.getAllInventoryCounts();
           setInventoryCounts(counts);
           
           // Set up real-time listeners
-          const unsubInventory = inventoryService.onInventoryCountsChange((counts) => {
+          const unsubInventory = inventoryService.onInventoryCountsChange((counts: InventoryCountEntry[]) => {
             setInventoryCounts(counts);
           });
           
-          const unsubTransactions = transactionService.onTransactionsChange((transactions) => {
+          const unsubTransactions = transactionService.onTransactionsChange((transactions: Transaction[]) => {
             setTransactions(transactions);
           });
           
@@ -66,15 +88,18 @@ function AppContent() {
           break;
           
         case UserRole.PRODUCTION:
-          // Production needs inventory and incoming transactions only
-          const prodCounts = await inventoryService.getAllInventoryCounts();
+          // Production needs inventory and incoming transactions only - load services lazily
+          const prodInventoryService = await getInventoryService();
+          const prodTransactionService = await getTransactionService();
+          
+          const prodCounts = await prodInventoryService.getAllInventoryCounts();
           setInventoryCounts(prodCounts);
           
-          const unsubProdInventory = inventoryService.onInventoryCountsChange((counts) => {
+          const unsubProdInventory = prodInventoryService.onInventoryCountsChange((counts: InventoryCountEntry[]) => {
             setInventoryCounts(counts);
           });
           
-          const unsubProdTransactions = transactionService.onTransactionsChange((transactions) => {
+          const unsubProdTransactions = prodTransactionService.onTransactionsChange((transactions: Transaction[]) => {
             setTransactions(transactions);
           });
           
@@ -153,7 +178,8 @@ function AppContent() {
   // Handle new inventory count (save to Firebase) - supports both single items and BOM expansion
   const handleInventoryCount = async (entries: InventoryCountEntry[]) => {
     try {
-      // Save all entries to Firebase (for BOMs, this will be multiple entries)
+      // Lazy load inventory service and save all entries to Firebase
+      const inventoryService = await getInventoryService();
       for (const entry of entries) {
         await inventoryService.saveInventoryCount(entry);
       }
@@ -168,6 +194,7 @@ function AppContent() {
   const handleClearCounts = async () => {
     if (window.confirm('Clear all inventory counts? This cannot be undone.')) {
       try {
+        const inventoryService = await getInventoryService();
         await inventoryService.clearAllInventory();
         logger.warn('All inventory data cleared from Firebase');
       } catch (error) {
@@ -194,7 +221,8 @@ function AppContent() {
       itemName: getItemNameBySku(txnData.sku)
     };
     
-    // Save to Firebase
+    // Save to Firebase - lazy load transaction service
+    const transactionService = await getTransactionService();
     await transactionService.saveTransaction(newTransaction);
     
     if (!skipOTP) {
@@ -209,10 +237,19 @@ function AppContent() {
       // Process inventory changes (same logic as in handleTransactionConfirm)
       try {
         if (!newTransaction.sku.startsWith('BOM')) {
-          // Get correct item name from Item Master lookup
-          const correctItemName = getItemNameBySku(newTransaction.sku);
-          
-          // Add to expected inventory for the target location
+          // Get correct item name from Item Master
+          let correctItemName = newTransaction.sku;
+          try {
+            const itemMasterService = await getItemMasterService();
+            const item = await itemMasterService.getItemBySKU(newTransaction.sku);
+            if (!item) throw new Error('SKU not found in Item Master');
+            correctItemName = item.name;
+          } catch (e) {
+            throw new Error(`Item Master lookup failed for ${newTransaction.sku}`);
+          }
+
+          // 1) Add to expected inventory for target location
+          const tableStateService = await getTableStateService();
           await tableStateService.addToInventoryCountOptimized(
             newTransaction.sku,
             correctItemName,
@@ -220,15 +257,25 @@ function AppContent() {
             newTransaction.toLocation || 'production_zone_1',
             newTransaction.performedBy as string
           );
+
+          // 2) Decrement from logistics expected inventory (FIXED: use same collection as destination)
+          await tableStateService.addToInventoryCountOptimized(
+            newTransaction.sku,
+            correctItemName,
+            -Math.abs(newTransaction.amount),
+            'logistics',
+            newTransaction.performedBy as string
+          );
           
-          logger.info('Expected inventory updated immediately for skip OTP transaction', {
+          logger.info('Immediate transfer applied (skip OTP)', {
             sku: newTransaction.sku,
             amount: newTransaction.amount,
-            location: newTransaction.toLocation
+            to: newTransaction.toLocation,
+            from: 'logistics'
           });
         }
       } catch (error) {
-        logger.warn('Failed to update expected inventory for skip OTP transaction', error);
+        logger.warn('Failed to apply immediate transfer for skip OTP', error);
       }
     }
     
@@ -242,6 +289,8 @@ function AppContent() {
 
   // Handle transaction confirmation with OTP
   const handleTransactionConfirm = async (transactionId: string, inputOTP: string) => {
+    // Lazy load transaction service
+    const transactionService = await getTransactionService();
     const storedOTP = await transactionService.getOTP(transactionId);
     if (!storedOTP || storedOTP !== inputOTP) {
       throw new Error('Invalid OTP');
@@ -274,7 +323,7 @@ function AppContent() {
         // CRITICAL FIX: Get correct item name from Item Master catalog (don't trust transaction data)
         let correctItemName = confirmedTransaction.sku; // fallback to SKU
         try {
-          const { itemMasterService } = await import('./services/itemMaster');
+          const itemMasterService = await getItemMasterService();
           const item = await itemMasterService.getItemBySKU(confirmedTransaction.sku);
           if (item) {
             correctItemName = item.name;
@@ -285,7 +334,8 @@ function AppContent() {
           logger.warn('Failed to lookup item name from Item Master', { sku: confirmedTransaction.sku, error });
         }
 
-        // Use optimized method for instant inventory update with CORRECT item name
+        // Use optimized method for instant inventory update with CORRECT item name - lazy load service
+        const tableStateService = await getTableStateService();
         await tableStateService.addToInventoryCountOptimized(
           confirmedTransaction.sku,
           correctItemName, // ← FIXED: Use correct name from Item Master
@@ -293,6 +343,23 @@ function AppContent() {
           confirmedTransaction.toLocation || 'production_zone_1', // Target location for received items
           (confirmedTransaction.approvedBy || user?.email || 'system') as string
         );
+
+        // Also decrement from logistics expected inventory to complete transfer (FIXED: use same collection)
+        try {
+          await tableStateService.addToInventoryCountOptimized(
+            confirmedTransaction.sku,
+            correctItemName,
+            -Math.abs(confirmedTransaction.amount),
+            'logistics',
+            (confirmedTransaction.approvedBy || user?.email || 'system') as string
+          );
+          logger.info('Logistics inventory decremented after OTP confirmation', {
+            sku: confirmedTransaction.sku,
+            amount: confirmedTransaction.amount
+          });
+        } catch (e) {
+          logger.warn('Failed to decrement logistics inventory after OTP confirmation', e);
+        }
         
         logger.info('Expected inventory updated with correct item name after transaction confirmation', {
           sku: confirmedTransaction.sku,
@@ -310,6 +377,9 @@ function AppContent() {
 
   // Handle transaction rejection
   const handleTransactionReject = async (transactionId: string, reason: string) => {
+    // Lazy load transaction service
+    const transactionService = await getTransactionService();
+    
     // Find the current transaction to get existing notes
     const currentTransaction = transactions.find(t => t.id === transactionId);
     const existingNotes = currentTransaction?.notes || '';
