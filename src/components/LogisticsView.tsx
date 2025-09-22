@@ -94,7 +94,7 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onTransacti
               <h1 className="text-lg font-bold text-gray-900">
                 {selectedAction === 'check' ? t('inventory.inventoryCount') :
                  selectedAction === 'transaction' ? t('logistics.sendItems') :
-                 selectedAction === 'scanner' ? 'Unified Scanner' : t('roles.logistics')}
+                 selectedAction === 'scanner' ? t('logistics.inboundScanner') : t('roles.logistics')}
               </h1>
             </div>
 
@@ -156,7 +156,7 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onTransacti
                   className="h-24 bg-green-500 hover:bg-green-600 rounded-2xl shadow-lg transition-all duration-200 flex flex-col items-center justify-center text-white group active:scale-95"
                 >
                   <div className="text-3xl mb-1">📱</div>
-                  <span className="text-sm font-medium">Unified Scanner</span>
+                  <span className="text-sm font-medium">{t('logistics.inboundScanner')}</span>
                 </button>
               </div>
 

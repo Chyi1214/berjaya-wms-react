@@ -1,12 +1,13 @@
 // Table State Service - Cross-device sync for Expected & Yesterday tables
-import { 
-  collection, 
-  doc, 
-  setDoc, 
-  getDocs, 
+import {
+  collection,
+  doc,
+  setDoc,
+  getDocs,
   getDoc,
-  onSnapshot, 
-  query, 
+  updateDoc,
+  onSnapshot,
+  query,
   orderBy,
   Timestamp,
   deleteDoc
@@ -303,6 +304,37 @@ class TableStateService {
     const snapshot = await getDocs(collection(db, YESTERDAY_COLLECTION));
     const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
     await Promise.all(deletePromises);
+  }
+
+  // Reset all quantities to zero while keeping items intact
+  async resetAllQuantitiesToZero(): Promise<{ resetCount: number }> {
+    console.log('🔄 Resetting all inventory quantities to zero...');
+
+    // Get all expected inventory entries
+    const entries = await this.getExpectedInventory();
+    console.log(`📊 Found ${entries.length} inventory entries to reset`);
+
+    let resetCount = 0;
+
+    // Update each entry to have quantity 0
+    for (const entry of entries) {
+      if (entry.amount > 0) {
+        const docId = `${entry.sku}_${entry.location}`;
+        const docRef = doc(db, EXPECTED_COLLECTION, docId);
+
+        await updateDoc(docRef, {
+          amount: 0,
+          timestamp: Timestamp.fromDate(new Date()),
+          countedBy: 'SYSTEM_RESET'
+        });
+
+        resetCount++;
+        console.log(`✅ Reset ${entry.sku} at ${entry.location}: ${entry.amount} → 0`);
+      }
+    }
+
+    console.log(`✅ Reset complete! ${resetCount} entries set to zero`);
+    return { resetCount };
   }
 
   // Clear all table state data

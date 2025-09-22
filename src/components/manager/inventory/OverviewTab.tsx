@@ -7,14 +7,16 @@ interface OverviewTabProps {
   onGenerateMockData?: () => void;
   onConcludeToday?: () => void;
   onClearAllData?: () => void;
+  onResetAllQuantities?: () => void;
   isLoading?: boolean;
 }
 
-export function OverviewTab({ 
+export function OverviewTab({
   onGenerateMockData,
   onConcludeToday,
   onClearAllData,
-  isLoading 
+  onResetAllQuantities,
+  isLoading
 }: OverviewTabProps) {
   const [isCleaningUp, setIsCleaningUp] = useState(false);
 
@@ -161,6 +163,12 @@ export function OverviewTab({
                 className="w-full bg-purple-500 hover:bg-purple-600 text-white text-sm py-2 px-3 rounded transition-colors"
               >
                 ✅ Conclude Today
+              </button>
+              <button
+                onClick={onResetAllQuantities}
+                className="w-full bg-orange-500 hover:bg-orange-600 text-white text-sm py-2 px-3 rounded transition-colors"
+              >
+                🔄 Reset All Quantities
               </button>
               <button
                 onClick={onClearAllData}

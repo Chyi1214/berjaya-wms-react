@@ -146,6 +146,24 @@ export function ManagerView({ user: _user, onBack, inventoryCounts, onClearCount
     }
   };
 
+  const handleResetAllQuantities = async () => {
+    if (!confirm('🔄 Reset all inventory quantities to zero?\n\nThis will:\n• Set all item quantities to 0\n• Keep all items and locations intact\n• Only affect quantity numbers\n\nThis cannot be undone!')) {
+      return;
+    }
+
+    managerState.setIsLoading(true);
+    try {
+      const result = await tableStateService.resetAllQuantitiesToZero();
+
+      alert(`✅ All quantities reset to zero!\n\n📊 Summary:\n• ${result.resetCount} items reset to 0\n• Items and locations preserved\n• Only quantities changed`);
+    } catch (error) {
+      console.error('Failed to reset quantities:', error);
+      alert('❌ Failed to reset quantities. Check console for details.');
+    } finally {
+      managerState.setIsLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header - Eugene's redesigned upper panel */}
@@ -208,6 +226,7 @@ export function ManagerView({ user: _user, onBack, inventoryCounts, onClearCount
               setItemsLoading={managerState.setItemsLoading}
               onConcludeToday={handleConcludePeriod}
               onClearAllData={handleClearAllData}
+              onResetAllQuantities={handleResetAllQuantities}
             />
           )}
 

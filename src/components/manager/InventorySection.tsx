@@ -37,6 +37,7 @@ interface InventorySectionProps {
   // Add handlers for Overview subtab
   onConcludeToday?: () => void;
   onClearAllData?: () => void;
+  onResetAllQuantities?: () => void;
 }
 
 export function InventorySection({
@@ -57,7 +58,8 @@ export function InventorySection({
   handleGenerateInventoryMockData,
   setItemsLoading,
   onConcludeToday,
-  onClearAllData
+  onClearAllData,
+  onResetAllQuantities
 }: InventorySectionProps) {
   return (
     <div className="p-6">
@@ -66,6 +68,7 @@ export function InventorySection({
           onGenerateMockData={handleGenerateInventoryMockData || handleGenerateItemMockData}
           onConcludeToday={onConcludeToday}
           onClearAllData={onClearAllData}
+          onResetAllQuantities={onResetAllQuantities}
           isLoading={itemsLoading}
         />
       )}

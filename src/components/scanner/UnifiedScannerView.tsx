@@ -401,7 +401,7 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
             </button>
             <div className="flex items-center space-x-2 ml-4">
               <span className="text-2xl">📱</span>
-              <h1 className="text-lg font-bold text-gray-900">Unified Scanner</h1>
+              <h1 className="text-lg font-bold text-gray-900">{t('logistics.inboundScanner')}</h1>
             </div>
           </div>
         </div>
