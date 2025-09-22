@@ -5,8 +5,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import InventoryCountForm from './InventoryCountForm';
 import TransactionSendForm from './TransactionSendForm';
 import TransactionOTPDisplay from './TransactionOTPDisplay';
-import ScannerView from './scanner/ScannerView';
-import ScanInView from './scanner/ScanInView';
+import UnifiedScannerView from './scanner/UnifiedScannerView';
 import { ElaMenu } from './ela/ElaMenu';
 import { ElaChat } from './ela/ElaChat';
 import PersonalSettings from './PersonalSettings';
@@ -22,7 +21,7 @@ interface LogisticsViewProps {
 
 export function LogisticsView({ user, onBack, onCountSubmit, counts, onTransactionCreate, transactions }: LogisticsViewProps) {
   const { t } = useLanguage();
-  const [selectedAction, setSelectedAction] = useState<'menu' | 'check' | 'transaction' | 'scanner' | 'scanin'>('menu');
+  const [selectedAction, setSelectedAction] = useState<'menu' | 'check' | 'transaction' | 'scanner'>('menu');
   const [transactionResult, setTransactionResult] = useState<{ transaction: Transaction, otp: string } | null>(null);
   const [showElaMenu, setShowElaMenu] = useState(false);
   const [showElaChat, setShowElaChat] = useState(false);
@@ -88,16 +87,14 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onTransacti
             {/* Title */}
             <div className="flex items-center space-x-2 ml-4">
               <span className="text-2xl">
-                {selectedAction === 'check' ? '📋' : 
-                 selectedAction === 'transaction' ? '🔄' : 
-                 selectedAction === 'scanner' ? '📷' : 
-                 selectedAction === 'scanin' ? '📥' : '📦'}
+                {selectedAction === 'check' ? '📋' :
+                 selectedAction === 'transaction' ? '🔄' :
+                 selectedAction === 'scanner' ? '📱' : '📦'}
               </span>
               <h1 className="text-lg font-bold text-gray-900">
-                {selectedAction === 'check' ? t('inventory.inventoryCount') : 
-                 selectedAction === 'transaction' ? t('logistics.sendItems') : 
-                 selectedAction === 'scanner' ? 'Scanner' : 
-                 selectedAction === 'scanin' ? t('logistics.scanIn') : t('roles.logistics')}
+                {selectedAction === 'check' ? t('inventory.inventoryCount') :
+                 selectedAction === 'transaction' ? t('logistics.sendItems') :
+                 selectedAction === 'scanner' ? 'Unified Scanner' : t('roles.logistics')}
               </h1>
             </div>
 
@@ -132,9 +129,9 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onTransacti
           
           {selectedAction === 'menu' && (
             <>
-              {/* Action Menu - iPhone Style */}
-              <div className="grid grid-cols-2 gap-4 max-w-sm mx-auto">
-                
+              {/* Action Menu - iPhone Style with 3 buttons */}
+              <div className="grid grid-cols-1 gap-4 max-w-sm mx-auto">
+
                 {/* Check Inventory Button */}
                 <button
                   onClick={() => setSelectedAction('check')}
@@ -153,22 +150,13 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onTransacti
                   <span className="text-sm font-medium">{t('logistics.sendItems')}</span>
                 </button>
 
-                {/* Scanner Button (Info) */}
+                {/* Unified Scanner Button */}
                 <button
                   onClick={() => setSelectedAction('scanner')}
                   className="h-24 bg-green-500 hover:bg-green-600 rounded-2xl shadow-lg transition-all duration-200 flex flex-col items-center justify-center text-white group active:scale-95"
                 >
-                  <div className="text-3xl mb-1">📷</div>
-                  <span className="text-sm font-medium">{t('logistics.inboundScanner')}</span>
-                </button>
-
-                {/* Scan In Button (New) */}
-                <button
-                  onClick={() => setSelectedAction('scanin')}
-                  className="h-24 bg-orange-500 hover:bg-orange-600 rounded-2xl shadow-lg transition-all duration-200 flex flex-col items-center justify-center text-white group active:scale-95"
-                >
-                  <div className="text-3xl mb-1">📥</div>
-                  <span className="text-sm font-medium">{t('logistics.scanIn')}</span>
+                  <div className="text-3xl mb-1">📱</div>
+                  <span className="text-sm font-medium">Unified Scanner</span>
                 </button>
               </div>
 
@@ -232,14 +220,7 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onTransacti
           )}
 
           {selectedAction === 'scanner' && (
-            <ScannerView 
-              user={user}
-              onBack={handleBackToMenu}
-            />
-          )}
-
-          {selectedAction === 'scanin' && (
-            <ScanInView 
+            <UnifiedScannerView
               user={user}
               onBack={handleBackToMenu}
             />
