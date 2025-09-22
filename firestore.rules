@@ -62,10 +62,11 @@ service cloud.firestore {
       allow read, write: if isDevAdmin() || hasRole('manager') || hasRole('supervisor');
     }
     
-    // Expected inventory - calculated data, manager+ read/write
+    // Expected inventory - calculated data, manager+ read/write, logistics can add scanned items
     match /expected_inventory/{document} {
       allow read: if isActiveUser() && hasPermission('inventory', 'view');
-      allow write: if isDevAdmin() || hasRole('manager');
+      allow write: if isDevAdmin() || hasRole('manager') ||
+        (hasRole('logistics') && hasPermission('inventory', 'count'));
     }
     
     // Expected inventory (camelCase) - for batch health calculations
@@ -270,6 +271,41 @@ service cloud.firestore {
       allow update: if isActiveUser() && (
         // Only allow dismissing reports (status update)
         hasRole('supervisor') || hasRole('manager') || hasRole('viewer')
+      );
+      allow delete: if isDevAdmin() || hasRole('manager');
+    }
+    
+    // Version 6.3.3 Collections - Tool Check Task System
+    
+    // Tool check configurations - Manager-created tool check templates
+    match /toolCheckConfigs/{configId} {
+      allow read: if isActiveUser();  // All authenticated users can read tool check configs
+      allow write: if isDevAdmin() || hasRole('manager');  // Only managers can create/modify tool check configs
+    }
+    
+    // Tool check submissions - Worker submissions of tool counts
+    match /toolCheckSubmissions/{submissionId} {
+      allow read: if isActiveUser();  // All authenticated users can read submissions
+      allow create: if isActiveUser() && (
+        hasRole('production') || hasRole('logistics') || 
+        hasRole('supervisor') || hasRole('manager')
+      );
+      allow update: if isActiveUser() && (
+        // Workers can update their own submissions, managers can update all
+        resource.data.workerEmail == request.auth.token.email ||
+        hasRole('supervisor') || hasRole('manager')
+      );
+      allow delete: if isDevAdmin() || hasRole('manager');
+    }
+    
+    // Tasks collection - Enhanced task system with tool check integration
+    match /tasks/{taskId} {
+      allow read: if isActiveUser();  // All authenticated users can read tasks
+      allow create: if isDevAdmin() || hasRole('manager');  // Only managers can create tasks
+      allow update: if isActiveUser() && (
+        // Workers can update task status, managers can update all fields
+        hasRole('production') || hasRole('logistics') || 
+        hasRole('supervisor') || hasRole('manager')
       );
       allow delete: if isDevAdmin() || hasRole('manager');
     }

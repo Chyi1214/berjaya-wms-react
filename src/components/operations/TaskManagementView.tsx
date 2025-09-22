@@ -3,6 +3,8 @@ import { useState, useEffect } from 'react';
 import { Task, TaskStatus, TaskPriority, TaskType, CreateTaskRequest, TaskAssignmentType } from '../../types';
 import { taskService } from '../../services/taskService';
 import { useAuth } from '../../contexts/AuthContext';
+import { ToolCheckConfig } from './ToolCheckConfig';
+import { ToolCheckDashboard } from './ToolCheckDashboard';
 
 interface TaskManagementViewProps {
   onRefresh?: () => void;
@@ -13,6 +15,8 @@ export function TaskManagementView({ onRefresh }: TaskManagementViewProps) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [activeView, setActiveView] = useState<'overview' | 'toolcheck' | 'dashboard'>('overview');
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
   // Load all tasks
   useEffect(() => {
@@ -46,6 +50,47 @@ export function TaskManagementView({ onRefresh }: TaskManagementViewProps) {
     }
   };
 
+  if (activeView === 'toolcheck') {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center space-x-4 mb-6">
+          <button
+            onClick={() => setActiveView('overview')}
+            className="flex items-center text-gray-600 hover:text-gray-900"
+          >
+            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Back to Tasks
+          </button>
+        </div>
+        <ToolCheckConfig onRefresh={onRefresh} />
+      </div>
+    );
+  }
+
+  if (activeView === 'dashboard' && selectedTaskId) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center space-x-4 mb-6">
+          <button
+            onClick={() => {
+              setActiveView('overview');
+              setSelectedTaskId(null);
+            }}
+            className="flex items-center text-gray-600 hover:text-gray-900"
+          >
+            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Back to Tasks
+          </button>
+        </div>
+        <ToolCheckDashboard taskId={selectedTaskId} />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -56,12 +101,20 @@ export function TaskManagementView({ onRefresh }: TaskManagementViewProps) {
             Create and manage tasks for production workers
           </p>
         </div>
-        <button
-          onClick={() => setShowCreateForm(true)}
-          className="btn-primary"
-        >
-          ➕ Create Task
-        </button>
+        <div className="flex space-x-3">
+          <button
+            onClick={() => setActiveView('toolcheck')}
+            className="btn-secondary"
+          >
+            🔧 Tool Check Config
+          </button>
+          <button
+            onClick={() => setShowCreateForm(true)}
+            className="btn-primary"
+          >
+            ➕ Create Task
+          </button>
+        </div>
       </div>
 
       {/* Task Statistics */}
@@ -154,8 +207,17 @@ export function TaskManagementView({ onRefresh }: TaskManagementViewProps) {
                       </div>
                     </div>
                     <div className="ml-4 flex flex-col space-y-2">
-                      <button className="btn-secondary text-xs px-2 py-1">
-                        View Details
+                      <button 
+                        onClick={() => {
+                          if (task.config.type === TaskType.DATA_COLLECTION && task.config.relatedEntities?.batchId) {
+                            setSelectedTaskId(task.id);
+                            setActiveView('dashboard');
+                          }
+                        }}
+                        className="btn-secondary text-xs px-2 py-1"
+                      >
+                        {task.config.type === TaskType.DATA_COLLECTION && task.config.relatedEntities?.batchId ? 
+                          '📊 Dashboard' : 'View Details'}
                       </button>
                       {task.status === TaskStatus.COMPLETED && task.config.requiresManagerApproval && (
                         <div className="flex space-x-1">

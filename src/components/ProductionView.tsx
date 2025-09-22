@@ -18,6 +18,7 @@ import { reportService } from '../services/reportService';
 import { getDisplayName } from '../utils/displayName';
 import { useAuth } from '../contexts/AuthContext';
 import { taskService } from '../services/taskService';
+import { ToolCheckWorkerForm } from './operations/ToolCheckWorkerForm';
 
 interface ProductionViewProps {
   user: User;
@@ -45,6 +46,32 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loadingTasks, setLoadingTasks] = useState(false);
   const [hasPendingTasks, setHasPendingTasks] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  
+  const refreshTasks = async () => {
+    try {
+      setLoadingTasks(true);
+      
+      // Load tasks based on selected zone, fallback to user-specific tasks
+      const tasks = selectedZone 
+        ? await taskService.getTasksForZone(selectedZone, false)
+        : await taskService.getTasksForUser(user.email, false);
+      
+      console.log(`[ProductionView] Loaded ${tasks.length} tasks for zone ${selectedZone}:`, tasks);
+      if (tasks.length > 0) {
+        console.log(`[ProductionView] First task structure:`, JSON.stringify(tasks[0], null, 2));
+        console.log(`[ProductionView] Task config:`, tasks[0].config);
+        console.log(`[ProductionView] Task createdAt:`, tasks[0].createdAt, typeof tasks[0].createdAt);
+      }
+      
+      setTasks(tasks);
+      setHasPendingTasks(tasks.length > 0);
+    } catch (error) {
+      console.error('Failed to load tasks:', error);
+    } finally {
+      setLoadingTasks(false);
+    }
+  };
   
   // Handle zone selection
   const handleZoneSelect = (zoneId: number) => {
@@ -66,35 +93,38 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
     checkActiveReport();
   }, [selectedZone, user.email]);
 
-  // Load user tasks and set up real-time listener
+  // Load tasks and set up real-time listener when zone changes
   useEffect(() => {
-    const loadUserTasks = async () => {
-      try {
-        setLoadingTasks(true);
-        const tasks = await taskService.getTasksForUser(user.email, false);
-        setTasks(tasks);
-        setHasPendingTasks(tasks.length > 0);
-      } catch (error) {
-        console.error('Failed to load user tasks:', error);
-      } finally {
-        setLoadingTasks(false);
-      }
-    };
+    refreshTasks();
 
-    loadUserTasks();
-
-    // Set up real-time listener
+    // Set up real-time listener based on zone or user
+    const assignmentTarget = selectedZone ? `zone_${selectedZone}@system` : user.email;
+    
     const unsubscribe = taskService.onTasksChange((tasks) => {
-      const userSpecificTasks = tasks.filter(task => 
-        task.assignedTo.includes(user.email) || 
-        task.assignedTo.includes('broadcast@system')
-      );
-      setTasks(userSpecificTasks);
-      setHasPendingTasks(userSpecificTasks.length > 0);
-    }, { assignedTo: user.email });
+      const relevantTasks = tasks.filter(task => {
+        if (selectedZone) {
+          // Zone-specific tasks
+          return task.assignedTo.includes(`zone_${selectedZone}@system`);
+        } else {
+          // User-specific or broadcast tasks
+          return task.assignedTo.includes(user.email) || 
+                 task.assignedTo.includes('broadcast@system');
+        }
+      });
+      setTasks(relevantTasks);
+      setHasPendingTasks(relevantTasks.length > 0);
+    }, { assignedTo: assignmentTarget });
 
     return () => unsubscribe();
-  }, [user.email]);
+  }, [user.email, selectedZone]);
+  
+  // Ensure tasks are loaded when Tasks view is selected
+  useEffect(() => {
+    if (selectedAction === 'tasks' && selectedZone && tasks.length === 0) {
+      console.log('[ProductionView] Tasks view selected but no tasks - refreshing...');
+      refreshTasks();
+    }
+  }, [selectedAction, selectedZone, tasks.length]);
   
   // Handle back to zone selection
   const handleBackToZones = () => {
@@ -274,12 +304,19 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
                         <div className="text-6xl mb-4">✅</div>
                         <h3 className="text-lg font-medium">No tasks available</h3>
                         <p>Check back later for new assignments</p>
+                        <div className="text-xs text-gray-400 mt-2">
+                          Debug: Zone {selectedZone}, Tasks: {tasks.length}, Loading: {loadingTasks ? 'Yes' : 'No'}
+                          <br />Action: {selectedAction}, HasPending: {hasPendingTasks ? 'Yes' : 'No'}
+                        </div>
                       </div>
                     ) : (
                       <div className="space-y-4">
                         <h3 className="font-semibold text-gray-900">
                           {tasks.length} task{tasks.length === 1 ? '' : 's'} available
                         </h3>
+                        <div className="text-xs text-gray-400 mb-4">
+                          Debug: Rendering {tasks.length} tasks, Zone: {selectedZone}
+                        </div>
                         {tasks.map((task) => (
                           <div
                             key={task.id}
@@ -312,12 +349,22 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
                                 </div>
                               </div>
                               <button
-                                onClick={() => console.log('Task interaction:', task.id)}
+                                onClick={() => {
+                                  if (task.config.type === 'data_collection' && task.config.relatedEntities?.batchId) {
+                                    // Tool check task
+                                    setSelectedTask(task);
+                                  } else {
+                                    // Regular task interaction
+                                    console.log('Task interaction:', task.id);
+                                  }
+                                }}
                                 className="btn-primary text-sm px-3 py-1 ml-4"
                               >
-                                {task.status === 'assigned' ? 'Acknowledge' : 
-                                 task.status === 'acknowledged' ? 'Start' :
-                                 task.status === 'in_progress' ? 'Update' : 'View'}
+                                {task.config.type === 'data_collection' && task.config.relatedEntities?.batchId ? 
+                                  'Start Check' :
+                                  task.status === 'assigned' ? 'Acknowledge' : 
+                                  task.status === 'acknowledged' ? 'Start' :
+                                  task.status === 'in_progress' ? 'Update' : 'View'}
                               </button>
                             </div>
                           </div>
@@ -399,6 +446,23 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
             onClose={() => setShowElaChat(false)}
           />
         )}
+
+        {/* Tool Check Form Modal */}
+        {selectedTask && (
+          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+              <ToolCheckWorkerForm
+                task={selectedTask}
+                onComplete={() => {
+                  setSelectedTask(null);
+                  // Refresh tasks
+                  refreshTasks();
+                }}
+                onCancel={() => setSelectedTask(null)}
+              />
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -473,7 +537,11 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
                 {/* Task App Button */}
                 <div className="text-center">
                   <button
-                    onClick={() => setSelectedAction('tasks')}
+                    onClick={() => {
+                      console.log('[ProductionView] Tasks button clicked - refreshing tasks');
+                      setSelectedAction('tasks');
+                      refreshTasks();
+                    }}
                     className={`w-16 h-16 rounded-2xl shadow-lg transition-all duration-200 transform hover:scale-105 active:scale-95 ${
                       hasPendingTasks
                         ? 'bg-gradient-to-br from-purple-400 to-purple-600 animate-pulse'

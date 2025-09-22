@@ -156,6 +156,25 @@ class TaskService {
     }
   }
 
+  // Get tasks assigned to a specific zone
+  async getTasksForZone(zone: number, includeCompleted = false): Promise<Task[]> {
+    try {
+      const statusFilter = includeCompleted 
+        ? [TaskStatus.ASSIGNED, TaskStatus.ACKNOWLEDGED, TaskStatus.IN_PROGRESS, TaskStatus.COMPLETED]
+        : [TaskStatus.ASSIGNED, TaskStatus.ACKNOWLEDGED, TaskStatus.IN_PROGRESS];
+
+      const zoneAssignmentTarget = `zone_${zone}@system`;
+      
+      return await this.getTasks({
+        assignedTo: zoneAssignmentTarget,
+        status: statusFilter
+      });
+    } catch (error) {
+      logger.error('Failed to retrieve zone tasks', error);
+      throw new Error('Failed to retrieve zone tasks');
+    }
+  }
+
   // Get a specific task by ID
   async getTaskById(taskId: string): Promise<Task | null> {
     try {
