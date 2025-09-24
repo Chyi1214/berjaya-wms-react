@@ -8,7 +8,6 @@ import { transactionService } from '../../services/transactions';
 import { tableStateService } from '../../services/tableState';
 import { inventoryService } from '../../services/inventory';
 import { itemMasterService } from '../../services/itemMaster';
-import { SearchAutocomplete } from '../common/SearchAutocomplete';
 
 interface ScanInViewProps {
   user: User;
@@ -31,7 +30,6 @@ export function ScanInView({ user, onBack }: ScanInViewProps) {
   const [success, setSuccess] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showQuantityDialog, setShowQuantityDialog] = useState(false);
-  const [selectedSearchResult, setSelectedSearchResult] = useState<any>(null);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -170,32 +168,17 @@ export function ScanInView({ user, onBack }: ScanInViewProps) {
       
     } catch (error) {
       console.error('Failed to process SKU:', error);
-      setError('Failed to process scanned item');
+      setError(t('scanner.failedToProcessScannedItem'));
     }
   };
 
-  const handleManualEntry = async () => {
-    if (!selectedSearchResult?.code) return;
-    
-    setError(null);
-    setSuccess(null);
-    
-    await processScannedSKU(selectedSearchResult.code);
-    setSelectedSearchResult(null);
-  };
-
-  // Handle item selection from SearchAutocomplete
-  const handleItemSelect = (result: any) => {
-    setSelectedSearchResult(result);
-    setError(null);
-  };
 
   const handleQuantityConfirm = async () => {
     if (!scanResult?.item || !quantity || isProcessing) return;
 
     const qty = parseFloat(quantity);
     if (isNaN(qty) || qty <= 0) {
-      setError('Please enter a valid quantity');
+      setError(t('scanner.pleaseEnterValidQuantity'));
       return;
     }
 
@@ -206,7 +189,7 @@ export function ScanInView({ user, onBack }: ScanInViewProps) {
       // Strict: Get canonical name from Item Master; block if not found
       const masterItem = await itemMasterService.getItemBySKU(scanResult.sku);
       if (!masterItem) {
-        throw new Error(`SKU ${scanResult.sku} not found in Item Master. Please add it first.`);
+        throw new Error(t('scanner.skuNotFoundInItemMaster', { sku: scanResult.sku }));
       }
 
       // Use the SUPER-FAST optimized method - only touches one document!
@@ -247,7 +230,7 @@ export function ScanInView({ user, onBack }: ScanInViewProps) {
       await transactionService.saveTransaction(transaction);
 
       // Success!
-      setSuccess(`✅ Added ${qty} x ${masterItem.name} to Expected table (Total: ${newAmount})`);
+      setSuccess(`✅ ${t('scanner.addedToExpectedTable', { quantity: qty, name: masterItem.name, total: newAmount })}`);
       setShowQuantityDialog(false);
       setScanResult(null);
       setQuantity('');
@@ -259,7 +242,7 @@ export function ScanInView({ user, onBack }: ScanInViewProps) {
 
     } catch (error) {
       console.error('Failed to save inventory:', error);
-      setError('Failed to save inventory. Please try again.');
+      setError(t('scanner.failedToSaveInventory'));
     } finally {
       setIsProcessing(false);
     }
@@ -297,7 +280,7 @@ export function ScanInView({ user, onBack }: ScanInViewProps) {
             </button>
             <div className="flex items-center space-x-2 ml-4">
               <span className="text-2xl">📥</span>
-              <h1 className="text-lg font-bold text-gray-900">Scan In Inventory</h1>
+              <h1 className="text-lg font-bold text-gray-900">{t('scanner.scanInInventory')}</h1>
             </div>
           </div>
         </div>
@@ -329,7 +312,7 @@ export function ScanInView({ user, onBack }: ScanInViewProps) {
         {/* Quantity Input Dialog */}
         {showQuantityDialog && scanResult?.item && (
           <div className="mb-6 bg-white rounded-lg border-2 border-blue-500 shadow-lg p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Item Scanned Successfully</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">{t('scanner.itemScannedSuccessfully')}</h3>
             
             <div className="space-y-3 mb-6">
               <div className="flex justify-between">
@@ -357,7 +340,7 @@ export function ScanInView({ user, onBack }: ScanInViewProps) {
             <div className="space-y-4">
               <div>
                 <label htmlFor="quantity-input" className="block text-sm font-medium text-gray-700 mb-2">
-                  Enter Quantity:
+                  {t('scanner.enterQuantity')}
                 </label>
                 <input
                   id="quantity-input"
@@ -366,7 +349,7 @@ export function ScanInView({ user, onBack }: ScanInViewProps) {
                   onChange={(e) => setQuantity(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && handleQuantityConfirm()}
                   className="w-full px-4 py-3 text-lg border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter quantity..."
+                  placeholder={t('scanner.enterQuantityPlaceholder')}
                   min="0.01"
                   step="any"
                   autoFocus
@@ -379,14 +362,14 @@ export function ScanInView({ user, onBack }: ScanInViewProps) {
                   disabled={!quantity || isProcessing}
                   className="flex-1 bg-green-500 hover:bg-green-600 disabled:bg-gray-300 text-white font-medium py-3 px-4 rounded-lg transition-colors"
                 >
-                  {isProcessing ? '⏳ Processing...' : '✅ Confirm'}
+                  {isProcessing ? `⏳ ${t('scanner.processing')}` : `✅ ${t('common.confirm')}`}
                 </button>
                 <button
                   onClick={handleQuantityCancel}
                   disabled={isProcessing}
                   className="flex-1 bg-gray-500 hover:bg-gray-600 disabled:bg-gray-300 text-white font-medium py-3 px-4 rounded-lg transition-colors"
                 >
-                  ❌ Cancel
+                  ❌ {t('common.cancel')}
                 </button>
               </div>
             </div>
@@ -400,8 +383,8 @@ export function ScanInView({ user, onBack }: ScanInViewProps) {
             {/* Camera Scanner */}
             <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
               <div className="p-4 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900">📷 Barcode Scanner</h3>
-                <p className="text-sm text-gray-500">Scan item barcode to add to inventory</p>
+                <h3 className="text-lg font-semibold text-gray-900">📷 {t('scanner.barcodeScanner')}</h3>
+                <p className="text-sm text-gray-500">{t('scanner.scanItemBarcode')}</p>
               </div>
               
               <div className="p-6">
@@ -419,7 +402,7 @@ export function ScanInView({ user, onBack }: ScanInViewProps) {
                     <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50">
                       <div className="text-center text-white">
                         <div className="text-4xl mb-2">📷</div>
-                        <p>Camera will appear here</p>
+                        <p>{t('scanner.cameraWillAppearHere')}</p>
                       </div>
                     </div>
                   )}
@@ -427,7 +410,7 @@ export function ScanInView({ user, onBack }: ScanInViewProps) {
                   {/* Scanning indicator */}
                   {isScanning && (
                     <div className="absolute top-4 left-4 bg-green-500 text-white px-3 py-1 rounded-full text-sm">
-                      🔍 Scanning...
+                      🔍 {t('scanner.scanning')}
                     </div>
                   )}
                 </div>
@@ -439,49 +422,20 @@ export function ScanInView({ user, onBack }: ScanInViewProps) {
                       onClick={startScanning}
                       className="w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-3 px-4 rounded-lg transition-colors text-lg"
                     >
-                      📱 Start Scanner
+                      📱 {t('scanner.startScanner')}
                     </button>
                   ) : (
                     <button
                       onClick={stopScanning}
                       className="w-full bg-red-500 hover:bg-red-600 text-white font-medium py-3 px-4 rounded-lg transition-colors text-lg"
                     >
-                      ⏹️ Stop Scanner
+                      ⏹️ {t('scanner.stopScanner')}
                     </button>
                   )}
                 </div>
               </div>
             </div>
 
-            {/* Manual Entry with Smart Search */}
-            <div className="bg-white rounded-lg border border-gray-200">
-              <div className="p-4 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900">⌨️ Manual Item Entry</h3>
-                <p className="text-sm text-gray-500">Search and select items when scanner is not available</p>
-              </div>
-              
-              <div className="p-6" style={{ minHeight: '300px' }}>
-                <div className="space-y-3 relative">
-                  <SearchAutocomplete
-                    placeholder="Search items (A001, B002) or BOMs (BOM001)..."
-                    onSelect={handleItemSelect}
-                    value={selectedSearchResult}
-                    onClear={() => {
-                      setSelectedSearchResult(null);
-                      setError(null);
-                    }}
-                  />
-                  
-                  <button
-                    onClick={handleManualEntry}
-                    disabled={!selectedSearchResult}
-                    className="w-full bg-green-500 hover:bg-green-600 disabled:bg-gray-300 text-white font-medium py-3 px-4 rounded-lg transition-colors"
-                  >
-                    🔍 Process Item
-                  </button>
-                </div>
-              </div>
-            </div>
 
             {/* Quick Scan Again Button */}
             {(success || error) && !isScanning && (
@@ -489,7 +443,7 @@ export function ScanInView({ user, onBack }: ScanInViewProps) {
                 onClick={handleNewScan}
                 className="w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-3 px-4 rounded-lg transition-colors text-lg"
               >
-                📷 Scan Next Item
+                📷 {t('scanner.scanNextItem')}
               </button>
             )}
           </div>

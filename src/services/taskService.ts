@@ -159,16 +159,40 @@ class TaskService {
   // Get tasks assigned to a specific zone
   async getTasksForZone(zone: number, includeCompleted = false): Promise<Task[]> {
     try {
-      const statusFilter = includeCompleted 
+      const statusFilter = includeCompleted
         ? [TaskStatus.ASSIGNED, TaskStatus.ACKNOWLEDGED, TaskStatus.IN_PROGRESS, TaskStatus.COMPLETED]
         : [TaskStatus.ASSIGNED, TaskStatus.ACKNOWLEDGED, TaskStatus.IN_PROGRESS];
 
+      // Get zone-specific tasks
       const zoneAssignmentTarget = `zone_${zone}@system`;
-      
-      return await this.getTasks({
+      const zoneTasks = await this.getTasks({
         assignedTo: zoneAssignmentTarget,
         status: statusFilter
       });
+
+      // Get broadcast tasks (assigned to all workers)
+      const broadcastTasks = await this.getTasks({
+        assignedTo: 'broadcast@system',
+        status: statusFilter
+      });
+
+      // Combine and remove duplicates based on task ID
+      const allTasks = [...zoneTasks, ...broadcastTasks];
+      const uniqueTasks = allTasks.filter((task, index, self) =>
+        index === self.findIndex(t => t.id === task.id)
+      );
+
+      // Sort by creation date (newest first)
+      uniqueTasks.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+      logger.info('Zone tasks retrieved successfully', {
+        zone,
+        zoneTasksCount: zoneTasks.length,
+        broadcastTasksCount: broadcastTasks.length,
+        totalUniqueCount: uniqueTasks.length
+      });
+
+      return uniqueTasks;
     } catch (error) {
       logger.error('Failed to retrieve zone tasks', error);
       throw new Error('Failed to retrieve zone tasks');
@@ -231,10 +255,21 @@ class TaskService {
           break;
 
         case 'complete':
-          if (task.status === TaskStatus.IN_PROGRESS) {
+          // Allow completing from ASSIGNED, ACKNOWLEDGED, or IN_PROGRESS status
+          if ([TaskStatus.ASSIGNED, TaskStatus.ACKNOWLEDGED, TaskStatus.IN_PROGRESS].includes(task.status)) {
             newStatus = task.config.requiresManagerApproval ? TaskStatus.COMPLETED : TaskStatus.APPROVED;
             updates.completedAt = now;
             updates.completedBy = performedBy;
+
+            // Auto-acknowledge and start if not already done
+            if (task.status === TaskStatus.ASSIGNED) {
+              updates.acknowledgedAt = now;
+              updates.acknowledgedBy = performedBy;
+              updates.startedAt = now;
+            } else if (task.status === TaskStatus.ACKNOWLEDGED) {
+              updates.startedAt = now;
+            }
+
             if (!task.config.requiresManagerApproval) {
               updates.approvedAt = now;
               updates.approvedBy = 'system';

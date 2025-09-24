@@ -19,7 +19,8 @@ const malayTranslations: Translation = {
     no: 'Tidak',
     total: 'Jumlah',
     logout: 'Log Keluar',
-    tip: 'Petua'
+    tip: 'Petua',
+    scanToAccess: 'Imbas untuk Akses Laman Web'
   },
 
   // Authentication
@@ -137,7 +138,29 @@ const malayTranslations: Translation = {
     processSKU: 'Proses (SKU atau Kod QR)',
     error: 'Ralat',
     failedToProcessEntry: 'Gagal memproses teks yang dimasukkan',
-    noValidSKUFound: 'Tiada SKU yang sah ditemui. Cuba: {attempts}'
+    noValidSKUFound: 'Tiada SKU yang sah ditemui. Cuba: {attempts}',
+    scanInInventory: 'Imbas Masuk Inventori',
+    itemScannedSuccessfully: 'Item Berjaya Diimbas',
+    enterQuantity: 'Masukkan Kuantiti:',
+    enterQuantityPlaceholder: 'Masukkan kuantiti...',
+    processing: 'Memproses...',
+    barcodeScanner: 'Pengimbas Barcode',
+    scanItemBarcode: 'Imbas barcode item untuk tambah ke inventori',
+    manualItemEntry: 'Kemasukan Item Manual',
+    searchItemsWhenScannerNotAvailable: 'Cari dan pilih item apabila pengimbas tidak tersedia',
+    processItem: 'Proses Item',
+    scanNextItem: 'Imbas Item Seterusnya',
+    pleaseEnterValidQuantity: 'Sila masukkan kuantiti yang sah',
+    skuNotFoundInItemMaster: 'SKU {sku} tidak ditemui dalam Senarai Item Utama. Sila tambah dahulu.',
+    addedToExpectedTable: 'Ditambah {quantity} x {name} ke jadual Dijangka (Jumlah: {total})',
+    failedToSaveInventory: 'Gagal menyimpan inventori. Sila cuba lagi.',
+    failedToProcessScannedItem: 'Gagal memproses item yang diimbas',
+    scanResult: 'Hasil Imbasan',
+    enterBarcodeManually: 'Masukkan barcode secara manual apabila pengimbas tidak tersedia',
+    enterBarcodeOrQRPlaceholder: 'Masukkan kandungan barcode atau kod QR...',
+    processEntry: 'Proses Kemasukan',
+    smartSearch: 'Carian Pintar',
+    searchItemsNotAvailable: 'Cari item apabila pengimbasan tidak tersedia'
   },
 
   // Production

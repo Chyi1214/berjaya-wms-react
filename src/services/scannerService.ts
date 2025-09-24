@@ -30,25 +30,106 @@ class ScannerService {
     }
   }
 
-  // Request camera permission
+  // Get specific camera troubleshooting advice based on device/browser
+  getCameraTroubleshootingAdvice(): string[] {
+    const advice: string[] = [];
+    const userAgent = navigator.userAgent;
+
+    // Check if HTTPS
+    if (location.protocol !== 'https:') {
+      advice.push('⚠️ HTTPS Required: Camera only works on secure (HTTPS) websites');
+    }
+
+    // iOS specific advice
+    if (/iPhone|iPad|iPod/i.test(userAgent)) {
+      if (/CriOS/i.test(userAgent)) {
+        advice.push('📱 iOS Chrome Issue: Use Safari instead of Chrome on iOS devices');
+      }
+      advice.push('🔧 iOS Settings: Settings → Safari → Camera → Allow');
+    }
+
+    // Android specific advice
+    if (/Android/i.test(userAgent)) {
+      advice.push('🔧 Android Settings: Settings → Apps → Chrome → Permissions → Camera');
+    }
+
+    // Chrome specific advice
+    if (/Chrome/i.test(userAgent) && !/CriOS/i.test(userAgent)) {
+      advice.push('🌐 Chrome Settings: Settings → Privacy → Site Settings → Camera');
+      advice.push('🔄 Try Reload: Refresh page and click scanner button again');
+    }
+
+    // Firefox specific advice
+    if (/Firefox/i.test(userAgent)) {
+      advice.push('🦊 Firefox Settings: Address bar → Camera icon → Allow');
+    }
+
+    // General advice
+    advice.push('📱 Check Permissions: Ensure both browser AND phone settings allow camera');
+    advice.push('🔄 Restart Browser: Close and reopen your browser completely');
+    advice.push('⌨️ Alternative: Use Manual Entry to type barcode numbers');
+
+    return advice;
+  }
+
+  // Request camera permission with better error handling
   async requestCameraPermission(): Promise<boolean> {
     try {
-      // Use more specific constraints for mobile devices
-      const constraints = {
+      // Check if getUserMedia is available
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        logger.error('getUserMedia not supported by this browser');
+        return false;
+      }
+
+      // Try with environment camera first (back camera on mobile)
+      let constraints = {
         video: {
           facingMode: 'environment', // Prefer back camera
           width: { ideal: 1280 },
           height: { ideal: 720 }
         }
       };
-      
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      // Stop the stream immediately, we just wanted to check permission
-      stream.getTracks().forEach(track => track.stop());
-      logger.info('Camera permission granted');
-      return true;
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        // Stop the stream immediately, we just wanted to check permission
+        stream.getTracks().forEach(track => track.stop());
+        logger.info('Camera permission granted (environment camera)');
+        return true;
+      } catch (envError) {
+        logger.warn('Environment camera failed, trying user camera', envError);
+
+        // Fallback to user camera (front camera)
+        constraints = {
+          video: {
+            facingMode: 'user',
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          }
+        };
+
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia(constraints);
+          stream.getTracks().forEach(track => track.stop());
+          logger.info('Camera permission granted (user camera)');
+          return true;
+        } catch (userError) {
+          logger.warn('User camera failed, trying basic constraints', userError);
+
+          // Final fallback - basic video only
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            stream.getTracks().forEach(track => track.stop());
+            logger.info('Camera permission granted (basic constraints)');
+            return true;
+          } catch (basicError) {
+            logger.error('All camera permission attempts failed', basicError);
+            return false;
+          }
+        }
+      }
     } catch (error) {
-      logger.error('Camera permission denied', error);
+      logger.error('Camera permission check failed', error);
       return false;
     }
   }

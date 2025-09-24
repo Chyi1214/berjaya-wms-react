@@ -278,117 +278,7 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
 
         {/* Main Content */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-          {selectedAction === 'tasks' ? (
-            <>
-              {/* Task List View */}
-              <div className="text-center mb-6">
-                <div className="text-4xl mb-2">📋</div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                  Production Tasks
-                </h2>
-                <p className="text-gray-600">
-                  Tasks assigned to your zone
-                </p>
-              </div>
-
-              {loadingTasks ? (
-                <div className="flex justify-center items-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                  <span className="ml-2 text-gray-600">Loading tasks...</span>
-                </div>
-              ) : (
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-                  <div className="p-6">
-                    {tasks.length === 0 ? (
-                      <div className="text-center py-8 text-gray-500">
-                        <div className="text-6xl mb-4">✅</div>
-                        <h3 className="text-lg font-medium">No tasks available</h3>
-                        <p>Check back later for new assignments</p>
-                        <div className="text-xs text-gray-400 mt-2">
-                          Debug: Zone {selectedZone}, Tasks: {tasks.length}, Loading: {loadingTasks ? 'Yes' : 'No'}
-                          <br />Action: {selectedAction}, HasPending: {hasPendingTasks ? 'Yes' : 'No'}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-4">
-                        <h3 className="font-semibold text-gray-900">
-                          {tasks.length} task{tasks.length === 1 ? '' : 's'} available
-                        </h3>
-                        <div className="text-xs text-gray-400 mb-4">
-                          Debug: Rendering {tasks.length} tasks, Zone: {selectedZone}
-                        </div>
-                        {tasks.map((task) => (
-                          <div
-                            key={task.id}
-                            className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
-                          >
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1">
-                                <div className="flex items-center space-x-2 mb-2">
-                                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                    task.config.priority === 'urgent' ? 'bg-red-100 text-red-800' :
-                                    task.config.priority === 'high' ? 'bg-orange-100 text-orange-800' :
-                                    task.config.priority === 'normal' ? 'bg-blue-100 text-blue-800' :
-                                    'bg-gray-100 text-gray-800'
-                                  }`}>
-                                    {task.config.priority.toUpperCase()}
-                                  </span>
-                                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                    task.status === 'assigned' ? 'bg-yellow-100 text-yellow-800' :
-                                    task.status === 'acknowledged' ? 'bg-blue-100 text-blue-800' :
-                                    task.status === 'in_progress' ? 'bg-purple-100 text-purple-800' :
-                                    'bg-gray-100 text-gray-800'
-                                  }`}>
-                                    {task.status.replace('_', ' ').toUpperCase()}
-                                  </span>
-                                </div>
-                                <h4 className="font-semibold text-gray-900 mb-1">{task.config.title}</h4>
-                                <p className="text-gray-600 text-sm mb-2">{task.config.description}</p>
-                                <div className="text-xs text-gray-500">
-                                  Created: {task.createdAt.toLocaleString()}
-                                </div>
-                              </div>
-                              <button
-                                onClick={() => {
-                                  if (task.config.type === 'data_collection' && task.config.relatedEntities?.batchId) {
-                                    // Tool check task
-                                    setSelectedTask(task);
-                                  } else {
-                                    // Regular task interaction
-                                    console.log('Task interaction:', task.id);
-                                  }
-                                }}
-                                className="btn-primary text-sm px-3 py-1 ml-4"
-                              >
-                                {task.config.type === 'data_collection' && task.config.relatedEntities?.batchId ? 
-                                  'Start Check' :
-                                  task.status === 'assigned' ? 'Acknowledge' : 
-                                  task.status === 'acknowledged' ? 'Start' :
-                                  task.status === 'in_progress' ? 'Update' : 'View'}
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Back Button */}
-              <div className="flex justify-center mt-6">
-                <button
-                  onClick={() => setSelectedAction('menu')}
-                  className="btn-secondary"
-                >
-                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                  </svg>
-                  Back to Menu
-                </button>
-              </div>
-            </>
-          ) : selectedAction === 'info_board' ? (
+          {selectedAction === 'info_board' ? (
             <>
               {/* Info Board View */}
               <div className="text-center mb-6">
@@ -447,22 +337,6 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
           />
         )}
 
-        {/* Tool Check Form Modal */}
-        {selectedTask && (
-          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-              <ToolCheckWorkerForm
-                task={selectedTask}
-                onComplete={() => {
-                  setSelectedTask(null);
-                  // Refresh tasks
-                  refreshTasks();
-                }}
-                onCancel={() => setSelectedTask(null)}
-              />
-            </div>
-          </div>
-        )}
       </div>
     );
   }
@@ -752,6 +626,125 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
             </>
           )}
 
+          {selectedAction === 'tasks' && (
+            <>
+              {/* Task List View */}
+              <div className="text-center mb-6">
+                <div className="text-4xl mb-2">📋</div>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                  Production Tasks - Zone {selectedZone}
+                </h2>
+                <p className="text-gray-600">
+                  Tasks assigned to your zone
+                </p>
+              </div>
+
+              {loadingTasks ? (
+                <div className="flex justify-center items-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  <span className="ml-2 text-gray-600">Loading tasks...</span>
+                </div>
+              ) : (
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+                  <div className="p-6">
+                    {tasks.length === 0 ? (
+                      <div className="text-center py-8 text-gray-500">
+                        <div className="text-6xl mb-4">✅</div>
+                        <h3 className="text-lg font-medium">No tasks available</h3>
+                        <p>Check back later for new assignments</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <h3 className="font-semibold text-gray-900">
+                          {tasks.length} task{tasks.length === 1 ? '' : 's'} available
+                        </h3>
+                        {tasks.map((task) => (
+                          <div
+                            key={task.id}
+                            className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center space-x-2 mb-2">
+                                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                    task.config.priority === 'urgent' ? 'bg-red-100 text-red-800' :
+                                    task.config.priority === 'high' ? 'bg-orange-100 text-orange-800' :
+                                    task.config.priority === 'normal' ? 'bg-blue-100 text-blue-800' :
+                                    'bg-gray-100 text-gray-800'
+                                  }`}>
+                                    {task.config.priority.toUpperCase()}
+                                  </span>
+                                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                    task.status === 'assigned' ? 'bg-yellow-100 text-yellow-800' :
+                                    task.status === 'acknowledged' ? 'bg-blue-100 text-blue-800' :
+                                    task.status === 'in_progress' ? 'bg-purple-100 text-purple-800' :
+                                    'bg-gray-100 text-gray-800'
+                                  }`}>
+                                    {task.status.replace('_', ' ').toUpperCase()}
+                                  </span>
+                                </div>
+                                <h4 className="font-semibold text-gray-900 mb-1">{task.config.title}</h4>
+                                <p className="text-gray-600 text-sm mb-2">{task.config.description}</p>
+                                <div className="text-xs text-gray-500">
+                                  Created: {task.createdAt.toLocaleString()}
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => {
+                                  if (task.config.type === 'data_collection' && task.config.relatedEntities?.batchId) {
+                                    // Tool check task
+                                    setSelectedTask(task);
+                                  } else {
+                                    // Regular task interaction
+                                    console.log('Task interaction:', task.id);
+                                  }
+                                }}
+                                className="btn-primary text-sm px-3 py-1 ml-4"
+                              >
+                                {task.config.type === 'data_collection' && task.config.relatedEntities?.batchId ?
+                                  'Start Check' :
+                                  task.status === 'assigned' ? 'Acknowledge' :
+                                  task.status === 'acknowledged' ? 'Start' :
+                                  task.status === 'in_progress' ? 'Update' : 'View'}
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Back to Menu Button */}
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <button
+                  onClick={handleBackToMenu}
+                  className="btn-secondary"
+                >
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                  {t('common.back')}
+                </button>
+
+                <button
+                  onClick={handleBackToZones}
+                  className="btn-secondary"
+                >
+                  {t('production.backToZones')}
+                </button>
+
+                <button
+                  onClick={onBack}
+                  className="btn-secondary"
+                >
+                  {t('nav.backToRoles')}
+                </button>
+              </div>
+            </>
+          )}
+
 
         </div>
       </main>
@@ -771,6 +764,23 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
           user={user}
           onClose={() => setShowPersonalSettings(false)}
         />
+      )}
+
+      {/* Tool Check Form Modal */}
+      {selectedTask && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <ToolCheckWorkerForm
+              task={selectedTask}
+              onComplete={() => {
+                setSelectedTask(null);
+                // Refresh tasks
+                refreshTasks();
+              }}
+              onCancel={() => setSelectedTask(null)}
+            />
+          </div>
+        </div>
       )}
     </div>
   );

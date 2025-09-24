@@ -28,6 +28,76 @@ The user has explicitly stated that **maintainability is the highest priority**.
 
 **⚠️ CRITICAL RULE: Every decision must prioritize long-term maintainability over short-term features.**
 
+## 🔥 **FIREBASE CRITICAL RULES - MANDATORY FOR ALL FUTURE CLAUDE**
+
+**⚠️ TOO MANY FAILURES! This has happened repeatedly - you MUST follow these rules when working with Firebase:**
+
+### **1. UNDEFINED VALUES = INSTANT FAILURE**
+```typescript
+// ❌ WRONG - Will cause Firestore error
+const data = {
+  field1: "value",
+  field2: undefined,  // THIS BREAKS EVERYTHING!
+  field3: someVar?.optionalField  // Could be undefined
+};
+
+// ✅ CORRECT - Always clean undefined values
+const data = {
+  field1: "value",
+  field2: someVar?.optionalField || null,  // Use null, not undefined
+  field3: anotherVar ?? "default"
+};
+```
+
+### **2. ALWAYS CLEAN DATA BEFORE FIRESTORE**
+**Every service MUST have a `prepareForFirestore()` method:**
+```typescript
+private prepareForFirestore(data: any): any {
+  const cleanData: any = {};
+  Object.keys(data).forEach(key => {
+    if (data[key] !== undefined) {
+      cleanData[key] = data[key];
+    }
+  });
+  return cleanData;
+}
+```
+
+### **3. FIRESTORE RULES DEPLOYMENT**
+**When adding new collections, you MUST deploy rules:**
+```bash
+firebase deploy --only firestore:rules
+```
+**Common forgotten collections:** `toolCheckSubmissions`, `workerReports`, `batchRequirements`
+
+### **4. PERMISSION CHECKING PATTERN**
+**Every Firestore operation needs proper permission setup:**
+```javascript
+// In firestore.rules
+match /newCollection/{document} {
+  allow read: if isActiveUser();
+  allow create: if isActiveUser() && (
+    hasRole('production') || hasRole('logistics') ||
+    hasRole('supervisor') || hasRole('manager')
+  );
+}
+```
+
+### **5. ERROR MESSAGES TO WATCH FOR**
+- `"Function setDoc() called with invalid data. Unsupported field value: undefined"`
+- `"Missing or insufficient permissions"`
+- `"Cannot read property of undefined"`
+
+### **6. DEBUGGING CHECKLIST**
+When Firebase fails, check:
+1. ✅ Are there undefined values in the data?
+2. ✅ Are Firestore rules deployed for the collection?
+3. ✅ Does the user have the right role permissions?
+4. ✅ Is the collection name spelled correctly?
+5. ✅ Are timestamps properly converted with `Timestamp.fromDate()`?
+
+**🚨 REMEMBER: This project has failed on Firebase issues TOO MANY TIMES. Prevention is critical!**
+
 ## 📋 Project Overview
 
 **Current Status**: v5.10.9 - Complete OTP Bypass - Instant Transaction Completion (September 11, 2025)

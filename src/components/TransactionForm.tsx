@@ -29,13 +29,26 @@ const SAMPLE_CATALOG = [
   { sku: "e003", name: "Gear Wheel 24T" }
 ];
 
-// Location options
+// Location options (includes CP7 and CP8)
 const LOCATIONS = [
   { value: 'logistics', label: 'Logistics' },
-  ...Array.from({ length: 23 }, (_, i) => ({
-    value: `production_zone_${i + 1}`,
-    label: `Production Zone ${i + 1}`
-  }))
+  ...Array.from({ length: 25 }, (_, i) => {
+    const zoneId = i + 1;
+    let zoneLabel;
+
+    if (zoneId === 24) {
+      zoneLabel = 'CP7';
+    } else if (zoneId === 25) {
+      zoneLabel = 'CP8';
+    } else {
+      zoneLabel = `Production Zone ${zoneId}`;
+    }
+
+    return {
+      value: `production_zone_${zoneId}`,
+      label: zoneLabel
+    };
+  })
 ];
 
 export function TransactionForm({ onSubmit, onCancel, userEmail, initialData }: TransactionFormProps) {

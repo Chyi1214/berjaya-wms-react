@@ -17,9 +17,10 @@ const myanmarTranslations: Translation = {
     close: 'ပိတ်မည်',
     yes: 'ဟုတ်ကဲ့',
     no: 'မဟုတ်ပါ',
-    total: 'စုစုပေါင်း',
+    total: 'စুစုပေါင်း',
     logout: 'ထွက်မည်',
-    tip: 'အကြံပြုချက်'
+    tip: 'အကြံပြုချက်',
+    scanToAccess: 'ဝက်ဘ်ဆိုက်သို့ ဝင်ရောက်ရန် စကင်ဖတ်ပါ'
   },
 
   // Authentication
@@ -137,7 +138,29 @@ const myanmarTranslations: Translation = {
     processSKU: 'လုပ်ဆောင်ပါ (SKU သို့မဟုတ် QR ကုဒ်)',
     error: 'အမှား',
     failedToProcessEntry: 'ထည့်သွင်းထားသော စာသားကို လုပ်ဆောင်ရန် မအောင်မြင်ပါ',
-    noValidSKUFound: 'မှန်ကန်သော SKU မတွေ့ပါ။ ကြိုးစားခဲ့သည်: {attempts}'
+    noValidSKUFound: 'မှန်ကန်သော SKU မတွေ့ပါ။ ကြိုးစားခဲ့သည်: {attempts}',
+    scanInInventory: 'စကင်တင် ကုန်ပစ္စည်းစာရင်း',
+    itemScannedSuccessfully: 'ပစ္စည်း စကင်ဖတ်ခြင်း အောင်မြင်သည်',
+    enterQuantity: 'အရေအတွက် ထည့်ပါ:',
+    enterQuantityPlaceholder: 'အရေအတွက် ထည့်ပါ...',
+    processing: 'လုပ်ဆောင်နေသည်...',
+    barcodeScanner: 'ဘားကုဒ် စကင်နာ',
+    scanItemBarcode: 'ကုန်ပစ္စည်းစာရင်းထဲ ထည့်ရန် ပစ္စည်းဘားကုဒ်ကို စကင်ပါ',
+    manualItemEntry: 'လက်ဖြင့် ပစ္စည်း ထည့်သွင်းခြင်း',
+    searchItemsWhenScannerNotAvailable: 'စကင်နာ မရနိုင်သောအခါ ပစ္စည်းများကို ရှာပြီး ရွေးချယ်ပါ',
+    processItem: 'ပစ္စည်း လုပ်ဆောင်ပါ',
+    scanNextItem: 'နောက်ပစ္စည်း စကင်ပါ',
+    pleaseEnterValidQuantity: 'ကျေးဇူးပြု၍ မှန်ကန်သော အရေအတွက် ထည့်ပါ',
+    skuNotFoundInItemMaster: 'SKU {sku} ကို ပစ္စည်းမူလစာရင်းတွင် မတွေ့ပါ။ ကျေးဇူးပြု၍ ပထမ ထည့်ပါ။',
+    addedToExpectedTable: '{quantity} x {name} ကို မျှော်လင့်ထားသော ဇယားတွင် ထည့်ပြီး (စုစုပေါင်း: {total})',
+    failedToSaveInventory: 'ကုန်ပစ္စည်းစာရင်း သိမ်းဆည်းရန် မအောင်မြင်ပါ။ ကျေးဇူးပြု၍ ထပ်ကြိုးစားပါ။',
+    failedToProcessScannedItem: 'စကင်ဖတ်ထားသော ပစ္စည်း လုပ်ဆောင်ရန် မအောင်မြင်ပါ',
+    scanResult: 'စကင်ဖတ်ရလဒ်',
+    enterBarcodeManually: 'စကင်နာ မရနိုင်သောအခါ လက်ဖြင့် ဘားကုဒ် ထည့်ပါ',
+    enterBarcodeOrQRPlaceholder: 'ဘားကုဒ် သို့မဟုတ် QR ကုဒ် အကြောင်းအရာ ထည့်ပါ...',
+    processEntry: 'ထည့်သွင်းမှု လုပ်ဆောင်ပါ',
+    smartSearch: 'စမတ် ရှာဖွေခြင်း',
+    searchItemsNotAvailable: 'စကင်ဖတ်ခြင်း မရနိုင်သောအခါ ပစ္စည်းများကို ရှာပါ'
   },
 
   // Production

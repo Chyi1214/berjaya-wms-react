@@ -69,12 +69,20 @@ export function ToolCheckWorkerForm({ task, onComplete, onCancel }: ToolCheckWor
       setLoading(true);
 
       // Convert to ToolCheckItemResult format
-      const results: ToolCheckItemResult[] = toolItems.map(item => ({
-        itemId: item.id,
-        actualCount: itemResults[item.id]?.count || 0,
-        extraFieldValue: itemResults[item.id]?.extra,
-        status: calculateStatus(itemResults[item.id]?.count || 0, item.expectedCount)
-      }));
+      const results: ToolCheckItemResult[] = toolItems.map(item => {
+        const result: ToolCheckItemResult = {
+          itemId: item.id,
+          actualCount: itemResults[item.id]?.count || 0,
+          status: calculateStatus(itemResults[item.id]?.count || 0, item.expectedCount)
+        };
+
+        // Only add extraFieldValue if it exists (avoid undefined)
+        if (itemResults[item.id]?.extra) {
+          result.extraFieldValue = itemResults[item.id].extra;
+        }
+
+        return result;
+      });
 
       const configId = task.config.relatedEntities?.batchId;
       if (!configId) {

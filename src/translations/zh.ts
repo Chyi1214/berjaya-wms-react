@@ -19,7 +19,8 @@ const chineseTranslations: Translation = {
     no: '否',
     total: '总计',
     logout: '登出',
-    tip: '提示'
+    tip: '提示',
+    scanToAccess: '扫码访问网站'
   },
 
   // Authentication
@@ -137,7 +138,29 @@ const chineseTranslations: Translation = {
     processSKU: '处理 (SKU 或 QR 码)',
     error: '错误',
     failedToProcessEntry: '处理输入的文本失败',
-    noValidSKUFound: '未找到有效的 SKU。已尝试: {attempts}'
+    noValidSKUFound: '未找到有效的 SKU。已尝试: {attempts}',
+    scanInInventory: '扫描入库',
+    itemScannedSuccessfully: '物品扫描成功',
+    enterQuantity: '输入数量:',
+    enterQuantityPlaceholder: '输入数量...',
+    processing: '处理中...',
+    barcodeScanner: '条码扫描器',
+    scanItemBarcode: '扫描物品条码以添加到库存',
+    manualItemEntry: '手动输入物品',
+    searchItemsWhenScannerNotAvailable: '当扫描器不可用时搜索和选择物品',
+    processItem: '处理物品',
+    scanNextItem: '扫描下一个物品',
+    pleaseEnterValidQuantity: '请输入有效数量',
+    skuNotFoundInItemMaster: 'SKU {sku} 在主物料表中未找到。请先添加。',
+    addedToExpectedTable: '已添加 {quantity} x {name} 到预期表 (总计: {total})',
+    failedToSaveInventory: '保存库存失败。请重试。',
+    failedToProcessScannedItem: '处理扫描物品失败',
+    scanResult: '扫描结果',
+    enterBarcodeManually: '当扫描器不可用时手动输入条码',
+    enterBarcodeOrQRPlaceholder: '输入条码或二维码内容...',
+    processEntry: '处理输入',
+    smartSearch: '智能搜索',
+    searchItemsNotAvailable: '当扫描不可用时搜索物品'
   },
 
   // Production

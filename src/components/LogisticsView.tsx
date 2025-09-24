@@ -6,6 +6,7 @@ import InventoryCountForm from './InventoryCountForm';
 import TransactionSendForm from './TransactionSendForm';
 import TransactionOTPDisplay from './TransactionOTPDisplay';
 import UnifiedScannerView from './scanner/UnifiedScannerView';
+import { LogisticsMonitorDashboard } from './logistics/LogisticsMonitorDashboard';
 import { ElaMenu } from './ela/ElaMenu';
 import { ElaChat } from './ela/ElaChat';
 import PersonalSettings from './PersonalSettings';
@@ -21,7 +22,7 @@ interface LogisticsViewProps {
 
 export function LogisticsView({ user, onBack, onCountSubmit, counts, onTransactionCreate, transactions }: LogisticsViewProps) {
   const { t } = useLanguage();
-  const [selectedAction, setSelectedAction] = useState<'menu' | 'check' | 'transaction' | 'scanner'>('menu');
+  const [selectedAction, setSelectedAction] = useState<'menu' | 'check' | 'transaction' | 'scanner' | 'monitor'>('menu');
   const [transactionResult, setTransactionResult] = useState<{ transaction: Transaction, otp: string } | null>(null);
   const [showElaMenu, setShowElaMenu] = useState(false);
   const [showElaChat, setShowElaChat] = useState(false);
@@ -89,12 +90,14 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onTransacti
               <span className="text-2xl">
                 {selectedAction === 'check' ? '📋' :
                  selectedAction === 'transaction' ? '🔄' :
-                 selectedAction === 'scanner' ? '📱' : '📦'}
+                 selectedAction === 'scanner' ? '📱' :
+                 selectedAction === 'monitor' ? '📊' : '📦'}
               </span>
               <h1 className="text-lg font-bold text-gray-900">
                 {selectedAction === 'check' ? t('inventory.inventoryCount') :
                  selectedAction === 'transaction' ? t('logistics.sendItems') :
-                 selectedAction === 'scanner' ? t('logistics.inboundScanner') : t('roles.logistics')}
+                 selectedAction === 'scanner' ? t('logistics.inboundScanner') :
+                 selectedAction === 'monitor' ? 'Monitor Inventory' : t('roles.logistics')}
               </h1>
             </div>
 
@@ -129,7 +132,7 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onTransacti
           
           {selectedAction === 'menu' && (
             <>
-              {/* Action Menu - iPhone Style with 3 buttons */}
+              {/* Action Menu - iPhone Style with 4 buttons */}
               <div className="grid grid-cols-1 gap-4 max-w-sm mx-auto">
 
                 {/* Check Inventory Button */}
@@ -157,6 +160,15 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onTransacti
                 >
                   <div className="text-3xl mb-1">📱</div>
                   <span className="text-sm font-medium">{t('logistics.inboundScanner')}</span>
+                </button>
+
+                {/* Monitor Inventory Button */}
+                <button
+                  onClick={() => setSelectedAction('monitor')}
+                  className="h-24 bg-orange-500 hover:bg-orange-600 rounded-2xl shadow-lg transition-all duration-200 flex flex-col items-center justify-center text-white group active:scale-95"
+                >
+                  <div className="text-3xl mb-1">📊</div>
+                  <span className="text-sm font-medium">Monitor Inventory</span>
                 </button>
               </div>
 
@@ -224,6 +236,26 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onTransacti
               user={user}
               onBack={handleBackToMenu}
             />
+          )}
+
+          {selectedAction === 'monitor' && (
+            <>
+              {/* Monitor Header */}
+              <div className="text-center mb-6">
+                <div className="text-4xl mb-2">📊</div>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                  Inventory Monitor - Zone View
+                </h2>
+                <p className="text-gray-600">
+                  Real-time inventory levels across all warehouse zones
+                </p>
+              </div>
+
+              {/* Monitor Dashboard */}
+              <LogisticsMonitorDashboard
+                userEmail={user.email}
+              />
+            </>
           )}
 
         </div>

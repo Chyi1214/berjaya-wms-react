@@ -4,7 +4,7 @@ import { UserRecord, UserRole } from '../../types';
 interface UserListTableProps {
   users: UserRecord[];
   isLoading: boolean;
-  isDevAdmin: boolean;
+  canManageUsers: boolean;
   onEditUser: (user: UserRecord) => void;
   onToggleUserStatus: (user: UserRecord) => void;
   onDeleteUser: (email: string) => void;
@@ -40,7 +40,7 @@ const formatLastLogin = (date?: Date): string => {
 export const UserListTable = memo(function UserListTable({
   users,
   isLoading,
-  isDevAdmin,
+  canManageUsers,
   onEditUser,
   onToggleUserStatus,
   onDeleteUser,
@@ -62,7 +62,7 @@ export const UserListTable = memo(function UserListTable({
         <div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">No users yet</h3>
           <p className="text-gray-500 mb-6">Start by adding your first user</p>
-          {isDevAdmin && (
+          {canManageUsers && (
             <button
               onClick={onAddUser}
               className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg"
@@ -127,7 +127,7 @@ export const UserListTable = memo(function UserListTable({
               </td>
               
               <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
-                {user.role !== UserRole.DEV_ADMIN && isDevAdmin && (
+                {user.role !== UserRole.DEV_ADMIN && canManageUsers && (
                   <>
                     <button
                       onClick={() => onEditUser(user)}

@@ -333,10 +333,39 @@ export function ScannerView({ user }: ScannerViewProps) {
 
                   {/* Camera Permission Status */}
                   {cameraPermission === 'denied' && (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                      <p className="text-red-700 text-sm">
-                        📱 {t('scanner.cameraAccessRequired')}
-                      </p>
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                      <h4 className="text-red-800 font-semibold mb-3">📱 {t('scanner.cameraAccessRequired')}</h4>
+
+                      <div className="space-y-3 text-red-700 text-sm">
+                        <p className="font-medium">Try these device-specific solutions:</p>
+
+                        <div className="space-y-2">
+                          {scannerService.getCameraTroubleshootingAdvice().map((advice, index) => (
+                            <div key={index} className="flex items-start space-x-2">
+                              <span className="text-red-600 font-bold">{index + 1}.</span>
+                              <p>{advice}</p>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="mt-4 pt-3 border-t border-red-200 flex space-x-3">
+                          <button
+                            onClick={() => {
+                              setCameraPermission('unknown');
+                              setError(null);
+                            }}
+                            className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+                          >
+                            🔄 Try Camera Again
+                          </button>
+                          <button
+                            onClick={() => window.location.reload()}
+                            className="bg-gray-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors"
+                          >
+                            🔄 Reload Page
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>

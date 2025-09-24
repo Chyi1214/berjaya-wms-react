@@ -19,7 +19,8 @@ const englishTranslations: Translation = {
     no: 'No',
     total: 'Total',
     logout: 'Logout',
-    tip: 'Tip'
+    tip: 'Tip',
+    scanToAccess: 'Scan to Access Website'
   },
 
   // Authentication
@@ -137,7 +138,29 @@ const englishTranslations: Translation = {
     processSKU: 'Process (SKU or QR Code)',
     error: 'Error',
     failedToProcessEntry: 'Failed to process entered text',
-    noValidSKUFound: 'No valid SKU found. Tried: {attempts}'
+    noValidSKUFound: 'No valid SKU found. Tried: {attempts}',
+    scanInInventory: 'Scan In Inventory',
+    itemScannedSuccessfully: 'Item Scanned Successfully',
+    enterQuantity: 'Enter Quantity:',
+    enterQuantityPlaceholder: 'Enter quantity...',
+    processing: 'Processing...',
+    barcodeScanner: 'Barcode Scanner',
+    scanItemBarcode: 'Scan item barcode to add to inventory',
+    manualItemEntry: 'Manual Item Entry',
+    searchItemsWhenScannerNotAvailable: 'Search and select items when scanner is not available',
+    processItem: 'Process Item',
+    scanNextItem: 'Scan Next Item',
+    pleaseEnterValidQuantity: 'Please enter a valid quantity',
+    skuNotFoundInItemMaster: 'SKU {sku} not found in Item Master. Please add it first.',
+    addedToExpectedTable: 'Added {quantity} x {name} to Expected table (Total: {total})',
+    failedToSaveInventory: 'Failed to save inventory. Please try again.',
+    failedToProcessScannedItem: 'Failed to process scanned item',
+    scanResult: 'Scan Result',
+    enterBarcodeManually: 'Enter barcode manually when scanner is not available',
+    enterBarcodeOrQRPlaceholder: 'Enter barcode or QR code content...',
+    processEntry: 'Process Entry',
+    smartSearch: 'Smart Search',
+    searchItemsNotAvailable: 'Search items when scanning is not available'
   },
 
   // Production

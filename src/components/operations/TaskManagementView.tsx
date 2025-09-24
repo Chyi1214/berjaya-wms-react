@@ -261,10 +261,35 @@ function CreateTaskModal({ onClose, onCreate }: CreateTaskModalProps) {
   const [type, setType] = useState<TaskType>(TaskType.ACTION_ITEM);
   const [priority, setPriority] = useState<TaskPriority>(TaskPriority.NORMAL);
   const [assignmentType, setAssignmentType] = useState<TaskAssignmentType>(TaskAssignmentType.BROADCAST);
+  const [selectedZones, setSelectedZones] = useState<number[]>([]);
+  const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+
+  // Generate zone options (1-30 production zones)
+  const zoneOptions = Array.from({ length: 30 }, (_, i) => i + 1);
+
+  const toggleZone = (zone: number) => {
+    setSelectedZones(prev =>
+      prev.includes(zone)
+        ? prev.filter(z => z !== zone)
+        : [...prev, zone]
+    );
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
+    // Validation for zone-specific assignment
+    if (assignmentType === TaskAssignmentType.ZONE_SPECIFIC && selectedZones.length === 0) {
+      alert('Please select at least one zone for zone-specific assignment.');
+      return;
+    }
+
+    // Validation for user-specific assignment
+    if (assignmentType === TaskAssignmentType.USER_SPECIFIC && selectedUsers.length === 0) {
+      alert('Please enter at least one user email for user-specific assignment.');
+      return;
+    }
+
     const request: CreateTaskRequest = {
       config: {
         type,
@@ -274,6 +299,13 @@ function CreateTaskModal({ onClose, onCreate }: CreateTaskModalProps) {
         priority,
         requiresConfirmation: true,
         requiresManagerApproval: false,
+        // Add target zones and users based on assignment type
+        ...(assignmentType === TaskAssignmentType.ZONE_SPECIFIC && selectedZones.length > 0 && {
+          targetZones: selectedZones.map(zone => zone.toString())
+        }),
+        ...(assignmentType === TaskAssignmentType.USER_SPECIFIC && selectedUsers.length > 0 && {
+          targetUsers: selectedUsers
+        }),
       },
       assignToCurrentZone: true
     };
@@ -372,6 +404,55 @@ function CreateTaskModal({ onClose, onCreate }: CreateTaskModalProps) {
               <option value={TaskAssignmentType.USER_SPECIFIC}>Specific Users</option>
             </select>
           </div>
+
+          {/* Zone Selection */}
+          {assignmentType === TaskAssignmentType.ZONE_SPECIFIC && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Select Zones ({selectedZones.length} selected)
+              </label>
+              <div className="max-h-32 overflow-y-auto border border-gray-300 rounded-md p-2">
+                <div className="grid grid-cols-6 gap-1">
+                  {zoneOptions.map((zone) => (
+                    <button
+                      key={zone}
+                      type="button"
+                      onClick={() => toggleZone(zone)}
+                      className={`px-2 py-1 text-xs rounded ${
+                        selectedZones.includes(zone)
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      {zone}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {selectedZones.length === 0 && (
+                <p className="text-xs text-red-600 mt-1">Please select at least one zone</p>
+              )}
+            </div>
+          )}
+
+          {/* User Selection */}
+          {assignmentType === TaskAssignmentType.USER_SPECIFIC && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                User Emails (comma-separated)
+              </label>
+              <textarea
+                value={selectedUsers.join(', ')}
+                onChange={(e) => setSelectedUsers(e.target.value.split(',').map(u => u.trim()).filter(u => u))}
+                placeholder="user1@example.com, user2@example.com"
+                className="w-full border border-gray-300 rounded-md px-3 py-2"
+                rows={2}
+              />
+              {selectedUsers.length === 0 && (
+                <p className="text-xs text-red-600 mt-1">Please enter at least one user email</p>
+              )}
+            </div>
+          )}
 
           <div className="flex justify-end space-x-3 pt-4">
             <button

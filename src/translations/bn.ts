@@ -19,7 +19,8 @@ const bengaliTranslations: Translation = {
     no: 'না',
     total: 'মোট',
     logout: 'লগ আউট',
-    tip: 'টিপস'
+    tip: 'টিপস',
+    scanToAccess: 'ওয়েবসাইট অ্যাক্সেস করতে স্ক্যান করুন'
   },
 
   // Authentication
@@ -137,7 +138,29 @@ const bengaliTranslations: Translation = {
     processSKU: 'প্রক্রিয়া করুন (SKU বা QR কোড)',
     error: 'ত্রুটি',
     failedToProcessEntry: 'প্রবেশ করানো পাঠ্য প্রক্রিয়া করতে ব্যর্থ',
-    noValidSKUFound: 'কোনো বৈধ SKU পাওয়া যায়নি। চেষ্টা করা হয়েছে: {attempts}'
+    noValidSKUFound: 'কোনো বৈধ SKU পাওয়া যায়নি। চেষ্টা করা হয়েছে: {attempts}',
+    scanInInventory: 'স্ক্যান ইন ইনভেন্টরি',
+    itemScannedSuccessfully: 'আইটেম সফলভাবে স্ক্যান হয়েছে',
+    enterQuantity: 'পরিমাণ প্রবেশ করান:',
+    enterQuantityPlaceholder: 'পরিমাণ প্রবেশ করান...',
+    processing: 'প্রক্রিয়াজাতকরণ...',
+    barcodeScanner: 'বারকোড স্ক্যানার',
+    scanItemBarcode: 'ইনভেন্টরিতে যোগ করতে আইটেম বারকোড স্ক্যান করুন',
+    manualItemEntry: 'ম্যানুয়াল আইটেম এন্ট্রি',
+    searchItemsWhenScannerNotAvailable: 'স্ক্যানার উপলব্ধ না থাকলে আইটেম খুঁজুন এবং নির্বাচন করুন',
+    processItem: 'আইটেম প্রক্রিয়া করুন',
+    scanNextItem: 'পরবর্তী আইটেম স্ক্যান করুন',
+    pleaseEnterValidQuantity: 'দয়া করে একটি বৈধ পরিমাণ প্রবেশ করান',
+    skuNotFoundInItemMaster: 'SKU {sku} আইটেম মাস্টারে পাওয়া যায়নি। দয়া করে প্রথমে যোগ করুন।',
+    addedToExpectedTable: '{quantity} x {name} প্রত্যাশিত টেবিলে যোগ করা হয়েছে (মোট: {total})',
+    failedToSaveInventory: 'ইনভেন্টরি সংরক্ষণ করতে ব্যর্থ। দয়া করে আবার চেষ্টা করুন।',
+    failedToProcessScannedItem: 'স্ক্যান করা আইটেম প্রক্রিয়া করতে ব্যর্থ',
+    scanResult: 'স্ক্যানের ফলাফল',
+    enterBarcodeManually: 'স্ক্যানার উপলব্ধ না থাকলে ম্যানুয়ালি বারকোড প্রবেশ করান',
+    enterBarcodeOrQRPlaceholder: 'বারকোড বা QR কোডের বিষয়বস্তু প্রবেশ করান...',
+    processEntry: 'এন্ট্রি প্রক্রিয়া করুন',
+    smartSearch: 'স্মার্ট অনুসন্ধান',
+    searchItemsNotAvailable: 'স্ক্যানিং উপলব্ধ না থাকলে আইটেম খুঁজুন'
   },
 
   // Production

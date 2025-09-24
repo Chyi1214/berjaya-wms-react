@@ -19,12 +19,25 @@ interface TransactionSendFormProps {
 export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventoryCounts }: TransactionSendFormProps) {
   const { t } = useLanguage();
 
-  // Production zones 1-23
-  const PRODUCTION_ZONES = useMemo(() => Array.from({ length: 23 }, (_, i) => ({
-    id: i + 1,
-    name: `${t('production.zone')} ${i + 1}`,
-    value: `production_zone_${i + 1}`
-  })), [t]);
+  // Production zones 1-25 (includes CP7 and CP8)
+  const PRODUCTION_ZONES = useMemo(() => Array.from({ length: 25 }, (_, i) => {
+    const zoneId = i + 1;
+    let zoneName;
+
+    if (zoneId === 24) {
+      zoneName = 'CP7';
+    } else if (zoneId === 25) {
+      zoneName = 'CP8';
+    } else {
+      zoneName = `${t('production.zone')} ${zoneId}`;
+    }
+
+    return {
+      id: zoneId,
+      name: zoneName,
+      value: `production_zone_${zoneId}`
+    };
+  }), [t]);
   const [formData, setFormData] = useState<TransactionFormData>({
     sku: '',
     amount: 1,

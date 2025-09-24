@@ -116,11 +116,24 @@ export function TransactionFilters({ filters, onFiltersChange }: TransactionFilt
           >
             <option value="">All locations</option>
             <option value="logistics">{t('roles.logistics')}</option>
-            {Array.from({ length: 23 }, (_, i) => (
-              <option key={i + 1} value={`production_zone_${i + 1}`}>
-                {t('production.zone')} {i + 1}
-              </option>
-            ))}
+            {Array.from({ length: 25 }, (_, i) => {
+              const zoneId = i + 1;
+              let zoneName;
+
+              if (zoneId === 24) {
+                zoneName = 'CP7';
+              } else if (zoneId === 25) {
+                zoneName = 'CP8';
+              } else {
+                zoneName = `${t('production.zone')} ${zoneId}`;
+              }
+
+              return (
+                <option key={zoneId} value={`production_zone_${zoneId}`}>
+                  {zoneName}
+                </option>
+              );
+            })}
           </select>
         </div>
 

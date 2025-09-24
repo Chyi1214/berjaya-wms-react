@@ -15,7 +15,7 @@ export const ZoneStatusGrid = memo(function ZoneStatusGrid({
       </div>
       <div className="p-6">
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-          {Array.from({ length: 23 }, (_, i) => i + 1).map(zoneId => {
+          {Array.from({ length: 25 }, (_, i) => i + 1).map(zoneId => {
             const station = workStations.find(s => s.zoneId === zoneId);
             const hasWorker = station?.currentWorker !== undefined && station?.currentWorker !== null;
             const hasCar = station?.currentCar !== undefined && station?.currentCar !== null;

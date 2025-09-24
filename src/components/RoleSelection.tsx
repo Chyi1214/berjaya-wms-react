@@ -188,6 +188,21 @@ export function RoleSelection({ user, onRoleSelect, onLogout }: RoleSelectionPro
           </button>
         </div>
 
+        {/* QR Code Section */}
+        <div className="mt-8 text-center">
+          <div className="bg-white rounded-lg p-4 inline-block shadow-md">
+            <h3 className="text-sm font-medium text-gray-700 mb-3">{t('common.scanToAccess')}</h3>
+            <img
+              src="/assets/Website_barcode.gif"
+              alt="Website QR Code"
+              className="w-32 h-32 mx-auto"
+            />
+            <p className="text-xs text-gray-500 mt-2">
+              berjaya-autotech-4b4f4.web.app
+            </p>
+          </div>
+        </div>
+
         <VersionFooter className="mt-8" />
         </div>
       </div>

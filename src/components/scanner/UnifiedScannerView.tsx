@@ -36,7 +36,6 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
   const [success, setSuccess] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [cameraPermission, setCameraPermission] = useState<'unknown' | 'granted' | 'denied'>('unknown');
-  const [manualEntry, setManualEntry] = useState('');
   const [selectedSearchResult, setSelectedSearchResult] = useState<any>(null);
 
   // Cleanup on unmount
@@ -259,28 +258,6 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
     setIsScanning(false);
   };
 
-  const handleManualEntry = async () => {
-    if (!manualEntry.trim()) return;
-
-    try {
-      console.log('📝 Manual entry processing:', manualEntry);
-      const result = await processUnifiedScan(manualEntry);
-
-      if (result.success && result.unifiedResult) {
-        setScanResult(result.unifiedResult);
-        setQuantity('1');
-        setManualEntry('');
-        setError(null);
-      } else {
-        setScanResult(null);
-        const attemptsList = result.attemptedLookups.join(', ');
-        setError(`Item not found. Tried: ${attemptsList}`);
-      }
-    } catch (error) {
-      console.error('Failed to process manual entry:', error);
-      setError('Failed to process manual entry');
-    }
-  };
 
   const handleSearchEntry = async () => {
     if (!selectedSearchResult?.code) return;
@@ -433,7 +410,7 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
         {/* Scan Result Display */}
         {scanResult && (
           <div className="mb-6 bg-white rounded-lg border-2 border-blue-500 shadow-lg p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">📍 Scan Result</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">📍 {t('scanner.scanResult')}</h3>
 
             {/* SKU Info */}
             <div className="space-y-3 mb-6">
@@ -559,7 +536,7 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
                     <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50">
                       <div className="text-center text-white">
                         <div className="text-4xl mb-2">📷</div>
-                        <p>Camera will appear here</p>
+                        <p>{t('scanner.cameraWillAppearHere')}</p>
                       </div>
                     </div>
                   )}
@@ -567,7 +544,7 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
                   {/* Scanning indicator */}
                   {isScanning && (
                     <div className="absolute top-4 left-4 bg-green-500 text-white px-3 py-1 rounded-full text-sm">
-                      🔍 Scanning...
+                      🔍 {t('scanner.scanning')}
                     </div>
                   )}
                 </div>
@@ -579,7 +556,7 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
                       onClick={startScanning}
                       className="w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-3 px-4 rounded-lg transition-colors text-lg"
                     >
-                      📱 Start Scanner
+                      📱 {t('scanner.startScanner')}
                     </button>
                   ) : (
                     <button
@@ -592,49 +569,51 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
 
                   {/* Camera Permission Status */}
                   {cameraPermission === 'denied' && (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                      <p className="text-red-700 text-sm">
-                        📱 Camera access required for scanning
-                      </p>
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                      <h4 className="text-red-800 font-semibold mb-3">📱 Camera Permission Required</h4>
+
+                      <div className="space-y-3 text-red-700 text-sm">
+                        <p className="font-medium">Try these device-specific solutions:</p>
+
+                        <div className="space-y-2">
+                          {scannerService.getCameraTroubleshootingAdvice().map((advice, index) => (
+                            <div key={index} className="flex items-start space-x-2">
+                              <span className="text-red-600 font-bold">{index + 1}.</span>
+                              <p>{advice}</p>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="mt-4 pt-3 border-t border-red-200 flex space-x-3">
+                          <button
+                            onClick={() => {
+                              setCameraPermission('unknown');
+                              setError(null);
+                            }}
+                            className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+                          >
+                            🔄 Try Camera Again
+                          </button>
+                          <button
+                            onClick={() => window.location.reload()}
+                            className="bg-gray-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors"
+                          >
+                            🔄 Reload Page
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
               </div>
             </div>
 
-            {/* Manual Entry */}
-            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-              <div className="p-4 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900">⌨️ Manual Entry</h3>
-                <p className="text-sm text-gray-500">Enter barcode manually when scanner is not available</p>
-              </div>
-
-              <div className="p-6">
-                <div className="space-y-3">
-                  <textarea
-                    value={manualEntry}
-                    onChange={(e) => setManualEntry(e.target.value)}
-                    placeholder="Enter barcode or QR code content..."
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                    rows={3}
-                    onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleManualEntry()}
-                  />
-                  <button
-                    onClick={handleManualEntry}
-                    disabled={!manualEntry.trim()}
-                    className="w-full bg-green-500 hover:bg-green-600 disabled:bg-gray-300 text-white font-medium py-3 px-4 rounded-lg transition-colors"
-                  >
-                    🔍 Process Entry
-                  </button>
-                </div>
-              </div>
-            </div>
 
             {/* Smart Search */}
             <div className="bg-white rounded-lg border border-gray-200">
               <div className="p-4 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900">🔍 Smart Search</h3>
-                <p className="text-sm text-gray-500">Search items when scanning is not available</p>
+                <h3 className="text-lg font-semibold text-gray-900">🔍 {t('scanner.smartSearch')}</h3>
+                <p className="text-sm text-gray-500">{t('scanner.searchItemsNotAvailable')}</p>
               </div>
 
               <div className="p-6" style={{ minHeight: '300px' }}>

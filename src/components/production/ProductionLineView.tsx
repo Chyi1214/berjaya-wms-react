@@ -21,9 +21,9 @@ export function ProductionLineView({ onZoneSelect }: ProductionLineViewProps) {
   const [zones, setZones] = useState<ZoneStatus[]>([]);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
 
-  // Initialize zones
+  // Initialize zones (includes CP7 and CP8)
   useEffect(() => {
-    const initialZones: ZoneStatus[] = Array.from({ length: 23 }, (_, i) => ({
+    const initialZones: ZoneStatus[] = Array.from({ length: 25 }, (_, i) => ({
       id: i + 1,
       workStation: null,
       currentCar: null,
@@ -182,7 +182,7 @@ export function ProductionLineView({ onZoneSelect }: ProductionLineViewProps) {
                   {/* Left: Zone Number & Status */}
                   <div className="flex items-center space-x-3">
                     <div className="text-2xl font-bold text-gray-700 min-w-[60px]">
-                      Zone {zone.id}
+                      {zone.id === 24 ? 'CP7' : zone.id === 25 ? 'CP8' : `Zone ${zone.id}`}
                     </div>
                     <div className="text-lg">
                       {zone.loading ? '⚪' : getStatusIndicator(zone.status)}

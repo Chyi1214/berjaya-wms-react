@@ -31,7 +31,7 @@ export const ProductionInfoBoard = memo(function ProductionInfoBoard({
       console.log('WorkStations data:', workStations.slice(0, 3));
       
       const zoneInfos: ZoneInfo[] = await Promise.all(
-        Array.from({ length: 23 }, (_, i) => i + 1).map(async (zoneId) => {
+        Array.from({ length: 25 }, (_, i) => i + 1).map(async (zoneId) => {
           const station = workStations.find((s: WorkStation) => s.zoneId === zoneId);
           
           // Debug: Log station data for first few zones

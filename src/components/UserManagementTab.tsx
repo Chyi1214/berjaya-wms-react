@@ -110,7 +110,7 @@ export function UserManagementTab({ onRefresh }: UserManagementTabProps) {
           <h2 className="text-lg font-medium text-gray-900">👥 User Management</h2>
           <p className="text-sm text-gray-500">Manage user accounts, roles, and permissions</p>
         </div>
-        {isDevAdmin && (
+        {canManageUsers && (
           <button
             onClick={() => setShowAddUser(true)}
             disabled={isLoading}
@@ -140,10 +140,10 @@ export function UserManagementTab({ onRefresh }: UserManagementTabProps) {
           </div>
         </div>
       ) : (
-        <UserListTable 
+        <UserListTable
           users={filteredUsers}
           isLoading={isLoading}
-          isDevAdmin={isDevAdmin}
+          canManageUsers={canManageUsers}
           onEditUser={setEditingUser}
           onToggleUserStatus={handleToggleUserStatus}
           onDeleteUser={handleDeleteUser}

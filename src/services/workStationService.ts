@@ -288,16 +288,16 @@ class WorkStationService {
     }
   }
 
-  // Initialize all work stations (zones 1-23)
+  // Initialize all work stations (zones 1-25, includes CP7 and CP8)
   async initializeAllStations(): Promise<void> {
     try {
       const promises = [];
-      for (let zoneId = 1; zoneId <= 23; zoneId++) {
+      for (let zoneId = 1; zoneId <= 25; zoneId++) {
         promises.push(this.createDefaultWorkStation(zoneId));
       }
-      
+
       await Promise.all(promises);
-      console.log('✅ Initialized all work stations (1-23)');
+      console.log('✅ Initialized all work stations (1-25)');
     } catch (error) {
       console.error('Failed to initialize work stations:', error);
     }

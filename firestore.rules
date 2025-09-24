@@ -32,11 +32,12 @@ service cloud.firestore {
         (isAuthenticated() && getUserRecord().data.isActive == true);
     }
 
-    // Users collection - DevAdmin and users can read their own record
+    // Users collection - DevAdmin and managers for HR, users can read their own record
     match /users/{email} {
-      allow read: if isDevAdmin() || (isAuthenticated() && request.auth.token.email == email);
-      allow write: if isDevAdmin() || (isAuthenticated() && request.auth.token.email == email);
-      allow list: if isDevAdmin();
+      allow read: if isDevAdmin() || hasRole('manager') || (isAuthenticated() && request.auth.token.email == email);
+      allow write: if isDevAdmin() || hasRole('manager') || (isAuthenticated() && request.auth.token.email == email);
+      allow list: if isDevAdmin() || hasRole('manager');
+      allow create: if isDevAdmin() || hasRole('manager');
     }
     
     // Inventory counts - role-based access
@@ -83,9 +84,9 @@ service cloud.firestore {
     
     // Item master list - role-based CRUD
     match /item_master/{document} {
-      allow read: if isActiveUser() && hasPermission('itemMaster', 'view');
-      allow create: if isActiveUser() && hasPermission('itemMaster', 'add');
-      allow update: if isActiveUser() && hasPermission('itemMaster', 'edit');
+      allow read: if isActiveUser() && (hasRole('manager') || hasRole('supervisor') || hasRole('logistics') || hasRole('production') || hasRole('qa') || hasRole('viewer') || hasPermission('itemMaster', 'view'));
+      allow create: if isDevAdmin() || hasRole('manager') || (isActiveUser() && hasPermission('itemMaster', 'add'));
+      allow update: if isDevAdmin() || hasRole('manager') || (isActiveUser() && hasPermission('itemMaster', 'edit'));
       allow delete: if isDevAdmin() || hasPermission('itemMaster', 'delete');
     }
     

@@ -16,6 +16,7 @@ export function LanguageSwitcher({
   const { currentLanguage, setLanguage, languages } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const [dropdownPosition, setDropdownPosition] = useState<'down' | 'up'>('down');
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -50,16 +51,39 @@ export function LanguageSwitcher({
     }
   };
 
+  // Check dropdown position to avoid going off-screen
+  const checkDropdownPosition = () => {
+    if (dropdownRef.current) {
+      const rect = dropdownRef.current.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      const spaceBelow = viewportHeight - rect.bottom;
+      const estimatedDropdownHeight = languages.length * 60; // Approximate height per item
+
+      if (spaceBelow < estimatedDropdownHeight && rect.top > estimatedDropdownHeight) {
+        setDropdownPosition('up');
+      } else {
+        setDropdownPosition('down');
+      }
+    }
+  };
+
   const handleLanguageSelect = (languageCode: string) => {
     setLanguage(languageCode as any);
     setIsOpen(false);
+  };
+
+  const toggleDropdown = () => {
+    if (!isOpen) {
+      checkDropdownPosition();
+    }
+    setIsOpen(!isOpen);
   };
 
   return (
     <div className={`relative ${className}`} ref={dropdownRef}>
       {/* Language Button */}
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={toggleDropdown}
         className={`
           ${sizeClasses[size].button}
           flex items-center space-x-2 bg-white border border-gray-300 rounded-lg 
@@ -89,17 +113,27 @@ export function LanguageSwitcher({
 
       {/* Dropdown Menu */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+        <div
+          className={`
+            absolute right-0 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-50
+            overflow-y-auto transform -translate-x-0 sm:translate-x-0
+            ${dropdownPosition === 'up' ? 'bottom-full mb-2' : 'top-full mt-2'}
+          `}
+          style={{
+            maxHeight: dropdownPosition === 'up'
+              ? 'min(16rem, calc(100vh - 100px))'
+              : 'min(16rem, 50vh)'
+          }}>
           <div className="py-1">
             {languages.map((language) => (
               <button
                 key={language.code}
                 onClick={() => handleLanguageSelect(language.code)}
                 className={`
-                  w-full px-4 py-2 text-left hover:bg-gray-50 transition-colors duration-150
-                  ${sizeClasses[size].dropdown} flex items-center space-x-3
-                  ${currentLanguage === language.code 
-                    ? 'bg-blue-50 text-blue-700 font-medium' 
+                  w-full px-4 py-3 sm:py-2 text-left hover:bg-gray-50 transition-colors duration-150
+                  ${sizeClasses[size].dropdown} flex items-center space-x-3 touch-manipulation
+                  ${currentLanguage === language.code
+                    ? 'bg-blue-50 text-blue-700 font-medium'
                     : 'text-gray-700'
                   }
                 `}

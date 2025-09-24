@@ -160,6 +160,10 @@ class ToolCheckService {
       const submissionId = `submission_${taskId}_${zone}_${Date.now()}`;
       const now = new Date();
 
+      logger.info('Starting tool check submission', {
+        submissionId, taskId, configId, workerEmail, zone, itemCount: itemResults.length
+      });
+
       const submission: ToolCheckSubmission = {
         id: submissionId,
         taskId,
@@ -172,11 +176,14 @@ class ToolCheckService {
       };
 
       // Save submission
+      logger.info('Saving submission to Firestore');
       const docRef = doc(db, TOOL_CHECK_SUBMISSIONS_COLLECTION, submissionId);
       const firestoreData = this.prepareSubmissionForFirestore(submission);
       await setDoc(docRef, firestoreData);
+      logger.info('Submission saved successfully');
 
       // Update task progress
+      logger.info('Updating task progress');
       await taskService.interactWithTask({
         taskId,
         action: 'complete',
@@ -191,10 +198,12 @@ class ToolCheckService {
           notes: `Tool check completed for zone ${zone}`
         }
       }, workerEmail);
+      logger.info('Task progress updated successfully');
 
-      logger.info('Tool check submitted', { submissionId, taskId, zone });
+      logger.info('Tool check submitted successfully', { submissionId, taskId, zone });
     } catch (error) {
       logger.error('Failed to submit tool check', error);
+      console.error('Tool check submission error details:', error);
       throw new Error('Failed to submit tool check');
     }
   }
@@ -299,10 +308,33 @@ class ToolCheckService {
   // Helper methods for Firestore conversion
 
   private prepareSubmissionForFirestore(submission: ToolCheckSubmission): any {
-    return {
+    const data: any = {
       ...submission,
       submittedAt: Timestamp.fromDate(submission.submittedAt)
     };
+
+    // Clean items array to remove undefined fields
+    if (data.items) {
+      data.items = data.items.map((item: any) => {
+        const cleanItem: any = {};
+        Object.keys(item).forEach(key => {
+          if (item[key] !== undefined) {
+            cleanItem[key] = item[key];
+          }
+        });
+        return cleanItem;
+      });
+    }
+
+    // Remove undefined fields from top level
+    const cleanData: any = {};
+    Object.keys(data).forEach((key: string) => {
+      if (data[key] !== undefined) {
+        cleanData[key] = data[key];
+      }
+    });
+
+    return cleanData;
   }
 
   private mapFirestoreToConfig(id: string, data: any): ToolCheckConfig {
