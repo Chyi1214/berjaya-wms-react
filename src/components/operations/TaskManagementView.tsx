@@ -86,7 +86,17 @@ export function TaskManagementView({ onRefresh }: TaskManagementViewProps) {
             Back to Tasks
           </button>
         </div>
-        <ToolCheckDashboard taskId={selectedTaskId} />
+        <ToolCheckDashboard
+          taskId={selectedTaskId}
+          onClose={() => {
+            setActiveView('overview');
+            setSelectedTaskId(null);
+          }}
+          onTaskDeleted={() => {
+            // Refresh the task list after deletion
+            loadTasks();
+          }}
+        />
       </div>
     );
   }

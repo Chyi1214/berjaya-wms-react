@@ -247,12 +247,19 @@ class ToolCheckService {
 
   // Build dashboard aggregated data
   private buildDashboardData(
-    config: ToolCheckConfig, 
-    taskId: string, 
+    config: ToolCheckConfig,
+    taskId: string,
     submissions: ToolCheckSubmission[]
   ): ToolCheckDashboardData {
     const completionStatus: { [zoneId: number]: any } = {};
     const summaryGrid: { [itemId: string]: { [zoneId: number]: any } } = {};
+
+    logger.info('Building dashboard data', {
+      taskId,
+      configItems: config.items.map(i => ({ id: i.id, name: i.name })),
+      targetZones: config.targetZones,
+      submissionCount: submissions.length
+    });
 
     // Initialize grid structure
     config.items.forEach(item => {
@@ -276,6 +283,12 @@ class ToolCheckService {
 
     // Process submissions
     submissions.forEach(submission => {
+      logger.info('Processing submission', {
+        zone: submission.zone,
+        itemCount: submission.items.length,
+        itemIds: submission.items.map(i => i.itemId)
+      });
+
       // Mark zone as completed
       completionStatus[submission.zone] = {
         completed: true,
@@ -285,16 +298,60 @@ class ToolCheckService {
 
       // Fill in item results
       submission.items.forEach(itemResult => {
-        if (summaryGrid[itemResult.itemId] && summaryGrid[itemResult.itemId][submission.zone]) {
-          const gridCell = summaryGrid[itemResult.itemId][submission.zone];
-          gridCell.actualCount = itemResult.actualCount;
-          gridCell.status = itemResult.status;
-          gridCell.extraFieldValue = itemResult.extraFieldValue;
+        // Check if the item ID exists in our config
+        const configItem = config.items.find(item => item.id === itemResult.itemId);
+        if (!configItem) {
+          logger.warn('Item result has no matching config item', {
+            itemId: itemResult.itemId,
+            availableConfigItems: config.items.map(i => i.id)
+          });
+          return;
         }
+
+        // Check if zone exists in target zones
+        if (!config.targetZones.includes(submission.zone)) {
+          logger.warn('Submission zone not in target zones', {
+            zone: submission.zone,
+            targetZones: config.targetZones
+          });
+          return;
+        }
+
+        // Ensure grid structure exists
+        if (!summaryGrid[itemResult.itemId]) {
+          logger.warn('Missing summaryGrid entry for item', { itemId: itemResult.itemId });
+          summaryGrid[itemResult.itemId] = {};
+        }
+
+        if (!summaryGrid[itemResult.itemId][submission.zone]) {
+          logger.warn('Missing summaryGrid entry for zone', {
+            itemId: itemResult.itemId,
+            zone: submission.zone
+          });
+          summaryGrid[itemResult.itemId][submission.zone] = {
+            actualCount: 0,
+            expectedCount: configItem.expectedCount,
+            status: 'pending' as const,
+            extraFieldValue: undefined
+          };
+        }
+
+        // Update the grid cell with submission data
+        const gridCell = summaryGrid[itemResult.itemId][submission.zone];
+        gridCell.actualCount = itemResult.actualCount;
+        gridCell.status = itemResult.status;
+        gridCell.extraFieldValue = itemResult.extraFieldValue;
+
+        logger.info('Updated grid cell', {
+          itemId: itemResult.itemId,
+          zone: submission.zone,
+          status: itemResult.status,
+          actualCount: itemResult.actualCount
+        });
       });
     });
 
-    return {
+    const result = {
       configId: config.id,
       taskId,
       items: config.items,
@@ -303,6 +360,15 @@ class ToolCheckService {
       completionStatus,
       summaryGrid
     };
+
+    logger.info('Dashboard data built successfully', {
+      itemCount: result.items.length,
+      zoneCount: result.zones.length,
+      completedZones: Object.keys(completionStatus).filter(z => completionStatus[parseInt(z)].completed).length,
+      summaryGridKeys: Object.keys(summaryGrid)
+    });
+
+    return result;
   }
 
   // Helper methods for Firestore conversion

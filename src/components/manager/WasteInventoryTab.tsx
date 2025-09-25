@@ -1,20 +1,13 @@
-// Waste Inventory Tab - Shows waste and lost items reported from production zones
+// Waste Inventory Tab - Shows individual waste/lost/defect reports
 import { useState, useEffect } from 'react';
-import { InventoryCountEntry } from '../../types';
-import { tableStateService } from '../../services/tableState';
-
-interface WasteEntry extends InventoryCountEntry {
-  zoneId?: string;
-  reason?: string;
-  type?: 'WASTE' | 'LOST' | 'DEFECT';
-  detailedReason?: string;
-}
+import { wasteReportService, type WasteReport } from '../../services/wasteReportService';
 
 export function WasteInventoryTab() {
-  const [wasteEntries, setWasteEntries] = useState<WasteEntry[]>([]);
-  const [filteredEntries, setFilteredEntries] = useState<WasteEntry[]>([]);
+  const [wasteReports, setWasteReports] = useState<WasteReport[]>([]);
+  const [filteredReports, setFilteredReports] = useState<WasteReport[]>([]);
+  const [selectedReport, setSelectedReport] = useState<WasteReport | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedTypeFilter, setSelectedTypeFilter] = useState<'ALL' | 'WASTE' | 'LOST' | 'DEFECT' | 'LEGACY'>('ALL');
+  const [selectedTypeFilter, setSelectedTypeFilter] = useState<'ALL' | 'WASTE' | 'LOST' | 'DEFECT'>('ALL');
   const [summary, setSummary] = useState({
     totalItems: 0,
     totalQuantity: 0,
@@ -25,113 +18,58 @@ export function WasteInventoryTab() {
   });
 
   useEffect(() => {
-    loadWasteEntries();
+    loadWasteReports();
   }, []);
 
   useEffect(() => {
-    applyTypeFilter(wasteEntries, selectedTypeFilter);
-  }, [selectedTypeFilter, wasteEntries]);
+    applyTypeFilter(wasteReports, selectedTypeFilter);
+  }, [selectedTypeFilter, wasteReports]);
 
-  const applyTypeFilter = (entries: WasteEntry[], filter: string) => {
-    let filtered = entries;
+  const applyTypeFilter = (reports: WasteReport[], filter: string) => {
+    let filtered = reports;
 
     switch (filter) {
       case 'WASTE':
-        filtered = entries.filter(entry => entry.type === 'WASTE');
+        filtered = reports.filter(report => report.type === 'WASTE');
         break;
       case 'LOST':
-        filtered = entries.filter(entry => entry.type === 'LOST');
+        filtered = reports.filter(report => report.type === 'LOST');
         break;
       case 'DEFECT':
-        filtered = entries.filter(entry => entry.type === 'DEFECT');
-        break;
-      case 'LEGACY':
-        filtered = entries.filter(entry => !entry.type);
+        filtered = reports.filter(report => report.type === 'DEFECT');
         break;
       case 'ALL':
       default:
-        filtered = entries;
+        filtered = reports;
         break;
     }
 
-    setFilteredEntries(filtered);
+    setFilteredReports(filtered);
   };
 
-  const loadWasteEntries = async () => {
+  const loadWasteReports = async () => {
     setIsLoading(true);
     try {
-      // Get all inventory entries from waste_lost locations (both old and new format)
-      const allCounts = await tableStateService.getExpectedInventory();
-      const wasteItems = allCounts.filter(entry =>
-        entry.location.startsWith('waste_lost_zone_') || // Old production format
-        entry.location.startsWith('waste_lost_logistics') || // New logistics format
-        entry.location.startsWith('waste_lost_production_zone_') // New production format
-      );
-
-      // Extract location information and parse types from console logs
-      const enrichedWasteItems: WasteEntry[] = wasteItems.map(entry => {
-        let zoneId = '';
-
-        if (entry.location.startsWith('waste_lost_zone_')) {
-          // Old format: waste_lost_zone_1
-          zoneId = entry.location.replace('waste_lost_zone_', '');
-        } else if (entry.location.startsWith('waste_lost_logistics')) {
-          // New format: waste_lost_logistics
-          zoneId = 'logistics';
-        } else if (entry.location.startsWith('waste_lost_production_zone_')) {
-          // New format: waste_lost_production_zone_1
-          zoneId = entry.location.replace('waste_lost_production_zone_', '');
-        }
-
-        // Extract type and reason from countedBy field or notes
-        // New entries have format like: "[WASTE] reason text | Rejection: ..."
-        const reasonText = entry.notes || '';
-        let type: 'WASTE' | 'LOST' | 'DEFECT' | undefined;
-        let detailedReason = reasonText;
-
-        if (reasonText.includes('[WASTE]')) {
-          type = 'WASTE';
-          detailedReason = reasonText.replace('[WASTE]', '').trim();
-        } else if (reasonText.includes('[LOST]')) {
-          type = 'LOST';
-          detailedReason = reasonText.replace('[LOST]', '').trim();
-        } else if (reasonText.includes('[DEFECT]')) {
-          type = 'DEFECT';
-          detailedReason = reasonText.replace('[DEFECT]', '').trim();
-        }
-
-        return {
-          ...entry,
-          zoneId,
-          reason: reasonText || 'No reason provided',
-          type,
-          detailedReason: detailedReason || 'No reason provided'
-        };
-      }).sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-
-      setWasteEntries(enrichedWasteItems);
+      // Get all individual waste reports from new collection
+      const reports = await wasteReportService.getAllWasteReports();
+      setWasteReports(reports);
 
       // Calculate summary statistics
-      const zones = new Set(enrichedWasteItems.map(item => item.zoneId));
-      const totalQuantity = enrichedWasteItems.reduce((sum, item) => sum + Math.abs(item.amount), 0);
-      const wasteCount = enrichedWasteItems.filter(item => item.type === 'WASTE').length;
-      const lostCount = enrichedWasteItems.filter(item => item.type === 'LOST').length;
-      const defectCount = enrichedWasteItems.filter(item => item.type === 'DEFECT').length;
-
+      const summary = await wasteReportService.getWasteSummary();
       setSummary({
-        totalItems: enrichedWasteItems.length,
-        totalQuantity: totalQuantity,
-        zoneCount: zones.size,
-        wasteCount,
-        lostCount,
-        defectCount
+        totalItems: summary.totalReports,
+        totalQuantity: summary.totalQuantity,
+        zoneCount: summary.locationsCount,
+        wasteCount: summary.wasteCount,
+        lostCount: summary.lostCount,
+        defectCount: summary.defectCount
       });
 
       // Apply initial filter
-      applyTypeFilter(enrichedWasteItems, selectedTypeFilter);
+      applyTypeFilter(reports, selectedTypeFilter);
 
     } catch (error) {
-      console.error('Failed to load waste entries:', error);
+      console.error('Failed to load waste reports:', error);
     } finally {
       setIsLoading(false);
     }
@@ -142,8 +80,8 @@ export function WasteInventoryTab() {
     return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
   };
 
-  const getZoneColor = (zoneId: string) => {
-    if (zoneId === 'logistics') {
+  const getLocationColor = (location: string) => {
+    if (location === 'logistics') {
       return 'bg-blue-100 text-blue-800';
     }
     const colors = [
@@ -152,11 +90,11 @@ export function WasteInventoryTab() {
       'bg-orange-50 text-orange-700',
       'bg-red-50 text-red-700'
     ];
-    const hash = zoneId.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
+    const hash = location.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
     return colors[hash % colors.length];
   };
 
-  const getTypeColor = (type?: string) => {
+  const getTypeColor = (type: string) => {
     switch (type) {
       case 'WASTE': return 'bg-red-100 text-red-800 border-red-200';
       case 'LOST': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
@@ -165,20 +103,13 @@ export function WasteInventoryTab() {
     }
   };
 
-  const getTypeEmoji = (type?: string) => {
+  const getTypeEmoji = (type: string) => {
     switch (type) {
       case 'WASTE': return '🔥';
       case 'LOST': return '❓';
       case 'DEFECT': return '⚠️';
       default: return '📦';
     }
-  };
-
-  const getZoneDisplay = (entry: WasteEntry) => {
-    if (entry.zoneId === 'logistics') {
-      return 'Logistics';
-    }
-    return `Zone ${entry.zoneId}`;
   };
 
   if (isLoading) {
@@ -204,7 +135,7 @@ export function WasteInventoryTab() {
           </p>
         </div>
         <button
-          onClick={loadWasteEntries}
+          onClick={loadWasteReports}
           className="btn-secondary text-sm"
         >
           <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -245,7 +176,7 @@ export function WasteInventoryTab() {
       {/* Type Filter Buttons */}
       <div className="bg-white rounded-lg border border-gray-200 p-4">
         <div className="flex flex-wrap gap-2">
-          {(['ALL', 'WASTE', 'LOST', 'DEFECT', 'LEGACY'] as const).map((filter) => (
+          {(['ALL', 'WASTE', 'LOST', 'DEFECT'] as const).map((filter) => (
             <button
               key={filter}
               onClick={() => setSelectedTypeFilter(filter)}
@@ -255,32 +186,31 @@ export function WasteInventoryTab() {
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
-              {filter === 'ALL' && '📋 All Items'}
+              {filter === 'ALL' && '📋 All Reports'}
               {filter === 'WASTE' && '🔥 Waste'}
               {filter === 'LOST' && '❓ Lost'}
               {filter === 'DEFECT' && '⚠️ Defect'}
-              {filter === 'LEGACY' && '📦 Legacy'}
             </button>
           ))}
         </div>
         <div className="mt-2 text-sm text-gray-600">
-          Showing {filteredEntries.length} of {summary.totalItems} items
+          Showing {filteredReports.length} of {summary.totalItems} reports
         </div>
       </div>
 
-      {/* Waste Entries Table */}
-      {filteredEntries.length === 0 ? (
+      {/* Waste Reports Table */}
+      {filteredReports.length === 0 ? (
         <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
           <div className="text-4xl mb-4">✅</div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No Waste Items</h3>
-          <p className="text-gray-600">No waste or lost items have been reported yet.</p>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No Waste Reports</h3>
+          <p className="text-gray-600">No waste, lost, or defect reports have been submitted yet.</p>
         </div>
       ) : (
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-200">
-            <h4 className="font-medium text-gray-900">Waste & Lost Reports</h4>
+            <h4 className="font-medium text-gray-900">Individual Waste Reports</h4>
           </div>
-          
+
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
@@ -289,7 +219,7 @@ export function WasteInventoryTab() {
                     Date & Time
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Zone
+                    Location
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Type
@@ -309,38 +239,46 @@ export function WasteInventoryTab() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {filteredEntries.map((entry, index) => (
-                  <tr key={index} className="hover:bg-gray-50">
+                {filteredReports.map((report) => (
+                  <tr key={report.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {formatDateTime(entry.timestamp)}
+                      {formatDateTime(report.reportedAt)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getZoneColor(entry.zoneId || '')}`}>
-                        {getZoneDisplay(entry)}
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getLocationColor(report.location)}`}>
+                        {report.locationDisplay}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium border ${getTypeColor(entry.type)}`}>
-                        <span className="mr-1">{getTypeEmoji(entry.type)}</span>
-                        {entry.type || 'LEGACY'}
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium border ${getTypeColor(report.type)}`}>
+                        <span className="mr-1">{getTypeEmoji(report.type)}</span>
+                        {report.type}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900">
-                      <div className="font-medium">{entry.sku}</div>
-                      <div className="text-gray-500">{entry.itemName}</div>
+                      <div className="font-medium">{report.sku}</div>
+                      <div className="text-gray-500">{report.itemName}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                        -{Math.abs(entry.amount)}
+                        {report.quantity}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600">
-                      <div className="max-w-xs truncate" title={entry.reason}>
-                        {entry.reason}
+                      <div className="flex items-center gap-2">
+                        <div className="max-w-xs truncate" title={report.reason}>
+                          {report.reason || 'No reason provided'}
+                        </div>
+                        <button
+                          onClick={() => setSelectedReport(report)}
+                          className="text-blue-600 hover:text-blue-800 text-xs font-medium underline"
+                        >
+                          View Details
+                        </button>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                      {entry.countedBy}
+                      {report.reportedBy}
                     </td>
                   </tr>
                 ))}
@@ -351,25 +289,26 @@ export function WasteInventoryTab() {
       )}
 
       {/* Export Options */}
-      {wasteEntries.length > 0 && (
+      {filteredReports.length > 0 && (
         <div className="bg-white rounded-lg border border-gray-200 p-4">
           <h4 className="font-medium text-gray-900 mb-3">Export Options</h4>
           <div className="flex gap-2">
             <button
               onClick={() => {
                 const csvContent = [
-                  ['Date', 'Zone', 'SKU', 'Item Name', 'Quantity', 'Reason', 'Reported By'].join(','),
-                  ...wasteEntries.map(entry => [
-                    formatDateTime(entry.timestamp),
-                    `Zone ${entry.zoneId}`,
-                    entry.sku,
-                    entry.itemName,
-                    Math.abs(entry.amount),
-                    entry.reason,
-                    entry.countedBy
+                  ['Date', 'Location', 'Type', 'SKU', 'Item Name', 'Quantity', 'Reason', 'Reported By'].join(','),
+                  ...filteredReports.map(report => [
+                    formatDateTime(report.reportedAt),
+                    report.locationDisplay,
+                    report.type,
+                    report.sku,
+                    report.itemName,
+                    report.quantity,
+                    report.reason?.replace(/,/g, ';') || '',
+                    report.reportedBy
                   ].join(','))
                 ].join('\n');
-                
+
                 const blob = new Blob([csvContent], { type: 'text/csv' });
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -382,6 +321,163 @@ export function WasteInventoryTab() {
             >
               📊 Export CSV
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Report Details Modal */}
+      {selectedReport && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg max-w-2xl max-h-screen overflow-y-auto p-6 m-4">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center">
+                <span className="text-2xl mr-2">{getTypeEmoji(selectedReport.type)}</span>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  {selectedReport.type} Report Details
+                </h3>
+              </div>
+              <button
+                onClick={() => setSelectedReport(null)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Basic Information */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">SKU</label>
+                  <p className="text-sm text-gray-900">{selectedReport.sku}</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Item Name</label>
+                  <p className="text-sm text-gray-900">{selectedReport.itemName}</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Quantity</label>
+                  <p className="text-sm text-gray-900">{selectedReport.quantity}</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Location</label>
+                  <p className="text-sm text-gray-900">{selectedReport.locationDisplay}</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Reported By</label>
+                  <p className="text-sm text-gray-900">{selectedReport.reportedBy}</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Date & Time</label>
+                  <p className="text-sm text-gray-900">{formatDateTime(selectedReport.reportedAt)}</p>
+                </div>
+              </div>
+
+              {/* Reason */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Reason</label>
+                <p className="text-sm text-gray-900 bg-gray-50 p-3 rounded border">
+                  {selectedReport.reason || 'No reason provided'}
+                </p>
+              </div>
+
+              {/* Detailed Reason */}
+              {selectedReport.detailedReason && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Detailed Description</label>
+                  <p className="text-sm text-gray-900 bg-gray-50 p-3 rounded border">
+                    {selectedReport.detailedReason}
+                  </p>
+                </div>
+              )}
+
+              {/* DEFECT-specific fields */}
+              {selectedReport.type === 'DEFECT' && (
+                <div className="border-t pt-4">
+                  <h4 className="font-medium text-gray-900 mb-3">🔍 Defect Details</h4>
+
+                  {selectedReport.rejectionReasons && selectedReport.rejectionReasons.length > 0 && (
+                    <div className="mb-3">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Rejection Reasons</label>
+                      <div className="bg-gray-50 p-3 rounded border">
+                        {selectedReport.rejectionReasons.map((reason, index) => (
+                          <div key={index} className="text-sm text-gray-900">
+                            • {reason}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedReport.customReason && (
+                    <div className="mb-3">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Custom Reason</label>
+                      <p className="text-sm text-gray-900 bg-gray-50 p-3 rounded border">
+                        {selectedReport.customReason}
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-4 mb-3">
+                    {selectedReport.totalLotQuantity && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Total Lot Quantity</label>
+                        <p className="text-sm text-gray-900">{selectedReport.totalLotQuantity}</p>
+                      </div>
+                    )}
+                    {selectedReport.shift && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Shift</label>
+                        <p className="text-sm text-gray-900">{selectedReport.shift}</p>
+                      </div>
+                    )}
+                    {selectedReport.detectedBy && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Detected By</label>
+                        <p className="text-sm text-gray-900">{selectedReport.detectedBy}</p>
+                      </div>
+                    )}
+                    {selectedReport.actionTaken && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Action Taken</label>
+                        <p className="text-sm text-gray-900">{selectedReport.actionTaken}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Claim Report */}
+                  {selectedReport.claimReport && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">📋 Generated Claim Report</label>
+                      <div className="bg-gray-900 text-gray-100 p-4 rounded font-mono text-xs overflow-x-auto">
+                        <pre>{selectedReport.claimReport}</pre>
+                      </div>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(selectedReport.claimReport!);
+                          // You could add a toast notification here
+                        }}
+                        className="mt-2 text-sm text-blue-600 hover:text-blue-800"
+                      >
+                        📋 Copy Claim Report
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Close Button */}
+            <div className="flex justify-end mt-6">
+              <button
+                onClick={() => setSelectedReport(null)}
+                className="btn-primary"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

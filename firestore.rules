@@ -328,7 +328,21 @@ service cloud.firestore {
       allow create: if isDevAdmin() || hasRole('manager');  // Only managers can create tasks
       allow update: if isActiveUser() && (
         // Workers can update task status, managers can update all fields
-        hasRole('production') || hasRole('logistics') || 
+        hasRole('production') || hasRole('logistics') ||
+        hasRole('supervisor') || hasRole('manager')
+      );
+      allow delete: if isDevAdmin() || hasRole('manager');
+    }
+
+    // Waste reports collection - Individual waste/lost/defect report tracking
+    match /waste_reports/{document} {
+      allow read: if isActiveUser();  // All authenticated users can read waste reports
+      allow create: if isActiveUser() && (
+        hasRole('production') || hasRole('logistics') ||
+        hasRole('supervisor') || hasRole('manager')
+      );
+      allow update: if isActiveUser() && (
+        // Only managers and supervisors can update existing reports
         hasRole('supervisor') || hasRole('manager')
       );
       allow delete: if isDevAdmin() || hasRole('manager');

@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { User } from '../../types';
 import { tableStateService } from '../../services/tableState';
 import { combinedSearchService } from '../../services/combinedSearch';
+import { wasteReportService, type WasteReport } from '../../services/wasteReportService';
 
 interface WasteLostDefectViewProps {
   user: User;
@@ -119,8 +120,38 @@ export function WasteLostDefectView({ user, location, locationDisplay, onBack }:
   };
 
   const addEntry = () => {
-    if (!currentEntry.sku || !currentEntry.itemName || currentEntry.quantity < 1) {
-      setError('Please select an item and enter a valid quantity');
+    const missingFields: string[] = [];
+
+    // Check required fields for all types
+    if (!currentEntry.sku || !currentEntry.itemName) {
+      missingFields.push('Item selection');
+    }
+    if (currentEntry.quantity < 1) {
+      missingFields.push('Valid quantity (must be greater than 0)');
+    }
+    if (!currentEntry.reason?.trim()) {
+      missingFields.push('Reason');
+    }
+
+    // Additional validation for DEFECT type
+    if (currentEntry.type === 'DEFECT') {
+      if (selectedRejectionReasons.length === 0 && !currentEntry.customReason?.trim()) {
+        missingFields.push('At least one rejection reason (checkboxes or custom reason)');
+      }
+      if (!currentEntry.detectedBy?.trim()) {
+        missingFields.push('Detected By');
+      }
+      if (!currentEntry.actionTaken?.trim()) {
+        missingFields.push('Action Taken');
+      }
+      if (!currentEntry.totalLotQuantity || currentEntry.totalLotQuantity < 1) {
+        missingFields.push('Total Lot Quantity');
+      }
+    }
+
+    // Show specific error message
+    if (missingFields.length > 0) {
+      setError(`Please fill the following required fields:\n• ${missingFields.join('\n• ')}`);
       return;
     }
 
@@ -202,35 +233,51 @@ Checked / Verified By: ________________________ Signature: _____________________
           user.email
         );
 
-        // 2. CREATE tracking record with type tag in waste location
-        await tableStateService.addToInventoryCountWithNotes(
-          entry.sku,
-          entry.itemName,
-          entry.quantity, // Positive quantity for tracking
-          `waste_lost_${location}`, // Tracking location
-          user.email,
-          reasonWithType // Store type and reason in notes field
-        );
-
-        // 3. Log detailed tracking information including reasons
-        console.log(`${entry.type} Item Logged:`, {
+        // 2. CREATE individual waste report (NEW SYSTEM)
+        const wasteReport: Omit<WasteReport, 'id' | 'reportedAt'> = {
           sku: entry.sku,
           itemName: entry.itemName,
           quantity: entry.quantity,
-          type: entry.type,
           location: location,
-          reason: reasonWithType,
-          timestamp: new Date().toISOString()
-        });
+          locationDisplay: locationDisplay,
+          type: entry.type,
+          reason: entry.reason || '',
+          detailedReason: reasonWithType,
+          reportedBy: user.email
+        };
 
-        // 4. For DEFECT items, generate formal claim report
+        // Add DEFECT-specific fields only if they have values (avoid undefined)
+        if (entry.type === 'DEFECT') {
+          if (entry.rejectionReason && entry.rejectionReason.length > 0) {
+            wasteReport.rejectionReasons = entry.rejectionReason;
+          }
+          if (entry.customReason) {
+            wasteReport.customReason = entry.customReason;
+          }
+          if (entry.totalLotQuantity) {
+            wasteReport.totalLotQuantity = entry.totalLotQuantity;
+          }
+          if (entry.shift) {
+            wasteReport.shift = entry.shift;
+          }
+          if (entry.detectedBy) {
+            wasteReport.detectedBy = entry.detectedBy;
+          }
+          if (entry.actionTaken) {
+            wasteReport.actionTaken = entry.actionTaken;
+          }
+        }
+
+        // Generate claim report for DEFECT items
         if (entry.type === 'DEFECT') {
           const claimReport = generateClaimReport(entry);
+          wasteReport.claimReport = claimReport;
           console.log(`🚨 DEFECT CLAIM REPORT for ${entry.sku}:`, claimReport);
-
-          // Could also store this in a separate claims collection for formal tracking
-          // await claimsService.createClaimReport(entry, claimReport);
         }
+
+        // Save individual report
+        const reportId = await wasteReportService.createWasteReport(wasteReport);
+        console.log(`✅ Individual ${entry.type} report created:`, reportId);
       }
 
       const wasteCount = entries.filter(e => e.type === 'WASTE').length;
@@ -295,11 +342,11 @@ Checked / Verified By: ________________________ Signature: _____________________
         {/* Error Message */}
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-            <div className="flex items-center">
-              <svg className="w-5 h-5 text-red-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+            <div className="flex items-start">
+              <svg className="w-5 h-5 text-red-500 mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
               </svg>
-              <span className="text-red-800">{error}</span>
+              <div className="text-red-800 whitespace-pre-line">{error}</div>
             </div>
           </div>
         )}
