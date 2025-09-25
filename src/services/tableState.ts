@@ -381,6 +381,26 @@ class TableStateService {
     return { resetCount };
   }
 
+  // Get count of unboxed boxes (unique SKUs in logistics location)
+  async getUnboxedBoxesCount(): Promise<number> {
+    try {
+      const inventory = await this.getExpectedInventory();
+
+      // Count unique SKUs in logistics location (unboxed items)
+      const unboxedItems = inventory.filter(item =>
+        item.location === 'logistics'
+      );
+
+      // Count unique SKUs (boxes) rather than total quantities
+      const uniqueSKUs = new Set(unboxedItems.map(item => item.sku));
+
+      return uniqueSKUs.size;
+    } catch (error) {
+      console.error('Failed to get unboxed boxes count:', error);
+      return 0;
+    }
+  }
+
   // Clear all table state data
   async clearAllTableState(): Promise<void> {
     console.log('🧹 Clearing all table state from Firebase...');

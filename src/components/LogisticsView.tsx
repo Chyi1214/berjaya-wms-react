@@ -6,7 +6,7 @@ import InventoryCountForm from './InventoryCountForm';
 import TransactionSendForm from './TransactionSendForm';
 import TransactionOTPDisplay from './TransactionOTPDisplay';
 import UnifiedScannerView from './scanner/UnifiedScannerView';
-import { LogisticsMonitorDashboard } from './logistics/LogisticsMonitorDashboard';
+import { UnifiedLogisticsMonitor } from './logistics/UnifiedLogisticsMonitor';
 import WasteLostDefectView from './common/WasteLostDefectView';
 import { ElaMenu } from './ela/ElaMenu';
 import { ElaChat } from './ela/ElaChat';
@@ -264,7 +264,7 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onTransacti
               </div>
 
               {/* Monitor Dashboard */}
-              <LogisticsMonitorDashboard
+              <UnifiedLogisticsMonitor
                 userEmail={user.email}
               />
             </>
