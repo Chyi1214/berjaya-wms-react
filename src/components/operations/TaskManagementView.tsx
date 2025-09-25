@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { Task, TaskStatus, TaskPriority, TaskType, CreateTaskRequest, TaskAssignmentType } from '../../types';
 import { taskService } from '../../services/taskService';
 import { useAuth } from '../../contexts/AuthContext';
+import { toolCheckService } from '../../services/toolCheckService';
 import { ToolCheckConfig } from './ToolCheckConfig';
 import { ToolCheckDashboard } from './ToolCheckDashboard';
 
@@ -17,6 +18,8 @@ export function TaskManagementView({ onRefresh }: TaskManagementViewProps) {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [activeView, setActiveView] = useState<'overview' | 'toolcheck' | 'dashboard'>('overview');
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [taskProgress, setTaskProgress] = useState<{ [taskId: string]: { completed: number; total: number; allComplete: boolean } }>({});
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   // Load all tasks
   useEffect(() => {
@@ -28,6 +31,22 @@ export function TaskManagementView({ onRefresh }: TaskManagementViewProps) {
       setLoading(true);
       const allTasks = await taskService.getTasks();
       setTasks(allTasks);
+
+      // Load progress for tool check tasks
+      const progressData: { [taskId: string]: { completed: number; total: number; allComplete: boolean } } = {};
+      for (const task of allTasks) {
+        if (task.config.type === TaskType.DATA_COLLECTION && task.config.relatedEntities?.batchId) {
+          try {
+            const progress = await toolCheckService.getToolCheckProgress(task.id);
+            if (progress) {
+              progressData[task.id] = progress;
+            }
+          } catch (error) {
+            console.error(`Failed to load progress for task ${task.id}:`, error);
+          }
+        }
+      }
+      setTaskProgress(progressData);
     } catch (error) {
       console.error('Failed to load tasks:', error);
     } finally {
@@ -47,6 +66,24 @@ export function TaskManagementView({ onRefresh }: TaskManagementViewProps) {
       onRefresh?.();
     } catch (error) {
       console.error('Failed to create task:', error);
+    }
+  };
+
+  const handleDeleteTask = async (taskId: string) => {
+    if (!confirm('Are you sure you want to delete this task? This will permanently remove all task data and submissions.')) {
+      return;
+    }
+
+    try {
+      setDeleting(taskId);
+      await taskService.deleteTask(taskId);
+      await loadTasks(); // Refresh task list
+      onRefresh?.();
+    } catch (error) {
+      console.error('Failed to delete task:', error);
+      alert('Failed to delete task. Please try again.');
+    } finally {
+      setDeleting(null);
     }
   };
 
@@ -202,6 +239,24 @@ export function TaskManagementView({ onRefresh }: TaskManagementViewProps) {
                         <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs">
                           {task.config.type.replace('_', ' ').toUpperCase()}
                         </span>
+                        {/* Progress badge for tool check tasks */}
+                        {task.config.type === TaskType.DATA_COLLECTION && task.config.relatedEntities?.batchId && (
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            taskProgress[task.id]?.allComplete ? 'bg-green-100 text-green-800' :
+                            taskProgress[task.id] ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-gray-100 text-gray-600'
+                          }`}>
+                            {taskProgress[task.id] ? (
+                              taskProgress[task.id].allComplete ? (
+                                '✅ All Zones Complete'
+                              ) : (
+                                `${taskProgress[task.id].completed}/${taskProgress[task.id].total} zones`
+                              )
+                            ) : (
+                              'Loading progress...'
+                            )}
+                          </span>
+                        )}
                       </div>
                       <h5 className="font-semibold text-gray-900 mb-1">{task.config.title}</h5>
                       <p className="text-gray-600 text-sm mb-2">{task.config.description}</p>
@@ -217,7 +272,7 @@ export function TaskManagementView({ onRefresh }: TaskManagementViewProps) {
                       </div>
                     </div>
                     <div className="ml-4 flex flex-col space-y-2">
-                      <button 
+                      <button
                         onClick={() => {
                           if (task.config.type === TaskType.DATA_COLLECTION && task.config.relatedEntities?.batchId) {
                             setSelectedTaskId(task.id);
@@ -226,8 +281,22 @@ export function TaskManagementView({ onRefresh }: TaskManagementViewProps) {
                         }}
                         className="btn-secondary text-xs px-2 py-1"
                       >
-                        {task.config.type === TaskType.DATA_COLLECTION && task.config.relatedEntities?.batchId ? 
+                        {task.config.type === TaskType.DATA_COLLECTION && task.config.relatedEntities?.batchId ?
                           '📊 Dashboard' : 'View Details'}
+                      </button>
+                      <button
+                        onClick={() => handleDeleteTask(task.id)}
+                        disabled={deleting === task.id}
+                        className="bg-red-500 hover:bg-red-600 text-white text-xs px-2 py-1 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {deleting === task.id ? (
+                          <>
+                            <div className="animate-spin rounded-full h-3 w-3 border-b border-white inline-block mr-1"></div>
+                            Deleting...
+                          </>
+                        ) : (
+                          '🗑️ Delete'
+                        )}
                       </button>
                       {task.status === TaskStatus.COMPLETED && task.config.requiresManagerApproval && (
                         <div className="flex space-x-1">

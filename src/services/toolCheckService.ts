@@ -208,6 +208,41 @@ class ToolCheckService {
     }
   }
 
+  // Get quick progress summary for task list display
+  async getToolCheckProgress(taskId: string): Promise<{ completed: number; total: number; allComplete: boolean } | null> {
+    try {
+      // Get task details
+      const task = await taskService.getTaskById(taskId);
+      if (!task || !task.config.relatedEntities?.batchId) {
+        return null;
+      }
+
+      const configId = task.config.relatedEntities.batchId;
+      const config = await this.getToolCheckConfig(configId);
+      if (!config) {
+        return null;
+      }
+
+      // Get submissions count
+      const q = query(
+        collection(db, TOOL_CHECK_SUBMISSIONS_COLLECTION),
+        where('taskId', '==', taskId)
+      );
+
+      const snapshot = await getDocs(q);
+      const completedZones = new Set(snapshot.docs.map(doc => doc.data().zone));
+
+      const completed = completedZones.size;
+      const total = config.targetZones.length;
+      const allComplete = completed === total;
+
+      return { completed, total, allComplete };
+    } catch (error) {
+      logger.error('Failed to get tool check progress', error);
+      return null;
+    }
+  }
+
   // Get tool check dashboard data for managers
   async getToolCheckDashboard(taskId: string): Promise<ToolCheckDashboardData | null> {
     try {
