@@ -194,6 +194,49 @@ class TableStateService {
     return { previousAmount, newAmount };
   }
 
+  // Enhanced version with notes support for waste/lost/defect tracking
+  async addToInventoryCountWithNotes(
+    sku: string,
+    itemName: string,
+    quantity: number,
+    location: string,
+    countedBy: string,
+    notes: string
+  ): Promise<{ previousAmount: number; newAmount: number }> {
+
+    // Check if migration is needed (only on first call)
+    const migrationNeeded = await this.needsMigration();
+    if (migrationNeeded) {
+      console.log('⚡ Auto-migration detected - upgrading inventory system for instant performance...');
+      await this.migrateToCompositeIds();
+      console.log('✅ Auto-migration complete! All future scans will be instant.');
+    }
+
+    const docId = `${sku}_${location}`;
+    const docRef = doc(db, EXPECTED_COLLECTION, docId);
+
+    console.log(`⚡ Fast add with notes: ${quantity} x ${sku} to ${location} (${notes})`);
+
+    // Get only this specific document (not all inventory!)
+    const docSnap = await getDoc(docRef);
+    const previousAmount = docSnap.exists() ? (docSnap.data().amount || 0) : 0;
+    const newAmount = previousAmount + quantity;
+
+    // Update only this document with notes
+    await setDoc(docRef, {
+      sku,
+      location,
+      amount: newAmount,
+      itemName,
+      countedBy,
+      timestamp: Timestamp.now(),
+      notes: notes
+    }, { merge: true });
+
+    console.log(`✅ Fast add with notes complete: ${previousAmount} → ${newAmount} (${docId})`);
+    return { previousAmount, newAmount };
+  }
+
   // Check if migration to composite IDs is needed
   async needsMigration(): Promise<boolean> {
     try {

@@ -203,13 +203,13 @@ Checked / Verified By: ________________________ Signature: _____________________
         );
 
         // 2. CREATE tracking record with type tag in waste location
-        // Note: Reason is stored in console/claim reports, not in inventory database
-        await tableStateService.addToInventoryCountOptimized(
+        await tableStateService.addToInventoryCountWithNotes(
           entry.sku,
           entry.itemName,
           entry.quantity, // Positive quantity for tracking
           `waste_lost_${location}`, // Tracking location
-          user.email
+          user.email,
+          reasonWithType // Store type and reason in notes field
         );
 
         // 3. Log detailed tracking information including reasons
