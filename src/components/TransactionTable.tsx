@@ -3,9 +3,11 @@ import { Transaction, TransactionStatus, TransactionType } from '../types';
 
 interface TransactionTableProps {
   transactions: Transaction[];
+  onCancelTransaction?: (transaction: Transaction) => void;
+  canCancel?: boolean;
 }
 
-export function TransactionTable({ transactions }: TransactionTableProps) {
+export function TransactionTable({ transactions, onCancelTransaction, canCancel = false }: TransactionTableProps) {
   
   const formatTimestamp = (timestamp: Date) => {
     return new Intl.DateTimeFormat('en-US', {
@@ -70,11 +72,19 @@ export function TransactionTable({ transactions }: TransactionTableProps) {
               Amount
             </th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              📦 Batch
+            </th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               Status
             </th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               Time
             </th>
+            {canCancel && (
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Actions
+              </th>
+            )}
           </tr>
         </thead>
         <tbody className="bg-white divide-y divide-gray-200">
@@ -119,17 +129,55 @@ export function TransactionTable({ transactions }: TransactionTableProps) {
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                 {transaction.amount}
               </td>
-              
+
+              {/* Batch Cell */}
+              <td className="px-6 py-4 whitespace-nowrap">
+                {transaction.batchId ? (
+                  <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-800">
+                    📦 {transaction.batchId}
+                  </span>
+                ) : transaction.notes?.includes('Batch:') ? (
+                  <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-600">
+                    📦 {transaction.notes.match(/Batch: (\w+)/)?.[1] || 'Unknown'}
+                  </span>
+                ) : (
+                  <span className="text-xs text-gray-400">🚫 Unassigned</span>
+                )}
+                {transaction.isRectification && (
+                  <div className="text-xs text-blue-600 mt-1">🔄 Rectification</div>
+                )}
+              </td>
+
               <td className="px-6 py-4 whitespace-nowrap">
                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(transaction.status)}`}>
                   <span className="mr-1">{getStatusIcon(transaction.status)}</span>
                   {transaction.status.toUpperCase()}
                 </span>
               </td>
-              
+
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                 {formatTimestamp(transaction.timestamp)}
               </td>
+
+              {/* Actions Cell */}
+              {canCancel && (
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                  {transaction.status === TransactionStatus.COMPLETED && !transaction.isRectification && (
+                    <button
+                      onClick={() => onCancelTransaction?.(transaction)}
+                      className="text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 px-2 py-1 rounded text-xs font-medium transition-colors"
+                      title="Cancel and rectify this transaction"
+                    >
+                      🔄 Cancel & Rectify
+                    </button>
+                  )}
+                  {transaction.parentTransactionId && (
+                    <span className="text-xs text-gray-500">
+                      ↳ Rectifies #{transaction.parentTransactionId.slice(-8)}
+                    </span>
+                  )}
+                </td>
+              )}
             </tr>
           ))}
         </tbody>

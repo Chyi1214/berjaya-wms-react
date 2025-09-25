@@ -123,6 +123,9 @@ export interface Transaction {
   concludedAt?: Date; // When this transaction was included in period conclusion
   notes?: string;
   reference?: string; // Purchase order, work order, etc.
+  batchId?: string; // Batch tracking for v6.5+ batch allocation system
+  parentTransactionId?: string; // For cancellation/rectification tracking
+  isRectification?: boolean; // True if this transaction reverses another
 }
 
 // Transaction filtering and search
@@ -135,6 +138,8 @@ export interface TransactionFilter {
   dateFrom?: Date;
   dateTo?: Date;
   searchTerm?: string;
+  batchId?: string; // Filter by batch
+  includeRectifications?: boolean; // Show/hide rectification transactions
 }
 
 // Transaction form data
@@ -147,6 +152,7 @@ export interface TransactionFormData {
   toLocation?: string;
   notes?: string;
   reference?: string;
+  batchId?: string;
 }
 
 // Scanner Types - v3.2.0 Barcode Integration
@@ -305,4 +311,34 @@ export interface BatchHealthStatus {
     excess: number;
   }>;
   checkedAt: Date;
+}
+
+// Batch Allocation System - Parallel Tracking (v6.5.0)
+
+// Batch allocation tracking - parallel to core inventory
+export interface BatchAllocation {
+  sku: string;
+  location: string;
+  allocations: Record<string, number>; // { "807": 50, "808": 30, "UNASSIGNED": 100 }
+  totalAllocated: number;
+  lastUpdated: Date;
+  createdAt: Date;
+}
+
+// Manager batch configuration
+export interface BatchConfig {
+  activeBatch: string;            // Current default batch (e.g., "808")
+  availableBatches: string[];     // List of active batches ["807", "808", "809"]
+  updatedBy: string;              // Manager who made the change
+  updatedAt: Date;
+  createdAt: Date;
+}
+
+// Batch progress summary
+export interface BatchProgress {
+  batchId: string;
+  totalExpected: number;      // From BatchRequirement
+  totalAllocated: number;     // From BatchAllocation
+  completionPercentage: number;
+  lastUpdated: Date;
 }

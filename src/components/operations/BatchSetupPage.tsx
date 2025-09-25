@@ -1,6 +1,7 @@
 import { memo, useState, useEffect } from 'react';
 import { batchManagementService } from '../../services/batchManagement';
 import { bomService } from '../../services/bom';
+import { BatchConfigCard } from './BatchConfigCard';
 import { CarType, BOM, ZoneBOMMapping } from '../../types/inventory';
 
 interface BatchSetupPageProps {
@@ -169,6 +170,9 @@ export const BatchSetupPage = memo(function BatchSetupPage({ user }: BatchSetupP
           </button>
         </div>
       </div>
+
+      {/* Batch Allocation Configuration */}
+      <BatchConfigCard user={user} onRefresh={loadAllData} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Car Types Management */}

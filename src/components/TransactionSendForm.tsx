@@ -6,6 +6,7 @@ import { SearchAutocomplete } from './common/SearchAutocomplete';
 import { bomService } from '../services/bom';
 import { scannerService } from '../services/scannerService';
 import { qrExtractionService } from '../services/qrExtraction';
+import { batchAllocationService } from '../services/batchAllocationService';
 
 interface TransactionSendFormProps {
   onSubmit: (transaction: TransactionFormData & { otp: string; skipOTP?: boolean }) => void;
@@ -57,6 +58,11 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
   const [scanError, setScanError] = useState<string | null>(null);
   const [selectedSearchResult, setSelectedSearchResult] = useState<any>(null);
 
+  // Batch allocation states
+  const [availableBatches, setAvailableBatches] = useState<string[]>([]);
+  const [selectedBatch, setSelectedBatch] = useState<string>('');
+  const [batchConfigLoading, setBatchConfigLoading] = useState(false);
+
   // Check if selected item is a BOM
   const isBOM = formData.sku.startsWith('BOM');
 
@@ -77,6 +83,34 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
       setBomData(null);
     }
   }, [formData.sku, isBOM]);
+
+  // Load batch configuration on mount
+  useEffect(() => {
+    loadBatchConfig();
+  }, []);
+
+  const loadBatchConfig = async () => {
+    try {
+      setBatchConfigLoading(true);
+
+      let config = await batchAllocationService.getBatchConfig();
+
+      // Initialize if no config exists
+      if (!config) {
+        await batchAllocationService.initializeDefaultConfig();
+        config = await batchAllocationService.getBatchConfig();
+      }
+
+      if (config) {
+        setAvailableBatches(config.availableBatches);
+        setSelectedBatch(config.activeBatch); // Default to active batch
+      }
+    } catch (error) {
+      console.error('Failed to load batch configuration:', error);
+    } finally {
+      setBatchConfigLoading(false);
+    }
+  };
 
   // Process inventory counts to get available items with quantities - FIXED: Only from logistics location
   const availableItems = useMemo(() => {
@@ -121,17 +155,31 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.sku || !formData.toLocation || formData.amount <= 0) {
       alert(t('transactions.pleaseFillAllFields'));
       return;
     }
 
+    if (!selectedBatch) {
+      alert('Please select a batch for this transaction');
+      return;
+    }
+
     setIsSubmitting(true);
-    
+
     try {
+      // Update the transaction notes to include batch information
+      const enhancedFormData = {
+        ...formData,
+        notes: formData.notes ? `${formData.notes} (From Batch: ${selectedBatch})` : `From Batch: ${selectedBatch}`
+      };
+
       const otp = generateOTP();
-      await onSubmit({ ...formData, otp, skipOTP });
+
+      // Note: The actual batch allocation update will happen in the parent component
+      // when the transaction is processed
+      await onSubmit({ ...enhancedFormData, otp, skipOTP, batchId: selectedBatch } as any);
     } catch (error) {
       console.error('Failed to create transaction:', error);
       alert(t('transactions.failedToCreateTransaction'));
@@ -271,6 +319,52 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
+      </div>
+
+      {/* Batch Selection Section */}
+      <div className="mb-6 bg-orange-50 border border-orange-200 rounded-lg p-4">
+        <div className="flex items-center justify-center space-x-4">
+          <div className="text-center">
+            <p className="text-sm text-gray-600 mb-1">Sending From Batch</p>
+            <div className="text-xl font-bold text-orange-600">
+              {batchConfigLoading ? '⏳ Loading...' : selectedBatch || 'Not Set'}
+            </div>
+          </div>
+
+          {!batchConfigLoading && availableBatches.length > 1 && (
+            <div className="flex items-center space-x-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const dropdown = document.getElementById('transaction-batch-selector');
+                  if (dropdown) {
+                    (dropdown as HTMLSelectElement).focus();
+                  }
+                }}
+                className="text-sm text-orange-600 hover:text-orange-700 underline"
+              >
+                Change
+              </button>
+              <select
+                id="transaction-batch-selector"
+                value={selectedBatch}
+                onChange={(e) => setSelectedBatch(e.target.value)}
+                className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              >
+                {availableBatches.map(batchId => (
+                  <option key={batchId} value={batchId}>
+                    Batch {batchId}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+        {!batchConfigLoading && (
+          <p className="text-xs text-gray-500 text-center mt-2">
+            Items will be deducted from this batch allocation
+          </p>
+        )}
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -537,10 +631,11 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
           <button
             type="submit"
             disabled={
-              isSubmitting || 
-              !formData.sku || 
-              !formData.toLocation || 
-              formData.amount <= 0 || 
+              isSubmitting ||
+              !formData.sku ||
+              !formData.toLocation ||
+              formData.amount <= 0 ||
+              !selectedBatch ||
               (!isBOM && (formData.amount > maxAvailableQuantity || !selectedItem || maxAvailableQuantity === 0))
             }
             className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed flex-1"
@@ -552,7 +647,7 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
               </>
             ) : (
               <>
-                📤 {skipOTP ? 'Send Immediately (No OTP)' : t('transactions.sendAndGenerateOTP')}
+                📤 {skipOTP ? `Send from Batch ${selectedBatch} (No OTP)` : `Send from Batch ${selectedBatch} & Generate OTP`}
               </>
             )}
           </button>

@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
-import { InventoryCountEntry, ScanLookup } from '../../types';
+import { InventoryCountEntry, ScanLookup, BatchProgress, BatchAllocation } from '../../types';
 import { tableStateService } from '../../services/tableState';
 import { scanLookupService } from '../../services/scanLookupService';
+import { batchAllocationService } from '../../services/batchAllocationService';
 
 interface LogisticsMonitorDashboardProps {
   userEmail: string;
@@ -13,19 +14,27 @@ export function LogisticsMonitorDashboard({ userEmail: _userEmail }: LogisticsMo
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedZone, setSelectedZone] = useState<string>('all');
-  const [activeTab, setActiveTab] = useState<'location' | 'belonging'>('location');
+  const [activeTab, setActiveTab] = useState<'location' | 'belonging' | 'batch'>('location');
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const [autoRefresh, setAutoRefresh] = useState(true);
+
+  // Batch-related state
+  const [batchAllocations, setBatchAllocations] = useState<BatchAllocation[]>([]);
+  const [batchProgress, setBatchProgress] = useState<BatchProgress[]>([]);
 
   // Load inventory and scanner data
   const loadData = async () => {
     try {
-      const [inventoryData, scannerData] = await Promise.all([
+      const [inventoryData, scannerData, batchAllocations, batchProgress] = await Promise.all([
         tableStateService.getExpectedInventory(),
-        scanLookupService.getAllLookups()
+        scanLookupService.getAllLookups(),
+        batchAllocationService.getAllBatchAllocations(),
+        batchAllocationService.getBatchProgress()
       ]);
       setInventoryData(inventoryData);
       setScannerData(scannerData);
+      setBatchAllocations(batchAllocations);
+      setBatchProgress(batchProgress);
       setLastRefresh(new Date());
     } catch (error) {
       console.error('Failed to load data:', error);
@@ -256,6 +265,19 @@ export function LogisticsMonitorDashboard({ userEmail: _userEmail }: LogisticsMo
             >
               🎯 Belonging Zone
             </button>
+            <button
+              onClick={() => {
+                setActiveTab('batch');
+                setSelectedZone('all');
+              }}
+              className={`py-3 px-6 font-medium text-sm whitespace-nowrap border-b-2 transition-colors ${
+                activeTab === 'batch'
+                  ? 'border-blue-500 text-blue-600 bg-blue-50'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              📦 Batch Progress
+            </button>
           </nav>
         </div>
 
@@ -307,9 +329,110 @@ export function LogisticsMonitorDashboard({ userEmail: _userEmail }: LogisticsMo
         </div>
       </div>
 
-      {/* Zone Cards */}
-      <div className="space-y-6">
-        {Object.keys(groupedByZone).sort().map(zone => (
+      {/* Content based on active tab */}
+      {activeTab === 'batch' ? (
+        /* Batch Progress View */
+        <div className="space-y-6">
+          {/* Batch Summary Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {batchProgress.map(batch => (
+              <div key={batch.batchId} className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-lg font-medium text-gray-900">Batch {batch.batchId}</h3>
+                  <div className={`px-2 py-1 rounded-full text-xs font-medium ${
+                    batch.completionPercentage >= 100 ? 'bg-green-100 text-green-800' :
+                    batch.completionPercentage >= 80 ? 'bg-blue-100 text-blue-800' :
+                    batch.completionPercentage >= 50 ? 'bg-yellow-100 text-yellow-800' :
+                    'bg-red-100 text-red-800'
+                  }`}>
+                    {batch.completionPercentage.toFixed(1)}% Complete
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Allocated:</span>
+                    <span className="font-medium">{batch.totalAllocated} items</span>
+                  </div>
+                  {batch.totalExpected > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Expected:</span>
+                      <span className="font-medium">{batch.totalExpected} items</span>
+                    </div>
+                  )}
+                  <div className="w-full bg-gray-200 rounded-full h-2 mt-3">
+                    <div
+                      className={`h-2 rounded-full ${
+                        batch.completionPercentage >= 100 ? 'bg-green-500' :
+                        batch.completionPercentage >= 80 ? 'bg-blue-500' :
+                        batch.completionPercentage >= 50 ? 'bg-yellow-500' :
+                        'bg-red-500'
+                      }`}
+                      style={{ width: `${Math.min(100, batch.completionPercentage)}%` }}
+                    ></div>
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    Last updated: {batch.lastUpdated.toLocaleDateString()}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Detailed Batch Allocation */}
+          {batchAllocations.length > 0 && (
+            <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+              <div className="bg-gray-50 px-6 py-3 border-b border-gray-200">
+                <h3 className="text-lg font-medium text-gray-900">📦 Batch Allocation Details</h3>
+              </div>
+              <div className="p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {batchAllocations.map(allocation => (
+                    <div key={`${allocation.sku}_${allocation.location}`} className="border border-gray-200 rounded-lg p-4">
+                      <div className="font-medium text-gray-900 mb-2">{allocation.sku}</div>
+                      <div className="text-sm text-gray-600 mb-3">Location: {allocation.location}</div>
+
+                      <div className="space-y-2">
+                        {Object.entries(allocation.allocations).map(([batchId, amount]) => (
+                          <div key={batchId} className="flex justify-between items-center">
+                            <span className="text-sm text-gray-600">Batch {batchId}:</span>
+                            <span className="font-medium text-orange-600">{amount} units</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="border-t border-gray-200 mt-3 pt-3">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium text-gray-700">Total:</span>
+                          <span className="font-bold text-gray-900">{allocation.totalAllocated} units</span>
+                        </div>
+                      </div>
+
+                      <div className="text-xs text-gray-500 mt-2">
+                        Updated: {allocation.lastUpdated.toLocaleDateString()}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Empty state for batch */}
+          {batchProgress.length === 0 && batchAllocations.length === 0 && (
+            <div className="text-center py-12">
+              <div className="text-4xl mb-4">📦</div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No batch data found</h3>
+              <p className="text-gray-500">
+                Start scanning items with batch assignment to see progress here.
+              </p>
+            </div>
+          )}
+        </div>
+      ) : (
+        /* Zone Cards for Location/Belonging views */
+        <div className="space-y-6">
+          {Object.keys(groupedByZone).sort().map(zone => (
           <div key={zone} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
             {/* Zone Header */}
             <div className="bg-gray-50 px-6 py-3 border-b border-gray-200">
@@ -421,19 +544,20 @@ export function LogisticsMonitorDashboard({ userEmail: _userEmail }: LogisticsMo
             </div>
           </div>
         ))}
-      </div>
 
-      {/* Empty State */}
-      {Object.keys(groupedByZone).length === 0 && (
-        <div className="text-center py-12">
-          <div className="text-4xl mb-4">📋</div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No inventory data found</h3>
-          <p className="text-gray-500">
-            {searchTerm || selectedZone !== 'all'
-              ? 'Try adjusting your search terms or zone filter.'
-              : 'No inventory data available in the system.'
-            }
-          </p>
+        {/* Empty State for Location/Belonging tabs */}
+        {Object.keys(groupedByZone).length === 0 && (
+          <div className="text-center py-12">
+            <div className="text-4xl mb-4">📋</div>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No inventory data found</h3>
+            <p className="text-gray-500">
+              {searchTerm || selectedZone !== 'all'
+                ? 'Try adjusting your search terms or zone filter.'
+                : 'No inventory data available in the system.'
+              }
+            </p>
+          </div>
+        )}
         </div>
       )}
     </div>

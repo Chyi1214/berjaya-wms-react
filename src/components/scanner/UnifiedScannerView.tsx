@@ -8,6 +8,7 @@ import { transactionService } from '../../services/transactions';
 import { tableStateService } from '../../services/tableState';
 import { inventoryService } from '../../services/inventory';
 import { itemMasterService } from '../../services/itemMaster';
+import { batchAllocationService } from '../../services/batchAllocationService';
 import { SearchAutocomplete } from '../common/SearchAutocomplete';
 
 interface UnifiedScannerViewProps {
@@ -38,6 +39,16 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
   const [cameraPermission, setCameraPermission] = useState<'unknown' | 'granted' | 'denied'>('unknown');
   const [selectedSearchResult, setSelectedSearchResult] = useState<any>(null);
 
+  // Batch allocation states
+  const [availableBatches, setAvailableBatches] = useState<string[]>([]);
+  const [selectedBatch, setSelectedBatch] = useState<string>('');
+  const [batchConfigLoading, setBatchConfigLoading] = useState(false);
+
+  // Load batch configuration on mount
+  useEffect(() => {
+    loadBatchConfig();
+  }, []);
+
   // Cleanup on unmount
   useEffect(() => {
     checkCameraSupport();
@@ -51,6 +62,30 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
     const isAvailable = await scannerService.isCameraAvailable();
     if (!isAvailable) {
       setError(t('scanner.cameraNotAvailable'));
+    }
+  };
+
+  const loadBatchConfig = async () => {
+    try {
+      setBatchConfigLoading(true);
+
+      let config = await batchAllocationService.getBatchConfig();
+
+      // Initialize if no config exists
+      if (!config) {
+        await batchAllocationService.initializeDefaultConfig();
+        config = await batchAllocationService.getBatchConfig();
+      }
+
+      if (config) {
+        setAvailableBatches(config.availableBatches);
+        setSelectedBatch(config.activeBatch); // Default to active batch
+      }
+    } catch (error) {
+      console.error('Failed to load batch configuration:', error);
+      setError('Failed to load batch configuration');
+    } finally {
+      setBatchConfigLoading(false);
     }
   };
 
@@ -293,6 +328,11 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
       return;
     }
 
+    if (!selectedBatch) {
+      setError('Please select a batch for this inventory');
+      return;
+    }
+
     setIsProcessing(true);
     setError(null);
 
@@ -315,6 +355,14 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
         user.email
       );
 
+      // NEW: Add to batch allocation tracking
+      await batchAllocationService.addToBatchAllocation(
+        scanResult.sku,
+        'logistics',
+        selectedBatch,
+        qty
+      );
+
       // Create transaction for audit trail
       const transaction: Transaction = {
         id: `txn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -328,13 +376,14 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
         status: TransactionStatus.COMPLETED,
         performedBy: user.email,
         timestamp: new Date(),
-        notes: 'Unified scanner → logistics'
+        notes: `Unified scanner → logistics (Batch: ${selectedBatch})`,
+        batchId: selectedBatch
       };
 
       await transactionService.saveTransaction(transaction);
 
       // Success!
-      setSuccess(`✅ Added ${qty} x ${scanResult.item.name} to inventory (Total: ${newAmount})`);
+      setSuccess(`✅ Added ${qty} x ${scanResult.item.name} to inventory (Batch: ${selectedBatch}, Total: ${newAmount})`);
 
       // Clear after 3 seconds
       setTimeout(() => {
@@ -386,6 +435,54 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
 
       {/* Main Content */}
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+        {/* Batch Display Section */}
+        <div className="mb-6 bg-white border-2 border-orange-300 rounded-lg p-6 shadow-sm">
+          <div className="text-center">
+            <div className="text-3xl mb-2">📦</div>
+            <div className="flex items-center justify-center space-x-4">
+              <div className="text-center">
+                <p className="text-sm text-gray-500 mb-1">Current Batch</p>
+                <div className="text-2xl font-bold text-orange-600">
+                  {batchConfigLoading ? '⏳ Loading...' : selectedBatch || 'Not Set'}
+                </div>
+              </div>
+
+              {!batchConfigLoading && availableBatches.length > 1 && (
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => {
+                      const dropdown = document.getElementById('batch-selector');
+                      if (dropdown) {
+                        (dropdown as HTMLSelectElement).focus();
+                      }
+                    }}
+                    className="text-sm text-orange-600 hover:text-orange-700 underline"
+                  >
+                    Change
+                  </button>
+                  <select
+                    id="batch-selector"
+                    value={selectedBatch}
+                    onChange={(e) => setSelectedBatch(e.target.value)}
+                    className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  >
+                    {availableBatches.map(batchId => (
+                      <option key={batchId} value={batchId}>
+                        Batch {batchId}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+            {!batchConfigLoading && (
+              <p className="text-xs text-gray-500 mt-2">
+                All scanned items will be assigned to this batch
+              </p>
+            )}
+          </div>
+        </div>
 
         {/* Success Message */}
         {success && (
@@ -477,13 +574,20 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
                   />
                 </div>
 
+                {/* Batch Information */}
+                <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+                  <div className="text-sm text-gray-700">
+                    Will be added to: <span className="font-semibold text-orange-700">Batch {selectedBatch}</span>
+                  </div>
+                </div>
+
                 <div className="flex space-x-3">
                   <button
                     onClick={handleAddToInventory}
-                    disabled={!quantity || isProcessing}
+                    disabled={!quantity || isProcessing || !selectedBatch}
                     className="flex-1 bg-green-500 hover:bg-green-600 disabled:bg-gray-300 text-white font-medium py-3 px-4 rounded-lg transition-colors"
                   >
-                    {isProcessing ? '⏳ Adding...' : '✅ Add to Inventory'}
+                    {isProcessing ? '⏳ Adding...' : `✅ Add to Batch ${selectedBatch}`}
                   </button>
                   <button
                     onClick={clearResult}

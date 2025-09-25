@@ -7,6 +7,7 @@ import TransactionSendForm from './TransactionSendForm';
 import TransactionOTPDisplay from './TransactionOTPDisplay';
 import UnifiedScannerView from './scanner/UnifiedScannerView';
 import { LogisticsMonitorDashboard } from './logistics/LogisticsMonitorDashboard';
+import WasteLostDefectView from './common/WasteLostDefectView';
 import { ElaMenu } from './ela/ElaMenu';
 import { ElaChat } from './ela/ElaChat';
 import PersonalSettings from './PersonalSettings';
@@ -22,7 +23,7 @@ interface LogisticsViewProps {
 
 export function LogisticsView({ user, onBack, onCountSubmit, counts, onTransactionCreate, transactions }: LogisticsViewProps) {
   const { t } = useLanguage();
-  const [selectedAction, setSelectedAction] = useState<'menu' | 'check' | 'transaction' | 'scanner' | 'monitor'>('menu');
+  const [selectedAction, setSelectedAction] = useState<'menu' | 'check' | 'transaction' | 'scanner' | 'monitor' | 'waste'>('menu');
   const [transactionResult, setTransactionResult] = useState<{ transaction: Transaction, otp: string } | null>(null);
   const [showElaMenu, setShowElaMenu] = useState(false);
   const [showElaChat, setShowElaChat] = useState(false);
@@ -91,13 +92,15 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onTransacti
                 {selectedAction === 'check' ? '📋' :
                  selectedAction === 'transaction' ? '🔄' :
                  selectedAction === 'scanner' ? '📱' :
-                 selectedAction === 'monitor' ? '📊' : '📦'}
+                 selectedAction === 'monitor' ? '📊' :
+                 selectedAction === 'waste' ? '🗂️' : '📦'}
               </span>
               <h1 className="text-lg font-bold text-gray-900">
                 {selectedAction === 'check' ? t('inventory.inventoryCount') :
                  selectedAction === 'transaction' ? t('logistics.sendItems') :
                  selectedAction === 'scanner' ? t('logistics.inboundScanner') :
-                 selectedAction === 'monitor' ? 'Monitor Inventory' : t('roles.logistics')}
+                 selectedAction === 'monitor' ? 'Monitor Inventory' :
+                 selectedAction === 'waste' ? 'Waste/Lost/Defect' : t('roles.logistics')}
               </h1>
             </div>
 
@@ -132,7 +135,7 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onTransacti
           
           {selectedAction === 'menu' && (
             <>
-              {/* Action Menu - iPhone Style with 4 buttons */}
+              {/* Action Menu - iPhone Style with 5 buttons */}
               <div className="grid grid-cols-1 gap-4 max-w-sm mx-auto">
 
                 {/* Check Inventory Button */}
@@ -169,6 +172,15 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onTransacti
                 >
                   <div className="text-3xl mb-1">📊</div>
                   <span className="text-sm font-medium">Monitor Inventory</span>
+                </button>
+
+                {/* Waste/Lost/Defect Button */}
+                <button
+                  onClick={() => setSelectedAction('waste')}
+                  className="h-24 bg-red-500 hover:bg-red-600 rounded-2xl shadow-lg transition-all duration-200 flex flex-col items-center justify-center text-white group active:scale-95"
+                >
+                  <div className="text-3xl mb-1">🗂️</div>
+                  <span className="text-sm font-medium">Waste/Lost/Defect</span>
                 </button>
               </div>
 
@@ -256,6 +268,15 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onTransacti
                 userEmail={user.email}
               />
             </>
+          )}
+
+          {selectedAction === 'waste' && (
+            <WasteLostDefectView
+              user={user}
+              location="logistics"
+              locationDisplay="Logistics"
+              onBack={handleBackToMenu}
+            />
           )}
 
         </div>

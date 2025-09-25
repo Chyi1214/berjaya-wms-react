@@ -8,7 +8,7 @@ import TransactionReceiveView from './TransactionReceiveView';
 import CarScanView from './production/CarScanView';
 import CarCompleteView from './production/CarCompleteView';
 import ZoneStatusDisplay from './production/ZoneStatusDisplay';
-import WasteLostView from './production/WasteLostView';
+import WasteLostDefectView from './common/WasteLostDefectView';
 import ProductionLineView from './production/ProductionLineView';
 import ProductionInfoBoard from './production/ProductionInfoBoard';
 import { ElaMenu } from './ela/ElaMenu';
@@ -570,9 +570,10 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
 
 
           {selectedAction === 'waste_lost' && (
-            <WasteLostView
+            <WasteLostDefectView
               user={user}
-              zoneId={selectedZone!}
+              location={`production_zone_${selectedZone}`}
+              locationDisplay={`Zone ${selectedZone}`}
               onBack={handleBackToMenu}
             />
           )}

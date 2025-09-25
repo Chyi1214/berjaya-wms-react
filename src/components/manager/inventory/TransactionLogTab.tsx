@@ -1,38 +1,97 @@
 // Transaction Log Tab - Display all transaction activity
 import { useState, useMemo } from 'react';
-import { Transaction } from '../../../types';
+import { Transaction, TransactionFilter } from '../../../types';
 import TransactionTable from '../../TransactionTable';
-import { SearchAutocomplete } from '../../common/SearchAutocomplete';
+import TransactionFilters from '../../TransactionFilters';
+import { transactionService } from '../../../services/transactions';
+import { useAuth } from '../../../contexts/AuthContext';
 
 interface TransactionLogTabProps {
   transactions: Transaction[];
 }
 
 export function TransactionLogTab({ transactions }: TransactionLogTabProps) {
-  const [selectedSearchResult, setSelectedSearchResult] = useState<any>(null);
+  const { userRecord } = useAuth();
+  const [filters, setFilters] = useState<TransactionFilter>({});
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  // Filter transactions based on selected item
+  // Filter transactions based on active filters
   const filteredTransactions = useMemo(() => {
-    if (!selectedSearchResult) {
-      return transactions; // Show all transactions if no filter
+    let filtered = [...transactions];
+
+    // Apply all filters
+    if (filters.sku) {
+      filtered = filtered.filter(t => t.sku.toLowerCase().includes(filters.sku!.toLowerCase()));
+    }
+    if (filters.location) {
+      filtered = filtered.filter(t => t.location === filters.location);
+    }
+    if (filters.transactionType) {
+      filtered = filtered.filter(t => t.transactionType === filters.transactionType);
+    }
+    if (filters.status) {
+      filtered = filtered.filter(t => t.status === filters.status);
+    }
+    if (filters.performedBy) {
+      filtered = filtered.filter(t => t.performedBy.toLowerCase().includes(filters.performedBy!.toLowerCase()));
+    }
+    if (filters.batchId) {
+      if (filters.batchId === 'UNASSIGNED') {
+        filtered = filtered.filter(t => !t.batchId && !t.notes?.includes('Batch:'));
+      } else {
+        filtered = filtered.filter(t => t.batchId === filters.batchId || t.notes?.includes(`Batch: ${filters.batchId}`));
+      }
+    }
+    if (filters.includeRectifications === false) {
+      filtered = filtered.filter(t => !t.isRectification);
+    } else if (filters.includeRectifications === true) {
+      filtered = filtered.filter(t => t.isRectification);
+    }
+    if (filters.dateFrom) {
+      filtered = filtered.filter(t => new Date(t.timestamp) >= filters.dateFrom!);
+    }
+    if (filters.dateTo) {
+      filtered = filtered.filter(t => new Date(t.timestamp) <= filters.dateTo!);
+    }
+    if (filters.searchTerm) {
+      const term = filters.searchTerm.toLowerCase();
+      filtered = filtered.filter(t =>
+        t.sku.toLowerCase().includes(term) ||
+        t.itemName?.toLowerCase().includes(term) ||
+        t.notes?.toLowerCase().includes(term) ||
+        t.id.toLowerCase().includes(term)
+      );
     }
 
-    // Filter by SKU or item name
-    return transactions.filter(transaction => 
-      transaction.sku === selectedSearchResult.code ||
-      transaction.itemName?.toLowerCase().includes(selectedSearchResult.name.toLowerCase())
-    );
-  }, [transactions, selectedSearchResult]);
+    return filtered;
+  }, [transactions, filters]);
 
-  // Handle item selection from SearchAutocomplete
-  const handleItemSelect = (result: any) => {
-    setSelectedSearchResult(result);
+  // Handle transaction cancellation
+  const handleCancelTransaction = async (transaction: Transaction) => {
+    if (!userRecord) return;
+
+    const reason = prompt('Please enter a reason for cancelling this transaction:');
+    if (reason === null) return; // User cancelled
+
+    setIsProcessing(true);
+    try {
+      await transactionService.cancelAndRectifyTransaction(
+        transaction,
+        userRecord.email,
+        reason
+      );
+
+      alert(`✅ Transaction ${transaction.id.slice(-8)} has been cancelled and rectified successfully.`);
+    } catch (error) {
+      console.error('Failed to cancel transaction:', error);
+      alert('❌ Failed to cancel transaction. Please try again.');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
-  // Clear filter
-  const handleClearFilter = () => {
-    setSelectedSearchResult(null);
-  };
+  // Check if user can cancel transactions (managers and supervisors)
+  const canCancelTransactions = Boolean(userRecord && ['manager', 'supervisor'].includes(userRecord.role));
 
   return (
     <div>
@@ -40,36 +99,41 @@ export function TransactionLogTab({ transactions }: TransactionLogTabProps) {
         <h3 className="text-lg font-semibold text-gray-900">
           🔄 Transaction Log
         </h3>
-        <span className="text-sm text-gray-500">
-          All transaction activity (pending, completed, cancelled)
-        </span>
-      </div>
-
-      {/* Search Filter */}
-      <div className="mb-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
-        <div className="flex items-center space-x-4">
-          <div className="flex-1">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              🔍 Filter by Item
-            </label>
-            <SearchAutocomplete
-              placeholder="Search by SKU (A001) or item name to filter transactions..."
-              onSelect={handleItemSelect}
-              value={selectedSearchResult}
-              onClear={handleClearFilter}
-            />
-          </div>
-          {selectedSearchResult && (
-            <div className="text-sm text-gray-600">
-              <span className="font-medium">Filtering:</span> {selectedSearchResult.code} - {selectedSearchResult.name}
-              <br />
-              <span className="text-blue-600">{filteredTransactions.length} of {transactions.length} transactions</span>
-            </div>
+        <div className="text-right">
+          <span className="text-sm text-gray-500 block">
+            {filteredTransactions.length} of {transactions.length} transactions
+          </span>
+          {canCancelTransactions && (
+            <span className="text-xs text-blue-600">
+              Click "Cancel & Rectify" to reverse completed transactions
+            </span>
           )}
         </div>
       </div>
-      
-      <TransactionTable transactions={filteredTransactions} />
+
+      {/* Enhanced Filters */}
+      <div className="mb-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
+        <TransactionFilters
+          filters={filters}
+          onFiltersChange={setFilters}
+        />
+      </div>
+
+      {/* Processing Overlay */}
+      {isProcessing && (
+        <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-center">
+            <div className="animate-spin h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full mr-2"></div>
+            <span className="text-blue-800">Processing transaction cancellation...</span>
+          </div>
+        </div>
+      )}
+
+      <TransactionTable
+        transactions={filteredTransactions}
+        onCancelTransaction={handleCancelTransaction}
+        canCancel={canCancelTransactions}
+      />
     </div>
   );
 }

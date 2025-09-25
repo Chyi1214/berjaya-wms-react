@@ -52,8 +52,9 @@ service cloud.firestore {
       allow read: if isActiveUser() && hasPermission('transactions', 'view');
       allow create: if isActiveUser() && hasPermission('transactions', 'create');
       allow update: if isActiveUser() && (
-        hasPermission('transactions', 'approve') || 
-        hasPermission('transactions', 'cancel')
+        hasPermission('transactions', 'approve') ||
+        hasPermission('transactions', 'cancel') ||
+        hasRole('manager') || hasRole('supervisor')
       );
       allow delete: if isDevAdmin();
     }
@@ -258,6 +259,28 @@ service cloud.firestore {
     match /batchRequirements/{document} {
       allow read: if isActiveUser();  // All authenticated users can read requirements
       allow write: if isDevAdmin() || hasRole('manager');  // Only managers can modify requirements
+    }
+
+    // Version 6.5.0 Collections - Batch Allocation System (Eugene Section 6.1)
+
+    // Batch allocations - Parallel tracking of inventory by batch
+    match /batchAllocations/{document} {
+      allow read: if isActiveUser();  // All authenticated users can read batch allocations
+      allow create: if isActiveUser() && (
+        hasRole('logistics') || hasRole('production') ||
+        hasRole('supervisor') || hasRole('manager')
+      );
+      allow update: if isActiveUser() && (
+        hasRole('logistics') || hasRole('production') ||
+        hasRole('supervisor') || hasRole('manager')
+      );
+      allow delete: if isDevAdmin() || hasRole('manager');
+    }
+
+    // Batch configuration - Manager controls for batch allocation system
+    match /batchConfig/{document} {
+      allow read: if isActiveUser();  // All authenticated users can read batch config
+      allow write: if isDevAdmin() || hasRole('manager');  // Only managers can modify batch config
     }
     
     // Version 5.7 Collections - Worker Report System

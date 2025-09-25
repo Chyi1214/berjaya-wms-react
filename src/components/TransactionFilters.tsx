@@ -1,6 +1,8 @@
 // Transaction Filters Component - Filter and search transactions
+import { useState, useEffect } from 'react';
 import { TransactionFilter, TransactionType, TransactionStatus } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
+import { batchAllocationService } from '../services/batchAllocationService';
 
 interface TransactionFiltersProps {
   filters: TransactionFilter;
@@ -9,6 +11,23 @@ interface TransactionFiltersProps {
 
 export function TransactionFilters({ filters, onFiltersChange }: TransactionFiltersProps) {
   const { t } = useLanguage();
+  const [availableBatches, setAvailableBatches] = useState<string[]>([]);
+
+  // Load available batches
+  useEffect(() => {
+    loadAvailableBatches();
+  }, []);
+
+  const loadAvailableBatches = async () => {
+    try {
+      const config = await batchAllocationService.getBatchConfig();
+      if (config) {
+        setAvailableBatches(config.availableBatches);
+      }
+    } catch (error) {
+      console.error('Failed to load batch configuration:', error);
+    }
+  };
 
   const updateFilter = (key: keyof TransactionFilter, value: any) => {
     onFiltersChange({
@@ -39,7 +58,7 @@ export function TransactionFilters({ filters, onFiltersChange }: TransactionFilt
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
         {/* Search Term */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -101,6 +120,42 @@ export function TransactionFilters({ filters, onFiltersChange }: TransactionFilt
             <option value={TransactionStatus.COMPLETED}>{t('transactions.completed')}</option>
             <option value={TransactionStatus.PENDING}>{t('transactions.pending')}</option>
             <option value={TransactionStatus.CANCELLED}>{t('transactions.cancelled')}</option>
+          </select>
+        </div>
+
+        {/* Batch Filter */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            📦 Batch
+          </label>
+          <select
+            value={filters.batchId || ''}
+            onChange={(e) => updateFilter('batchId', e.target.value)}
+            className="input-primary text-sm"
+          >
+            <option value="">All batches</option>
+            <option value="UNASSIGNED">🚫 Unassigned</option>
+            {availableBatches.map(batchId => (
+              <option key={batchId} value={batchId}>
+                Batch {batchId}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Rectification Filter */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            🔄 Rectifications
+          </label>
+          <select
+            value={filters.includeRectifications === undefined ? '' : filters.includeRectifications ? 'true' : 'false'}
+            onChange={(e) => updateFilter('includeRectifications', e.target.value === '' ? undefined : e.target.value === 'true')}
+            className="input-primary text-sm"
+          >
+            <option value="">Show all</option>
+            <option value="false">Hide rectifications</option>
+            <option value="true">Show only rectifications</option>
           </select>
         </div>
 

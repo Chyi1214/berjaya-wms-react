@@ -12,8 +12,9 @@ import {
   deleteDoc,
   getDocs
 } from 'firebase/firestore';
-import { Transaction } from '../types';
+import { Transaction, TransactionStatus } from '../types';
 import { createModuleLogger } from './logger';
+import { tableStateService } from './tableState';
 
 const logger = createModuleLogger('TransactionService');
 
@@ -273,12 +274,94 @@ class TransactionService {
       // Wait for all deletions to complete
       await Promise.all(deletePromises);
       
-      logger.warn('Cleared transactions and OTPs from Firebase', { 
-        transactionCount: transactionSnapshot.size, 
-        otpCount: otpSnapshot.size 
+      logger.warn('Cleared transactions and OTPs from Firebase', {
+        transactionCount: transactionSnapshot.size,
+        otpCount: otpSnapshot.size
       });
     } catch (error) {
       logger.error('Error clearing transactions', error);
+      throw error;
+    }
+  }
+
+  // Cancel and rectify a transaction
+  async cancelAndRectifyTransaction(
+    originalTransaction: Transaction,
+    performedBy: string,
+    reason?: string
+  ): Promise<{ cancelledTransaction: Transaction; rectificationTransaction: Transaction }> {
+    try {
+      const now = new Date();
+
+      // Step 1: Cancel the original transaction
+      const cancelledTransaction: Transaction = {
+        ...originalTransaction,
+        status: TransactionStatus.CANCELLED,
+        notes: `${originalTransaction.notes || ''} | Cancelled: ${reason || 'Manual cancellation'}`
+      };
+
+      await this.updateTransaction(originalTransaction.id, {
+        status: TransactionStatus.CANCELLED,
+        notes: cancelledTransaction.notes
+      });
+
+      // Step 2: Create rectification transaction (opposite amount)
+      const rectificationTransaction: Transaction = {
+        id: `txn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        sku: originalTransaction.sku,
+        itemName: originalTransaction.itemName,
+        amount: -originalTransaction.amount, // Opposite amount to reverse the effect
+        previousAmount: originalTransaction.newAmount,
+        newAmount: originalTransaction.previousAmount, // Return to original amount
+        location: originalTransaction.location,
+        fromLocation: originalTransaction.fromLocation,
+        toLocation: originalTransaction.toLocation,
+        transactionType: originalTransaction.transactionType,
+        status: TransactionStatus.COMPLETED,
+        performedBy,
+        timestamp: now,
+        notes: `Rectification of transaction ${originalTransaction.id.slice(-8)}. Reason: ${reason || 'Manual cancellation'}`,
+        batchId: originalTransaction.batchId,
+        parentTransactionId: originalTransaction.id,
+        isRectification: true
+      };
+
+      await this.saveTransaction(rectificationTransaction);
+
+      // Step 3: Apply the rectification to the actual inventory
+      // This is the missing piece - the rectification transaction needs to update inventory counts
+      try {
+        await tableStateService.addToInventoryCountOptimized(
+          rectificationTransaction.sku,
+          rectificationTransaction.itemName,
+          rectificationTransaction.amount, // This is the negative amount to reverse the original
+          rectificationTransaction.location,
+          rectificationTransaction.performedBy
+        );
+
+        logger.info('Rectification applied to inventory', {
+          sku: rectificationTransaction.sku,
+          amount: rectificationTransaction.amount,
+          location: rectificationTransaction.location
+        });
+      } catch (inventoryError) {
+        logger.error('Failed to apply rectification to inventory', inventoryError);
+        // Note: Transaction is still saved, but inventory might be out of sync
+        // In a production system, you might want to implement compensation logic here
+      }
+
+      logger.info('Transaction cancelled and rectified', {
+        originalId: originalTransaction.id,
+        rectificationId: rectificationTransaction.id,
+        reason
+      });
+
+      return {
+        cancelledTransaction,
+        rectificationTransaction
+      };
+    } catch (error) {
+      logger.error('Error cancelling and rectifying transaction', error);
       throw error;
     }
   }
