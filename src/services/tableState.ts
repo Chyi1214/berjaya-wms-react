@@ -26,7 +26,8 @@ const mapFirestoreToEntry = (_id: string, data: any): InventoryCountEntry => ({
   amount: data.amount,
   location: data.location,
   countedBy: data.countedBy,
-  timestamp: data.timestamp?.toDate() || new Date()
+  timestamp: data.timestamp?.toDate() || new Date(),
+  notes: data.notes || undefined
 });
 
 class TableStateService {
