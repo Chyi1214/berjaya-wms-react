@@ -1,5 +1,10 @@
 // Scanner Service - Barcode/QR code scanning with @zxing/library
-import { BrowserMultiFormatReader, NotFoundException } from '@zxing/library';
+import {
+  BrowserMultiFormatReader,
+  NotFoundException,
+  DecodeHintType,
+  BarcodeFormat
+} from '@zxing/library';
 import { ScannerConfig } from '../types';
 import { createModuleLogger } from './logger';
 
@@ -16,7 +21,20 @@ class ScannerService {
   };
 
   constructor() {
-    this.codeReader = new BrowserMultiFormatReader();
+    // Configure hints for better barcode format support
+    const hints = new Map();
+    hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+      BarcodeFormat.CODE_128,  // Prioritize Code-128 first
+      BarcodeFormat.QR_CODE,
+      BarcodeFormat.CODE_39,
+      BarcodeFormat.EAN_13,
+      BarcodeFormat.EAN_8,
+      BarcodeFormat.CODE_93
+    ]);
+
+    // Initialize with hints to prioritize Code-128
+    this.codeReader = new BrowserMultiFormatReader(hints);
+    logger.info('Scanner configured with Code-128 priority for alphanumeric barcodes');
   }
 
   // Check if camera is available
@@ -168,13 +186,17 @@ class ScannerService {
           videoElement,
           (result, error) => {
             if (result) {
-              const scannedCode = result.getText();
-              logger.info('Barcode scanned', { code: scannedCode });
-              
+              const rawCode = result.getText();
+              const scannedCode = this.normalizeBarcodeText(rawCode);
+              logger.info('Barcode scanned', {
+                raw: rawCode,
+                normalized: scannedCode
+              });
+
               // Play feedback
               this.playFeedback();
-              
-              // Return result
+
+              // Return normalized result
               onScan(scannedCode);
             }
             
@@ -220,13 +242,17 @@ class ScannerService {
         videoElement,
         (result, error) => {
           if (result) {
-            const scannedCode = result.getText();
-            logger.info('Barcode scanned', { code: scannedCode });
-            
+            const rawCode = result.getText();
+            const scannedCode = this.normalizeBarcodeText(rawCode);
+            logger.info('Barcode scanned', {
+              raw: rawCode,
+              normalized: scannedCode
+            });
+
             // Play feedback
             this.playFeedback();
-            
-            // Return result
+
+            // Return normalized result
             onScan(scannedCode);
           }
           
@@ -263,6 +289,47 @@ class ScannerService {
     // Vibration feedback
     if (this.config.enableVibration && 'vibrate' in navigator) {
       navigator.vibrate(200); // 200ms vibration
+    }
+  }
+
+  // Normalize barcode text to handle character encoding issues
+  private normalizeBarcodeText(rawText: string): string {
+    try {
+      // Handle character encoding issues that can cause PRUPBGFB^SM301702 to become 40452272
+      let normalized = rawText;
+
+      // Step 1: Unicode normalization to handle different character encodings
+      normalized = normalized.normalize('NFKD');
+
+      // Step 2: Remove any invisible control characters
+      normalized = normalized.replace(/[\u0000-\u001F\u007F-\u009F]/g, '');
+
+      // Step 3: Check for possible Code-128 character set C encoding errors
+      if (/^[0-9]+$/.test(normalized) && rawText.length > 10) {
+        // Pure numbers but original text was long - likely Code-128 set C encoding error
+        logger.warn('Possible Code-128 character set C error detected', {
+          raw: rawText,
+          normalized: normalized,
+          suggestion: 'This might be PRUPBGFB^SM301702 encoded as 40452272'
+        });
+
+        // Keep the result but warn about potential encoding issue
+        // The QR processing logic will handle lookup attempts
+      }
+
+      // Step 4: Trim whitespace
+      normalized = normalized.trim();
+
+      logger.debug('Barcode text normalized', {
+        original: rawText,
+        normalized: normalized,
+        lengthChange: rawText.length - normalized.length
+      });
+
+      return normalized;
+    } catch (error) {
+      logger.warn('Error normalizing barcode text, using original', { error, rawText });
+      return rawText;
     }
   }
 
