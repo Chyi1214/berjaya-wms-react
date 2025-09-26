@@ -4,7 +4,6 @@ import { ScanLookup } from '../../types';
 import { tableStateService } from '../../services/tableState';
 import { scanLookupService } from '../../services/scanLookupService';
 import { batchAllocationService } from '../../services/batchAllocationService';
-import { batchManagementService } from '../../services/batchManagement';
 
 interface UnifiedLogisticsMonitorProps {
   userEmail: string;
@@ -27,7 +26,6 @@ export function UnifiedLogisticsMonitor({ userEmail: _userEmail }: UnifiedLogist
 
   // Data for selected batch
   const [currentLocationData, setCurrentLocationData] = useState<LocationData[]>([]);
-  const [belongingLocationData, setBelongingLocationData] = useState<LocationData[]>([]);
 
   // Load initial data
   const loadData = async () => {
@@ -38,14 +36,19 @@ export function UnifiedLogisticsMonitor({ userEmail: _userEmail }: UnifiedLogist
       const unboxedCount = await tableStateService.getUnboxedBoxesCount();
       setUnboxedBoxes(unboxedCount);
 
-      // Load available batches
-      const batches = await batchManagementService.getAllBatches();
-      const batchIds = batches.map((batch: any) => batch.batchId);
+      // Load available batches from batch configuration
+      const batchConfig = await batchAllocationService.getBatchConfig();
+      const batchIds = batchConfig?.availableBatches || [];
       setAvailableBatches(batchIds);
 
-      // Set first batch as default if available
+      console.log('🎯 Loaded batch config:', batchConfig);
+      console.log('📦 Available batches:', batchIds);
+
+      // Set active batch as default if available
       if (batchIds.length > 0 && !selectedBatch) {
-        setSelectedBatch(batchIds[0]);
+        const defaultBatch = batchConfig?.activeBatch || batchIds[0];
+        setSelectedBatch(defaultBatch);
+        console.log('🔄 Set default batch:', defaultBatch);
       }
 
     } catch (error) {
@@ -69,43 +72,63 @@ export function UnifiedLogisticsMonitor({ userEmail: _userEmail }: UnifiedLogist
       // Get current inventory locations
       const inventoryData = await tableStateService.getExpectedInventory();
 
-      // Get scanner lookup data for belonging locations
+      // Get scanner lookup data for target destinations
       const scannerData = await scanLookupService.getAllLookups();
 
-      // Filter and format current location data
-      const currentData: LocationData[] = [];
-      filteredAllocations.forEach((allocation: any) => {
-        const inventoryItem = inventoryData.find(inv =>
-          inv.sku === allocation.sku && inv.location === allocation.location
-        );
+      // Group by target destination
+      const destinationGroups: Record<string, LocationData[]> = {};
 
-        if (inventoryItem && inventoryItem.amount > 0) {
-          currentData.push({
-            sku: allocation.sku,
-            itemName: inventoryItem.itemName,
-            location: inventoryItem.location,
-            quantity: inventoryItem.amount
-          });
-        }
+      filteredAllocations.forEach((allocation: any) => {
+        // Find all scanner lookups for this SKU (multiple target zones possible)
+        const scannerLookups = scannerData.filter((lookup: ScanLookup) => lookup.sku === allocation.sku);
+
+        scannerLookups.forEach((scannerLookup: ScanLookup) => {
+          const targetDestination = `Zone ${scannerLookup.targetZone}`;
+
+          if (!destinationGroups[targetDestination]) {
+            destinationGroups[targetDestination] = [];
+          }
+
+          // Find current inventory for this SKU
+          const inventoryItem = inventoryData.find(inv =>
+            inv.sku === allocation.sku && inv.location === allocation.location
+          );
+
+          if (inventoryItem && inventoryItem.amount > 0) {
+            // Get the quantity allocated to this specific batch
+            const batchQuantity = allocation.allocations[batchId] || 0;
+
+            // Only show items that have allocation for this batch
+            if (batchQuantity > 0) {
+              destinationGroups[targetDestination].push({
+                sku: allocation.sku,
+                itemName: scannerLookup.itemName || inventoryItem.itemName || allocation.sku,
+                location: `Currently at: ${inventoryItem.location}`,
+                quantity: batchQuantity  // Show batch-specific quantity (now properly updated by transactions)
+              });
+            }
+          }
+        });
       });
 
-      // Format belonging location data from scanner lookup
-      const belongingData: LocationData[] = [];
-      filteredAllocations.forEach((allocation: any) => {
-        const scannerLookup = scannerData.find((lookup: ScanLookup) => lookup.sku === allocation.sku);
-
-        if (scannerLookup) {
-          belongingData.push({
-            sku: allocation.sku,
-            itemName: scannerLookup.itemName || allocation.sku,
-            location: `Zone ${scannerLookup.targetZone}`,
-            quantity: allocation.allocations[batchId] || 0
+      // Convert to flat list for rendering, sorted by destination
+      const flatData: LocationData[] = [];
+      Object.keys(destinationGroups)
+        .sort()
+        .forEach(destination => {
+          // Add destination header
+          flatData.push({
+            sku: `DESTINATION_${destination}`,
+            itemName: destination,
+            location: 'TARGET_DESTINATION',
+            quantity: 0
           });
-        }
-      });
 
-      setCurrentLocationData(currentData);
-      setBelongingLocationData(belongingData);
+          // Add items under this destination
+          flatData.push(...destinationGroups[destination]);
+        });
+
+      setCurrentLocationData(flatData);
 
     } catch (error) {
       console.error('Failed to load batch data:', error);
@@ -164,69 +187,51 @@ export function UnifiedLogisticsMonitor({ userEmail: _userEmail }: UnifiedLogist
         </div>
       </div>
 
-      {/* Two-Panel View */}
+      {/* Single Panel - Grouped by Destination */}
       {selectedBatch && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Current Location Panel */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-            <div className="p-4 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">📍 Current Location</h3>
-              <p className="text-sm text-gray-600">Where items ARE now</p>
-            </div>
-            <div className="p-4">
-              {currentLocationData.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <div className="text-4xl mb-2">📭</div>
-                  <p>No items found for this batch</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {currentLocationData.map((item, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+          <div className="p-4 border-b border-gray-200">
+            <h3 className="text-lg font-semibold text-gray-900">🎯 Items Grouped by Target Destination</h3>
+            <p className="text-sm text-gray-600">Showing where items should go and their current locations</p>
+          </div>
+          <div className="p-4">
+            {currentLocationData.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <div className="text-4xl mb-2">📭</div>
+                <p>No items found for this batch</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {currentLocationData.map((item, index) => {
+                  // Check if this is a destination header
+                  if (item.location === 'TARGET_DESTINATION') {
+                    return (
+                      <div key={index} className="mt-6 mb-3 first:mt-0">
+                        <div className="flex items-center space-x-2 pb-2 border-b-2 border-blue-200">
+                          <div className="text-xl">🎯</div>
+                          <h4 className="text-lg font-semibold text-blue-800">{item.itemName}</h4>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  // Regular item under a destination
+                  return (
+                    <div key={index} className="flex items-center justify-between p-3 bg-blue-50 rounded-lg ml-6">
                       <div className="flex-1">
                         <div className="font-medium text-gray-900">{item.sku}</div>
                         <div className="text-sm text-gray-600">{item.itemName}</div>
+                        <div className="text-xs text-blue-600 mt-1">{item.location}</div>
                       </div>
                       <div className="text-right">
                         <div className="font-bold text-lg text-blue-600">{item.quantity}</div>
-                        <div className="text-sm text-gray-600">{item.location}</div>
+                        <div className="text-xs text-gray-500">units</div>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Belonging Location Panel */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-            <div className="p-4 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">🎯 Belonging Location</h3>
-              <p className="text-sm text-gray-600">Where items SHOULD go</p>
-            </div>
-            <div className="p-4">
-              {belongingLocationData.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <div className="text-4xl mb-2">🎯</div>
-                  <p>No destination data available</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {belongingLocationData.map((item, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
-                      <div className="flex-1">
-                        <div className="font-medium text-gray-900">{item.sku}</div>
-                        <div className="text-sm text-gray-600">{item.itemName}</div>
-                      </div>
-                      <div className="text-right">
-                        <div className="font-bold text-lg text-green-600">{item.quantity}</div>
-                        <div className="text-sm text-gray-600">{item.location}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       )}

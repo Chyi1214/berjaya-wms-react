@@ -15,6 +15,7 @@ import {
 import { Transaction, TransactionStatus } from '../types';
 import { createModuleLogger } from './logger';
 import { tableStateService } from './tableState';
+import { batchAllocationService } from './batchAllocationService';
 
 const logger = createModuleLogger('TransactionService');
 
@@ -348,6 +349,48 @@ class TransactionService {
         logger.error('Failed to apply rectification to inventory', inventoryError);
         // Note: Transaction is still saved, but inventory might be out of sync
         // In a production system, you might want to implement compensation logic here
+      }
+
+      // Step 4: Update batch allocations if this transaction has a batch
+      if (rectificationTransaction.batchId) {
+        try {
+          const batchAllocation = await batchAllocationService.getBatchAllocation(
+            rectificationTransaction.sku,
+            rectificationTransaction.location
+          );
+
+          if (batchAllocation && batchAllocation.allocations[rectificationTransaction.batchId]) {
+            // Add the rectification amount back to the batch allocation
+            const currentBatchQuantity = batchAllocation.allocations[rectificationTransaction.batchId];
+            const newBatchQuantity = currentBatchQuantity + (-rectificationTransaction.amount); // Opposite of rectification
+
+            await batchAllocationService.updateBatchAllocation(
+              rectificationTransaction.sku,
+              rectificationTransaction.location,
+              rectificationTransaction.batchId,
+              newBatchQuantity,
+              rectificationTransaction.performedBy
+            );
+
+            logger.info('Batch allocation updated for rectification', {
+              sku: rectificationTransaction.sku,
+              location: rectificationTransaction.location,
+              batchId: rectificationTransaction.batchId,
+              previousQuantity: currentBatchQuantity,
+              newQuantity: newBatchQuantity,
+              rectificationAmount: -rectificationTransaction.amount
+            });
+          } else {
+            logger.warn('No batch allocation found for rectification', {
+              sku: rectificationTransaction.sku,
+              location: rectificationTransaction.location,
+              batchId: rectificationTransaction.batchId
+            });
+          }
+        } catch (batchError) {
+          logger.error('Failed to update batch allocation for rectification', batchError);
+          // Note: Transaction and inventory are updated, but batch allocation might be out of sync
+        }
       }
 
       logger.info('Transaction cancelled and rectified', {

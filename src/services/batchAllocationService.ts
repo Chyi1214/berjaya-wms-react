@@ -313,6 +313,62 @@ class BatchAllocationService {
     }
   }
 
+  // ========= Batch Allocation Update Methods =========
+
+  async updateBatchAllocation(
+    sku: string,
+    location: string,
+    batchId: string,
+    newQuantity: number,
+    updatedBy: string
+  ): Promise<void> {
+    try {
+      const docId = `${sku}_${location}`;
+      const docRef = doc(db, BATCH_ALLOCATIONS_COLLECTION, docId);
+
+      // Get current allocation
+      const existing = await getDoc(docRef);
+
+      if (!existing.exists()) {
+        logger.warn('Batch allocation not found for update', { sku, location, batchId });
+        return;
+      }
+
+      const currentData = mapFirestoreToBatchAllocation(existing.data());
+
+      // Update the specific batch quantity
+      const updatedAllocations = {
+        ...currentData.allocations,
+        [batchId]: Math.max(0, newQuantity) // Ensure non-negative
+      };
+
+      // Calculate new total
+      const newTotal = Object.values(updatedAllocations).reduce((sum: number, qty: number) => sum + qty, 0);
+
+      const updatedAllocation: BatchAllocation = {
+        ...currentData,
+        allocations: updatedAllocations,
+        totalAllocated: newTotal,
+        lastUpdated: new Date()
+      };
+
+      const firestoreData = prepareForFirestore(mapBatchAllocationToFirestore(updatedAllocation));
+      await updateDoc(docRef, firestoreData);
+
+      logger.info('Batch allocation updated', {
+        sku,
+        location,
+        batchId,
+        newQuantity,
+        newTotal,
+        updatedBy
+      });
+    } catch (error) {
+      logger.error('Error updating batch allocation:', error);
+      throw new Error('Failed to update batch allocation');
+    }
+  }
+
   // ========= Utility Methods =========
 
   async initializeDefaultConfig(): Promise<void> {
