@@ -136,6 +136,50 @@ class ReportService {
     }
   }
 
+  // Dismiss any active report in a zone (anyone can dismiss)
+  async dismissAnyReportInZone(zoneId: number, dismissedBy: string): Promise<void> {
+    try {
+      const q = query(
+        this.reportsCollection,
+        where('status', '==', 'active'),
+        where('zoneId', '==', zoneId)
+      );
+
+      const snapshot = await getDocs(q);
+      if (!snapshot.empty) {
+        // Dismiss the first (most recent) active report in this zone
+        const reportDoc = snapshot.docs[0];
+        const reportRef = doc(this.reportsCollection, reportDoc.id);
+        await updateDoc(reportRef, {
+          status: 'dismissed',
+          dismissedBy,
+          dismissedAt: new Date()
+        });
+        console.log('✅ Report dismissed in zone:', zoneId, 'by:', dismissedBy);
+      }
+    } catch (error) {
+      console.error('Failed to dismiss report in zone:', error);
+      throw error;
+    }
+  }
+
+  // Check if there are any active reports in zone (regardless of who reported)
+  async hasAnyActiveReportInZone(zoneId: number): Promise<boolean> {
+    try {
+      const q = query(
+        this.reportsCollection,
+        where('status', '==', 'active'),
+        where('zoneId', '==', zoneId)
+      );
+
+      const snapshot = await getDocs(q);
+      return !snapshot.empty;
+    } catch (error) {
+      console.error('Failed to check active reports in zone:', error);
+      return false;
+    }
+  }
+
   // Get report count by zone (for info board display)
   async getReportCountByZone(): Promise<Record<number, number>> {
     try {

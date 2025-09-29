@@ -167,30 +167,30 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
 
     try {
       const displayName = getDisplayName(user, authenticatedUser?.userRecord);
-      
-      // Check current status from database to be sure
-      const currentHasReport = await reportService.hasActiveReport(selectedZone, user.email);
-      console.log('🔍 Current report status from DB:', currentHasReport, 'UI state:', hasActiveReport);
-      
-      if (currentHasReport) {
-        // Dismiss existing report
-        await reportService.dismissOwnReport(selectedZone, user.email);
+
+      // Check if there are ANY active reports in this zone (not just from this user)
+      const hasAnyActiveReport = await reportService.hasAnyActiveReportInZone(selectedZone);
+      console.log('🔍 Any active reports in zone:', hasAnyActiveReport, 'UI state:', hasActiveReport);
+
+      if (hasAnyActiveReport) {
+        // Dismiss any active report in this zone (anyone can dismiss)
+        await reportService.dismissAnyReportInZone(selectedZone, user.email);
         setHasActiveReport(false);
-        alert(`✅ Report dismissed for Zone ${selectedZone}`);
-        console.log('✅ Report dismissed for zone:', selectedZone, 'by:', displayName);
+        alert(`✅ Alert dismissed for Zone ${selectedZone}`);
+        console.log('✅ Alert dismissed for zone:', selectedZone, 'by:', displayName);
       } else {
         // Submit new report
         await reportService.submitReport(selectedZone, user.email, displayName);
         setHasActiveReport(true);
-        alert(`⚠️ Report submitted for Zone ${selectedZone}\nThis will be visible on the info board.`);
-        console.log('✅ Report submitted for zone:', selectedZone, 'by:', displayName);
+        alert(`⚠️ Alert submitted for Zone ${selectedZone}\nThis will be visible on the info board.`);
+        console.log('✅ Alert submitted for zone:', selectedZone, 'by:', displayName);
       }
-      
+
       // Refresh the state from database to ensure consistency
       setTimeout(async () => {
-        const newStatus = await reportService.hasActiveReport(selectedZone, user.email);
+        const newStatus = await reportService.hasAnyActiveReportInZone(selectedZone);
         setHasActiveReport(newStatus);
-        console.log('🔄 Refreshed report status:', newStatus);
+        console.log('🔄 Refreshed alert status:', newStatus);
       }, 500);
       
     } catch (error) {
