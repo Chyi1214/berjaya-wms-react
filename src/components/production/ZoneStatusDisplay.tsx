@@ -1,8 +1,8 @@
 // Zone Status Display - Version 4.0 Real-time Zone Information
 import { useState, useEffect } from 'react';
 import { WorkStation } from '../../types';
-// Zone status uses hardcoded English text for real-time display
 import { workStationService } from '../../services/workStationService';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 interface ZoneStatusDisplayProps {
   zoneId: number;
@@ -13,7 +13,8 @@ interface ZoneStatusDisplayProps {
 }
 
 export function ZoneStatusDisplay({ zoneId, onRefresh, compact = false, onScanCar, onCompleteCar }: ZoneStatusDisplayProps) {
-  
+  const { t } = useLanguage();
+
   // State
   const [workStation, setWorkStation] = useState<WorkStation | null>(null);
   const [loading, setLoading] = useState(true);
@@ -71,7 +72,7 @@ export function ZoneStatusDisplay({ zoneId, onRefresh, compact = false, onScanCa
       <div className={`bg-white rounded-lg shadow-sm border ${compact ? 'p-3' : 'p-4'}`}>
         <div className="flex items-center justify-center">
           <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-          <span className="ml-2 text-sm text-gray-600">Loading zone status...</span>
+          <span className="ml-2 text-sm text-gray-600">{t('production.loadingZoneStatus')}</span>
         </div>
       </div>
     );
@@ -90,7 +91,7 @@ export function ZoneStatusDisplay({ zoneId, onRefresh, compact = false, onScanCa
           onClick={handleManualRefresh}
           className="mt-2 text-red-600 hover:text-red-800 text-sm underline"
         >
-          Try Again
+          {t('production.tryAgain')}
         </button>
       </div>
     );
@@ -116,7 +117,7 @@ export function ZoneStatusDisplay({ zoneId, onRefresh, compact = false, onScanCa
     return (
       <div className="bg-white rounded-lg shadow-sm border p-3">
         <div className="flex items-center justify-between mb-2">
-          <h3 className="font-medium text-gray-900 text-sm">Zone {zoneId} Status</h3>
+          <h3 className="font-medium text-gray-900 text-sm">{t('production.zoneStatus', { zone: zoneId })}</h3>
           <button
             onClick={handleManualRefresh}
             disabled={loading}
@@ -132,24 +133,24 @@ export function ZoneStatusDisplay({ zoneId, onRefresh, compact = false, onScanCa
         <div className="space-y-2">
           {/* Current Car */}
           <div className="flex items-center justify-between text-xs">
-            <span className="text-gray-600">Car:</span>
+            <span className="text-gray-600">{t('production.currentCar')}:</span>
             <span className={`font-medium ${workStation.currentCar ? 'text-blue-600' : 'text-gray-400'}`}>
-              {workStation.currentCar ? workStation.currentCar.vin.slice(-6) : 'None'}
+              {workStation.currentCar ? workStation.currentCar.vin.slice(-6) : t('production.none')}
             </span>
           </div>
 
           {/* Worker Status */}
           <div className="flex items-center justify-between text-xs">
-            <span className="text-gray-600">Worker:</span>
+            <span className="text-gray-600">{t('production.worker')}:</span>
             <span className={`font-medium ${workStation.currentWorker ? 'text-green-600' : 'text-gray-400'}`}>
-              {workStation.currentWorker ? 'Checked In' : 'Available'}
+              {workStation.currentWorker ? t('production.checkedIn') : t('production.available')}
             </span>
           </div>
 
           {/* Time Info */}
           {(workStation.currentCar || workStation.currentWorker) && (
             <div className="flex items-center justify-between text-xs">
-              <span className="text-gray-600">Time:</span>
+              <span className="text-gray-600">{t('production.timeInZone')}:</span>
               <span className="font-medium text-orange-600">
                 {workStation.currentCar && formatTime(workStation.currentCar.timeElapsed)}
                 {workStation.currentWorker && !workStation.currentCar && formatTime(workStation.currentWorker.timeWorking)}
@@ -165,10 +166,10 @@ export function ZoneStatusDisplay({ zoneId, onRefresh, compact = false, onScanCa
   return (
     <div className="bg-white rounded-lg shadow-sm border p-4">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-gray-900">Zone {zoneId} Status</h3>
+        <h3 className="text-lg font-semibold text-gray-900">{t('production.zoneStatus', { zone: zoneId })}</h3>
         <div className="flex items-center space-x-2">
           <span className="text-xs text-gray-500">
-            Updated {lastRefresh.toLocaleTimeString()}
+{t('production.updated')} {lastRefresh.toLocaleTimeString()}
           </span>
           <button
             onClick={handleManualRefresh}
@@ -198,41 +199,41 @@ export function ZoneStatusDisplay({ zoneId, onRefresh, compact = false, onScanCa
             }`}>
               <span className="text-white text-sm font-bold">🚗</span>
             </div>
-            <h4 className="ml-2 font-medium text-gray-900">Current Car</h4>
+            <h4 className="ml-2 font-medium text-gray-900">{t('production.currentCar')}</h4>
           </div>
 
           {workStation.currentCar ? (
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <span className="text-gray-600">VIN:</span>
+                <span className="text-gray-600">{t('production.vin')}:</span>
                 <span className="font-mono font-medium">{workStation.currentCar.vin}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">Type:</span>
+                <span className="text-gray-600">{t('production.type')}:</span>
                 <span className="font-medium">{workStation.currentCar.type}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">Color:</span>
+                <span className="text-gray-600">{t('production.color')}:</span>
                 <span className="font-medium">{workStation.currentCar.color}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">Time in zone:</span>
+                <span className="text-gray-600">{t('production.timeInZone')}:</span>
                 <span className="font-medium text-blue-600">{formatTime(workStation.currentCar.timeElapsed)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">Entered at:</span>
+                <span className="text-gray-600">{t('production.enteredAt')}:</span>
                 <span className="font-medium">{workStation.currentCar.enteredAt.toLocaleTimeString()}</span>
               </div>
               <div className="mt-3 pt-2 border-t border-blue-200">
-                <p className="text-blue-700 text-xs text-center font-medium">Click to mark work complete</p>
+                <p className="text-blue-700 text-xs text-center font-medium">{t('production.clickToMarkWorkComplete')}</p>
               </div>
             </div>
           ) : (
             <div className="text-center py-2">
-              <p className="text-gray-500 text-sm">No car currently in zone</p>
-              <p className="text-xs text-gray-400 mt-1">Ready for next car</p>
+              <p className="text-gray-500 text-sm">{t('production.noCarCurrentlyInZone')}</p>
+              <p className="text-xs text-gray-400 mt-1">{t('production.readyForNextCar')}</p>
               <div className="mt-3 pt-2 border-t border-gray-200">
-                <p className="text-gray-600 text-xs font-medium">Click to scan new car</p>
+                <p className="text-gray-600 text-xs font-medium">{t('production.clickToScanNewCar')}</p>
               </div>
             </div>
           )}

@@ -172,7 +172,24 @@ const bengaliTranslations: Translation = {
     zoneDesc: 'উৎপাদন জোন {zone} এ ইনভেন্টরি পণ্য গণনা এবং ট্র্যাক করুন',
     backToZones: 'জোন নির্বাচনে ফিরে যান',
     zone: 'জোন',
-    role: 'উৎপাদন ভূমিকা'
+    role: 'উৎপাদন ভূমিকা',
+
+    // Zone interface (new additions)
+    noCarCurrentlyInZone: 'জোনে এখন কোনো গাড়ি নেই',
+    readyForNextCar: 'পরবর্তী গাড়ির জন্য প্রস্তুত',
+    clickToScanNewCar: 'নতুন গাড়ি স্ক্যান করতে ক্লিক করুন',
+    clickToMarkWorkComplete: 'কাজ সম্পন্ন চিহ্নিত করতে ক্লিক করুন',
+    loadingZoneStatus: 'জোন স্ট্যাটাস লোড হচ্ছে...',
+    tryAgain: 'আবার চেষ্টা করুন',
+    updated: 'আপডেট হয়েছে',
+
+    // Action buttons
+    tasks: 'কার্যসমূহ',
+    reportIssue: 'সমস্যা রিপোর্ট করুন',
+    inventory: 'ইনভেন্টরি',
+    receive: 'গ্রহণ',
+    wasteAndLost: 'অপচয় ও হারানো',
+    reportActive: 'রিপোর্ট সক্রিয়'
   },
 
   // Manager

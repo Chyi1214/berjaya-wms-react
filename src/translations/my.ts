@@ -172,7 +172,24 @@ const myanmarTranslations: Translation = {
     zoneDesc: 'ထုတ်လုပ်ရေး ဇုန် {zone} ရှိ ကုန်ပစ္စည်းများကို ရေတွက်ပြီး ခြေရာခံပါ',
     backToZones: 'ဇုန်ရွေးချယ်မှုသို့ ပြန်သွားရန်',
     zone: 'ဇုန်',
-    role: 'ထုတ်လုပ်ရေး အခန်းကဏ္ဍ'
+    role: 'ထုတ်လုပ်ရေး အခန်းကဏ္ဍ',
+
+    // Zone interface (new additions)
+    noCarCurrentlyInZone: 'ဇုန်တွင် လက်ရှိ ကားမရှိပါ',
+    readyForNextCar: 'နောက်ကား အတွက် အသင့်',
+    clickToScanNewCar: 'ကားအသစ် စကင်န်ရန် နှိပ်ပါ',
+    clickToMarkWorkComplete: 'အလုပ်ပြီးဆုံးကြောင်း မှတ်သားရန် နှိပ်ပါ',
+    loadingZoneStatus: 'ဇုန်အခြေအနေ တင်နေသည်...',
+    tryAgain: 'ထပ်စမ်းကြည့်ပါ',
+    updated: 'အပ်ဒိတ်လုပ်ပြီး',
+
+    // Action buttons
+    tasks: 'အလုပ်များ',
+    reportIssue: 'ပြဿနာ အစီရင်ခံပါ',
+    inventory: 'ကုန်စာရင်း',
+    receive: 'လက်ခံရယူ',
+    wasteAndLost: 'အပေါ့တန်နှင့် ပျောက်ဆုံး',
+    reportActive: 'အစီရင်ခံ တက်ကြွ'
   },
 
   // Manager

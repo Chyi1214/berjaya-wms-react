@@ -415,6 +415,23 @@ const englishTranslations: Translation = {
     refreshStatus: 'Refresh status',
     none: 'None',
     available: 'Available',
+
+    // Zone interface (new additions)
+    noCarCurrentlyInZone: 'No car currently in zone',
+    readyForNextCar: 'Ready for next car',
+    clickToScanNewCar: 'Click to scan new car',
+    clickToMarkWorkComplete: 'Click to mark work complete',
+    loadingZoneStatus: 'Loading zone status...',
+    tryAgain: 'Try Again',
+    updated: 'Updated',
+
+    // Action buttons
+    tasks: 'Tasks',
+    reportIssue: 'Report Issue',
+    inventory: 'Inventory',
+    receive: 'Receive',
+    wasteAndLost: 'Waste & Lost',
+    reportActive: 'Report Active',
     
     // Manager dashboard
     productionLineOverview: 'Production Line Overview',

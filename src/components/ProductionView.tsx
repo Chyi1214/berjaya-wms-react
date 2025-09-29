@@ -427,7 +427,7 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
                   <p className={`text-xs mt-1 font-medium ${
                     hasPendingTasks ? 'text-purple-700' : 'text-gray-700'
                   }`}>
-                    {hasPendingTasks ? `${tasks.length} Tasks` : 'Tasks'}
+                    {hasPendingTasks ? `${tasks.length} ${t('production.tasks')}` : t('production.tasks')}
                   </p>
                 </div>
 
@@ -446,7 +446,7 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
                   <p className={`text-xs mt-1 font-medium ${
                     hasActiveReport ? 'text-red-700' : 'text-gray-700'
                   }`}>
-                    {hasActiveReport ? 'Report Active' : 'Report Issue'}
+                    {hasActiveReport ? t('production.reportActive') : t('production.reportIssue')}
                   </p>
                 </div>
 
@@ -458,7 +458,7 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
                   >
                     <div className="text-white text-2xl">📦</div>
                   </button>
-                  <p className="text-xs text-gray-700 mt-1 font-medium">Inventory</p>
+                  <p className="text-xs text-gray-700 mt-1 font-medium">{t('production.inventory')}</p>
                 </div>
 
                 {/* Receive App Button */}
@@ -469,7 +469,7 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
                   >
                     <div className="text-white text-2xl">📬</div>
                   </button>
-                  <p className="text-xs text-gray-700 mt-1 font-medium">Receive</p>
+                  <p className="text-xs text-gray-700 mt-1 font-medium">{t('production.receive')}</p>
                 </div>
 
                 {/* Waste & Lost App Button */}
@@ -480,7 +480,7 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
                   >
                     <div className="text-white text-2xl">🗑️</div>
                   </button>
-                  <p className="text-xs text-gray-700 mt-1 font-medium">Waste & Lost</p>
+                  <p className="text-xs text-gray-700 mt-1 font-medium">{t('production.wasteAndLost')}</p>
                 </div>
               </div>
 

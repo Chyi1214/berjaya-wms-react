@@ -172,7 +172,24 @@ const malayTranslations: Translation = {
     zoneDesc: 'Kira dan jejak item inventori di zon pengeluaran {zone}',
     backToZones: 'Kembali ke Pemilihan Zon',
     zone: 'Zon',
-    role: 'Peranan Pengeluaran'
+    role: 'Peranan Pengeluaran',
+
+    // Zone interface (new additions)
+    noCarCurrentlyInZone: 'Tiada kereta dalam zon pada masa ini',
+    readyForNextCar: 'Sedia untuk kereta seterusnya',
+    clickToScanNewCar: 'Klik untuk imbas kereta baru',
+    clickToMarkWorkComplete: 'Klik untuk tandakan kerja selesai',
+    loadingZoneStatus: 'Memuat status zon...',
+    tryAgain: 'Cuba Lagi',
+    updated: 'Dikemas kini',
+
+    // Action buttons
+    tasks: 'Tugasan',
+    reportIssue: 'Laporkan Isu',
+    inventory: 'Inventori',
+    receive: 'Terima',
+    wasteAndLost: 'Bahan Buangan & Hilang',
+    reportActive: 'Laporan Aktif'
   },
 
   // Manager

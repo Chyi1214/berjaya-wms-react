@@ -172,7 +172,24 @@ const chineseTranslations: Translation = {
     zoneDesc: '盘点并追踪生产区 {zone} 的库存物料',
     backToZones: '返回区域选择',
     zone: '区域',
-    role: '生产角色'
+    role: '生产角色',
+
+    // Zone interface (new additions)
+    noCarCurrentlyInZone: '区域内当前无车辆',
+    readyForNextCar: '准备下一辆车',
+    clickToScanNewCar: '点击扫描新车',
+    clickToMarkWorkComplete: '点击标记工作完成',
+    loadingZoneStatus: '加载区域状态...',
+    tryAgain: '重试',
+    updated: '已更新',
+
+    // Action buttons
+    tasks: '任务',
+    reportIssue: '报告问题',
+    inventory: '库存',
+    receive: '接收',
+    wasteAndLost: '浪费和丢失',
+    reportActive: '报告激活'
   },
 
   // Manager
