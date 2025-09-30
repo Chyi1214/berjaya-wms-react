@@ -10,6 +10,7 @@ interface CarJourneyViewProps {
 export function CarJourneyView({ className = '' }: CarJourneyViewProps) {
   const [availableCars, setAvailableCars] = useState<Car[]>([]);
   const [selectedVin, setSelectedVin] = useState<string>('');
+  const [searchVin, setSearchVin] = useState<string>(''); // For manual VIN search
   const [car, setCar] = useState<Car | null>(null);
   const [movements, setMovements] = useState<(CarMovement & { movedByName: string })[]>([]);
   const [loading, setLoading] = useState(false);
@@ -87,6 +88,28 @@ export function CarJourneyView({ className = '' }: CarJourneyViewProps) {
 
   const handleVinChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     setSelectedVin(event.target.value);
+    setSearchVin(''); // Clear manual search when using dropdown
+  };
+
+  const handleSearchVin = async () => {
+    const cleanVin = searchVin.trim().toUpperCase();
+    if (!cleanVin) {
+      setError('Please enter a VIN number to search');
+      return;
+    }
+
+    setSelectedVin(cleanVin);
+  };
+
+  const handleSearchInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchVin(event.target.value);
+    setSelectedVin(''); // Clear dropdown when typing manually
+  };
+
+  const handleSearchKeyPress = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      handleSearchVin();
+    }
   };
 
   const handleRefresh = () => {
@@ -144,25 +167,55 @@ export function CarJourneyView({ className = '' }: CarJourneyViewProps) {
 
       {/* Car Selection */}
       <div className="mb-6">
-        <label htmlFor="vin-select" className="block text-sm font-medium text-gray-700 mb-2">
-          Select Car (VIN):
-        </label>
-        <select
-          id="vin-select"
-          value={selectedVin}
-          onChange={handleVinChange}
-          disabled={carsLoading}
-          className="w-full max-w-md px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-        >
-          <option value="">
-            {carsLoading ? 'Loading cars...' : 'Select a car to view journey'}
-          </option>
-          {availableCars.map((car) => (
-            <option key={car.vin} value={car.vin}>
-              {car.vin} - {car.type} {car.color} ({car.status})
+        <h4 className="text-lg font-medium text-gray-900 mb-4">Search for Car Journey</h4>
+
+        {/* Method 1: Search by VIN */}
+        <div className="mb-4">
+          <label htmlFor="vin-search" className="block text-sm font-medium text-gray-700 mb-2">
+            🔍 Search by VIN Number:
+          </label>
+          <div className="flex gap-2 max-w-lg">
+            <input
+              id="vin-search"
+              type="text"
+              value={searchVin}
+              onChange={handleSearchInputChange}
+              onKeyPress={handleSearchKeyPress}
+              placeholder="Enter VIN (e.g., ABC123DEF456GHJKL) and press Enter"
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono"
+            />
+            <button
+              onClick={handleSearchVin}
+              disabled={!searchVin.trim() || loading}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Search
+            </button>
+          </div>
+        </div>
+
+        {/* Method 2: Select from Recent Cars */}
+        <div>
+          <label htmlFor="vin-select" className="block text-sm font-medium text-gray-700 mb-2">
+            📋 Or select from recent cars:
+          </label>
+          <select
+            id="vin-select"
+            value={selectedVin}
+            onChange={handleVinChange}
+            disabled={carsLoading}
+            className="w-full max-w-md px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          >
+            <option value="">
+              {carsLoading ? 'Loading cars...' : 'Select a car to view journey'}
             </option>
-          ))}
-        </select>
+            {availableCars.map((car) => (
+              <option key={car.vin} value={car.vin}>
+                {car.vin} - {car.type} {car.color} ({car.status})
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* Error Display */}

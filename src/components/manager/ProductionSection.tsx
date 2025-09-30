@@ -16,6 +16,7 @@ import {
   CarDetailModal,
   getProductionStats
 } from './production';
+import { CarTrackingSection } from './production/CarTrackingSection';
 
 interface ProductionSectionProps {
   activeTab: ManagerTab;
@@ -180,6 +181,11 @@ export function ProductionSection({ activeTab, onTabChange }: ProductionSectionP
           <WorkerPerformanceTable stats={stats} />
           <ZonePerformanceCards stats={stats} />
         </div>
+      )}
+
+      {/* Car Tracking Tab */}
+      {activeTab === 'car_tracking' && (
+        <CarTrackingSection />
       )}
 
       <CarDetailModal car={selectedCar} onClose={() => setSelectedCar(null)} />

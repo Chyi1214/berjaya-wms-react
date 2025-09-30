@@ -33,6 +33,16 @@ export const ProductionTabs = memo(function ProductionTabs({
         >
           📊 Statistics
         </button>
+        <button
+          onClick={() => onTabChange('car_tracking')}
+          className={`py-2 px-1 border-b-2 font-medium text-sm ${
+            activeTab === 'car_tracking'
+              ? 'border-blue-500 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+          }`}
+        >
+          🚗 Car Tracking
+        </button>
       </nav>
     </div>
   );

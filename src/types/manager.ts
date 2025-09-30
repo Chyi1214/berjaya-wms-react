@@ -1,8 +1,8 @@
 // Manager-specific types for better type safety across components
-export type ManagerTab = 'overview' | 'checked' | 'expected' | 'compared' | 'transaction' | 'yesterday' | 'itemmaster' | 'scanner' | 'waste' | 'hr' | 'production_line' | 'production_stats' | 'qa' | 'operations' | 'tasks' | 'feedback';
+export type ManagerTab = 'overview' | 'checked' | 'expected' | 'compared' | 'transaction' | 'yesterday' | 'itemmaster' | 'scanner' | 'waste' | 'hr' | 'production_line' | 'production_stats' | 'car_tracking' | 'qa' | 'operations' | 'tasks' | 'feedback';
 export type ManagerCategory = 'inventory' | 'production' | 'qa' | 'hr' | 'operations' | 'feedback';
 export type InventoryTab = 'overview' | 'checked' | 'expected' | 'compared' | 'transaction' | 'yesterday' | 'itemmaster' | 'scanner' | 'waste';
-export type ProductionTab = 'production_line' | 'production_stats';
+export type ProductionTab = 'production_line' | 'production_stats' | 'car_tracking';
 export type QATab = 'qa';
 export type OperationsTab = 'operations' | 'tasks';
 export type FeedbackTab = 'feedback';
@@ -22,7 +22,7 @@ export function isQATab(tab: ManagerTab): tab is QATab {
 }
 
 export function isProductionTab(tab: ManagerTab): tab is ProductionTab {
-  return ['production_line', 'production_stats'].includes(tab);
+  return ['production_line', 'production_stats', 'car_tracking'].includes(tab);
 }
 
 export function isOperationsTab(tab: ManagerTab): tab is OperationsTab {

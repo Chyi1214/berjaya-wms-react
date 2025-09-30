@@ -100,7 +100,7 @@ When Firebase fails, check:
 
 ## 📋 Project Overview
 
-**Current Status**: v6.5.19 - Car Movement Tracking System - Production Car Check-In Visibility Complete (September 30, 2025)
+**Current Status**: v6.5.20 - Car Movement Tracking System - Moved to Manager Dashboard with VIN Search (September 30, 2025)
 **IMPORTANT**: Read Eugene_note.md first! Contains complete roadmap and vision.
 **MAJOR MILESTONE**: Version 4.1 Quality Assurance system COMPLETE!
 - **Original Problem**: Complex event management, scope issues, Firebase integration chaos
