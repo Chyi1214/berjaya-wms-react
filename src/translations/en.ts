@@ -172,7 +172,35 @@ const englishTranslations: Translation = {
     zoneDesc: 'Count and track inventory items in production zone {zone}',
     backToZones: 'Back to Zone Selection',
     zone: 'Zone',
-    role: 'Production Role'
+    role: 'Production Role',
+
+    // Zone status
+    zoneStatus: 'Zone {zone} Status',
+    currentCar: 'Current Car',
+    noCarCurrentlyInZone: 'No car currently in zone',
+    readyForNextCar: 'Ready for next car',
+    clickToScanNewCar: 'Click to scan new car',
+    clickToMarkWorkComplete: 'Click to mark work complete',
+    vin: 'VIN',
+    type: 'Type',
+    color: 'Color',
+    timeInZone: 'Time in zone',
+    enteredAt: 'Entered at',
+    updated: 'Updated',
+    loadingZoneStatus: 'Loading zone status...',
+    tryAgain: 'Try Again',
+    none: 'None',
+    available: 'Available',
+    worker: 'Worker',
+    checkedIn: 'Checked In',
+
+    // Action buttons
+    tasks: 'Tasks',
+    reportIssue: 'Report Issue',
+    inventory: 'Inventory',
+    receive: 'Receive',
+    wasteAndLost: 'Waste & Lost',
+    reportActive: 'Report Active'
   },
 
   // Quality Assurance

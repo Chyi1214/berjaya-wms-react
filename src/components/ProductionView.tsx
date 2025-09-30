@@ -11,6 +11,9 @@ import ZoneStatusDisplay from './production/ZoneStatusDisplay';
 import WasteLostDefectView from './common/WasteLostDefectView';
 import ProductionLineView from './production/ProductionLineView';
 import ProductionInfoBoard from './production/ProductionInfoBoard';
+import CarMovementHistory from './production/CarMovementHistory';
+import CarJourneyView from './production/CarJourneyView';
+import ZoneActivityView from './production/ZoneActivityView';
 import { ElaMenu } from './ela/ElaMenu';
 import { ElaChat } from './ela/ElaChat';
 import PersonalSettings from './PersonalSettings';
@@ -37,7 +40,8 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
   const { t } = useLanguage();
   const { authenticatedUser } = useAuth();
   const [selectedZone, setSelectedZone] = useState<number | null>(null);
-  const [selectedAction, setSelectedAction] = useState<'menu' | 'check' | 'transaction' | 'scan_car' | 'complete_car' | 'info_board' | 'waste_lost' | 'tasks'>('menu');
+  const [selectedAction, setSelectedAction] = useState<'menu' | 'check' | 'transaction' | 'scan_car' | 'complete_car' | 'info_board' | 'waste_lost' | 'tasks' | 'car_tracking'>('menu');
+  const [carTrackingTab, setCarTrackingTab] = useState<'movements' | 'journey' | 'zone'>('movements');
   const [refreshKey, setRefreshKey] = useState(0);
   const [showElaMenu, setShowElaMenu] = useState(false);
   const [showElaChat, setShowElaChat] = useState(false);
@@ -407,7 +411,20 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
               
               {/* iPhone App Style Action Menu */}
               <div className="grid grid-cols-4 gap-4 max-w-lg mx-auto">
-                
+
+                {/* Car Tracking App Button */}
+                <div className="text-center">
+                  <button
+                    onClick={() => setSelectedAction('car_tracking')}
+                    className="w-16 h-16 rounded-2xl shadow-lg bg-gradient-to-br from-blue-400 to-blue-600 transition-all duration-200 transform hover:scale-105 active:scale-95"
+                  >
+                    <div className="text-white text-2xl">🚗</div>
+                  </button>
+                  <p className="text-xs mt-1 font-medium text-blue-700">
+                    Car Tracking
+                  </p>
+                </div>
+
                 {/* Task App Button */}
                 <div className="text-center">
                   <button
@@ -741,6 +758,87 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
                   className="btn-secondary"
                 >
                   {t('nav.backToRoles')}
+                </button>
+              </div>
+            </>
+          )}
+
+          {selectedAction === 'car_tracking' && (
+            <>
+              {/* Car Tracking View */}
+              <div className="text-center mb-6">
+                <div className="text-4xl mb-2">🚗</div>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                  Car Movement Tracking
+                </h2>
+                <p className="text-gray-600">
+                  Track who checks in cars and when they move through zones
+                </p>
+              </div>
+
+              {/* Tab Navigation */}
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
+                <div className="border-b border-gray-200">
+                  <nav className="flex space-x-8 px-6">
+                    <button
+                      onClick={() => setCarTrackingTab('movements')}
+                      className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                        carTrackingTab === 'movements'
+                          ? 'border-blue-500 text-blue-600'
+                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      }`}
+                    >
+                      📋 Raw Transactions
+                    </button>
+                    <button
+                      onClick={() => setCarTrackingTab('journey')}
+                      className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                        carTrackingTab === 'journey'
+                          ? 'border-blue-500 text-blue-600'
+                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      }`}
+                    >
+                      🚗 By Car
+                    </button>
+                    <button
+                      onClick={() => setCarTrackingTab('zone')}
+                      className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                        carTrackingTab === 'zone'
+                          ? 'border-blue-500 text-blue-600'
+                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      }`}
+                    >
+                      🏭 By Zone
+                    </button>
+                  </nav>
+                </div>
+
+                {/* Tab Content */}
+                <div className="p-6">
+                  {carTrackingTab === 'movements' && (
+                    <CarMovementHistory />
+                  )}
+
+                  {carTrackingTab === 'journey' && (
+                    <CarJourneyView />
+                  )}
+
+                  {carTrackingTab === 'zone' && (
+                    <ZoneActivityView />
+                  )}
+                </div>
+              </div>
+
+              {/* Back Button */}
+              <div className="flex justify-center">
+                <button
+                  onClick={handleBackToMenu}
+                  className="inline-flex items-center px-6 py-3 bg-gray-600 text-white font-semibold rounded-lg shadow-md hover:bg-gray-700 transition-colors"
+                >
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                  Back to Zone Menu
                 </button>
               </div>
             </>

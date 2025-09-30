@@ -1,13 +1,13 @@
 // Car Tracking Service - Version 4.0 Production Line Management
-import { 
-  collection, 
-  doc, 
-  getDoc, 
-  setDoc, 
-  updateDoc, 
-  getDocs, 
-  query, 
-  orderBy, 
+import {
+  collection,
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  getDocs,
+  query,
+  orderBy,
   where,
   Timestamp,
   addDoc
@@ -313,26 +313,128 @@ class CarTrackingService {
     }
   }
 
-  // Get car movements for audit trail
-  async getCarMovements(vin?: string, limit: number = 50): Promise<CarMovement[]> {
+  // Get car movements for audit trail with enhanced filtering
+  async getCarMovements(options?: {
+    vin?: string;
+    zoneId?: number;
+    dateFrom?: Date;
+    dateTo?: Date;
+    limit?: number;
+  }): Promise<CarMovement[]> {
     try {
+      const limit = options?.limit || 50;
       let q = query(this.movementsCollection, orderBy('movedAt', 'desc'));
-      
-      if (vin) {
-        q = query(q, where('vin', '==', vin.toUpperCase()));
+
+      // Apply Firestore filters where possible
+      if (options?.vin) {
+        q = query(q, where('vin', '==', options.vin.toUpperCase()));
       }
 
       const snapshot = await getDocs(q);
-      const movements: CarMovement[] = [];
-      
+      let movements: CarMovement[] = [];
+
       snapshot.forEach((doc) => {
         const data = this.convertTimestamps(doc.data());
         movements.push({ id: doc.id, ...data } as CarMovement);
       });
-      
+
+      // Apply filters in memory (Firestore limitations)
+      if (options?.zoneId !== undefined) {
+        movements = movements.filter(movement =>
+          movement.fromZone === options.zoneId || movement.toZone === options.zoneId
+        );
+      }
+
+      if (options?.dateFrom || options?.dateTo) {
+        movements = movements.filter(movement => {
+          const movementDate = movement.movedAt;
+          if (options.dateFrom && movementDate < options.dateFrom) return false;
+          if (options.dateTo && movementDate > options.dateTo) return false;
+          return true;
+        });
+      }
+
       return movements.slice(0, limit);
     } catch (error) {
       console.error('Failed to get car movements:', error);
+      return [];
+    }
+  }
+
+  // Get today's car movements
+  async getTodayCarMovements(limit: number = 100): Promise<CarMovement[]> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    return this.getCarMovements({
+      dateFrom: today,
+      dateTo: tomorrow,
+      limit
+    });
+  }
+
+  // Get movements for a specific zone
+  async getZoneMovements(zoneId: number, options?: {
+    dateFrom?: Date;
+    dateTo?: Date;
+    limit?: number;
+  }): Promise<CarMovement[]> {
+    return this.getCarMovements({
+      zoneId,
+      dateFrom: options?.dateFrom,
+      dateTo: options?.dateTo,
+      limit: options?.limit || 50
+    });
+  }
+
+  // Get user display name for showing in UI instead of email
+  async getUserDisplayName(email: string): Promise<string> {
+    try {
+      const userDoc = await getDoc(doc(collection(db, 'users'), email));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        // Use display name if available and enabled, otherwise fall back to email
+        if (userData.useDisplayName && userData.displayName) {
+          return userData.displayName;
+        }
+      }
+      // Fall back to email if no display name found
+      return email;
+    } catch (error) {
+      console.error('Failed to get user display name:', error);
+      return email; // Fallback to email on error
+    }
+  }
+
+  // Get movements with display names for UI
+  async getCarMovementsWithNames(options?: {
+    vin?: string;
+    zoneId?: number;
+    dateFrom?: Date;
+    dateTo?: Date;
+    limit?: number;
+  }): Promise<(CarMovement & { movedByName: string })[]> {
+    try {
+      const movements = await this.getCarMovements(options);
+
+      // Get display names for all unique users
+      const uniqueEmails = [...new Set(movements.map(m => m.movedBy))];
+      const emailToNameMap = new Map<string, string>();
+
+      for (const email of uniqueEmails) {
+        const displayName = await this.getUserDisplayName(email);
+        emailToNameMap.set(email, displayName);
+      }
+
+      // Add display names to movements
+      return movements.map(movement => ({
+        ...movement,
+        movedByName: emailToNameMap.get(movement.movedBy) || movement.movedBy
+      }));
+    } catch (error) {
+      console.error('Failed to get car movements with names:', error);
       return [];
     }
   }
