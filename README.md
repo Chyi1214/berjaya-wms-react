@@ -56,17 +56,19 @@ VITE_FIREBASE_APP_ID=1:123456789:web:abcdef123456
 
 ### ✅ Implemented
 - [x] Google OAuth authentication
-- [x] Responsive mobile-first design
-- [x] TypeScript for type safety
-- [x] Error handling and loading states
+- [x] Role selection (Logistics, Production, Manager, QA)
+- [x] Inventory counting (expected inventory + zone breakdown)
+- [x] Transaction management with OTP confirmation and skip-OTP path
+- [x] Manager dashboard (enhanced inventory + actions)
+- [x] Production zone views (car tracking, tasks, waste/lost/defects)
+- [x] QA workflows and views
+- [x] Multi-language support (EN, MS, ZH, MY, BN)
+- [x] Barcode/QR scanner (ZXing) with device checks
+- [x] Real-time Firestore integration (expected/yesterday tables, listeners)
+- [x] Lazy-loaded services and views for performance
 
-### 🚧 Coming Soon
-- [ ] Role selection (Logistics, Production, Manager)
-- [ ] Inventory counting interface
-- [ ] Transaction management
-- [ ] Manager dashboard
-- [ ] BOM operations
-- [ ] Real-time Firestore integration
+### 🧭 Notes
+- Internal working docs were archived to keep the root tidy. See `docs/ARCHIVE.md`.
 
 ## 🔐 Security
 
