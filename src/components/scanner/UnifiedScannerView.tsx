@@ -9,6 +9,7 @@ import { tableStateService } from '../../services/tableState';
 import { inventoryService } from '../../services/inventory';
 import { itemMasterService } from '../../services/itemMaster';
 import { batchAllocationService } from '../../services/batchAllocationService';
+import { packingBoxesService } from '../../services/packingBoxesService';
 import { SearchAutocomplete } from '../common/SearchAutocomplete';
 
 interface UnifiedScannerViewProps {
@@ -43,6 +44,9 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
   const [availableBatches, setAvailableBatches] = useState<string[]>([]);
   const [selectedBatch, setSelectedBatch] = useState<string>('');
   const [batchConfigLoading, setBatchConfigLoading] = useState(false);
+  // Box selection
+  const [availableBoxes, setAvailableBoxes] = useState<string[]>([]);
+  const [selectedBox, setSelectedBox] = useState<string>('');
 
   // Load batch configuration on mount
   useEffect(() => {
@@ -88,6 +92,29 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
       setBatchConfigLoading(false);
     }
   };
+
+  // Load boxes list when batch changes and restore last used box from localStorage
+  useEffect(() => {
+    (async () => {
+      if (!selectedBatch) {
+        setAvailableBoxes([]);
+        setSelectedBox('');
+        return;
+      }
+      try {
+        const boxes = await packingBoxesService.listBoxes(selectedBatch);
+        const caseNos = boxes.map((b) => b.caseNo).sort();
+        setAvailableBoxes(caseNos);
+        try {
+          const last = localStorage.getItem(`wms-active-box:${selectedBatch}`) || '';
+          if (last && caseNos.includes(last)) setSelectedBox(last);
+        } catch {}
+      } catch (e) {
+        console.error('Failed to load boxes for batch', selectedBatch, e);
+        setAvailableBoxes([]);
+      }
+    })();
+  }, [selectedBatch]);
 
   const startScanning = async () => {
     if (!videoRef.current) return;
@@ -333,10 +360,31 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
       return;
     }
 
+    if (!selectedBox) {
+      setError('Please select or enter a box (CASE NO)');
+      return;
+    }
+
     setIsProcessing(true);
     setError(null);
 
     try {
+      // Pre-check that SKU belongs to selected box and not exceeding expected
+      try {
+        const box = await packingBoxesService.getBox(selectedBatch, selectedBox);
+        if (!box) throw new Error('Box not found for current batch');
+        const expected = box.expectedBySku[scanResult.sku] || 0;
+        if (expected <= 0) throw new Error(`${scanResult.sku} does not belong to box ${selectedBox}`);
+        const scannedSoFar = box.scannedBySku[scanResult.sku] || 0;
+        if (scannedSoFar + qty > expected) {
+          throw new Error(`Exceeds expected for ${scanResult.sku} in ${selectedBox}. Available: ${expected - scannedSoFar}`);
+        }
+      } catch (preErr: any) {
+        setError(preErr?.message || 'Box validation failed');
+        setIsProcessing(false);
+        return;
+      }
+
       // Use the optimized method to add to inventory
       const { previousAmount, newAmount } = await tableStateService.addToInventoryCountOptimized(
         scanResult.sku,
@@ -381,6 +429,15 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
       };
 
       await transactionService.saveTransaction(transaction);
+
+      // Update packing box progress and remember this box
+      try {
+        await packingBoxesService.applyScan(selectedBatch, selectedBox, scanResult.sku, qty, user.email);
+        try { localStorage.setItem(`wms-active-box:${selectedBatch}`, selectedBox); } catch {}
+      } catch (e: any) {
+        console.error('Box progress update failed:', e);
+        setError(`Saved inventory, but box update failed: ${e?.message || e}`);
+      }
 
       // Success!
       setSuccess(`✅ Added ${qty} x ${scanResult.item.name} to inventory (Batch: ${selectedBatch}, Total: ${newAmount})`);
@@ -480,6 +537,43 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
               <p className="text-xs text-gray-500 mt-2">
                 All scanned items will be assigned to this batch
               </p>
+            )}
+          </div>
+        </div>
+
+        {/* Box Selection */}
+        <div className="mb-6 bg-white border rounded-lg p-4">
+          <div className="flex items-start sm:items-center sm:justify-between gap-3">
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-700 mb-2">📦 Box (CASE NO)</label>
+              <input
+                type="text"
+                value={selectedBox}
+                onChange={(e) => setSelectedBox(e.target.value.trim())}
+                placeholder={availableBoxes.length ? `e.g., ${availableBoxes[0]}` : 'Enter CASE NO (e.g., C10C1)'}
+                className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+              />
+              <p className="text-xs text-gray-500 mt-1">We remember your last box for this batch on this device.</p>
+            </div>
+            {availableBoxes.length > 0 && (
+              <div className="w-full sm:w-64 mt-2 sm:mt-0">
+                <div className="text-xs text-gray-600 mb-1">Suggestions</div>
+                <div className="max-h-28 overflow-y-auto border rounded bg-white">
+                  {availableBoxes
+                    .filter((b) => !selectedBox || b.toLowerCase().includes(selectedBox.toLowerCase()))
+                    .slice(0, 10)
+                    .map((b) => (
+                      <button
+                        key={b}
+                        type="button"
+                        className="w-full text-left px-3 py-1 hover:bg-gray-100 text-sm"
+                        onClick={() => setSelectedBox(b)}
+                      >
+                        {b}
+                      </button>
+                    ))}
+                </div>
+              </div>
             )}
           </div>
         </div>

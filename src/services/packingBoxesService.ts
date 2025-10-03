@@ -10,6 +10,8 @@ import {
   deleteDoc,
   runTransaction,
   Timestamp,
+  orderBy,
+  limit,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { createModuleLogger } from './logger';
@@ -159,6 +161,25 @@ export const packingBoxesService = {
     const d = await getDoc(doc(db, BOXES_COL, docId));
     return d.exists() ? (d.data() as PackingBoxDoc) : null;
   },
+  // List recent scans for a box (most recent first)
+  listScans: async (
+    batchId: string,
+    caseNo: string,
+    max: number = 50
+  ): Promise<Array<{ sku: string; qty: number; userEmail: string; timestamp: Date }>> => {
+    const ref = doc(db, BOXES_COL, `${batchId}_${caseNo}`);
+    const scansCol = collection(ref, 'scans');
+    const snap = await getDocs(query(scansCol, orderBy('timestamp', 'desc'), limit(max)));
+    return snap.docs.map((d) => {
+      const data = d.data() as any;
+      return {
+        sku: data.sku,
+        qty: data.qty,
+        userEmail: data.userEmail,
+        timestamp: data.timestamp?.toDate?.() || new Date(),
+      };
+    });
+  },
 
   // Transactionally apply a scan to a box, enforcing expected limits
   applyScan: async (
@@ -214,4 +235,3 @@ export const packingBoxesService = {
     });
   },
 };
-

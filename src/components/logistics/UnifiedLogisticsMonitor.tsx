@@ -4,6 +4,7 @@ import { ScanLookup } from '../../types';
 import { tableStateService } from '../../services/tableState';
 import { scanLookupService } from '../../services/scanLookupService';
 import { batchAllocationService } from '../../services/batchAllocationService';
+import { packingBoxesService } from '../../services/packingBoxesService';
 
 interface UnifiedLogisticsMonitorProps {
   userEmail: string;
@@ -19,6 +20,7 @@ interface LocationData {
 export function UnifiedLogisticsMonitor({ userEmail: _userEmail }: UnifiedLogisticsMonitorProps) {
   const [loading, setLoading] = useState(true);
   const [unboxedBoxes, setUnboxedBoxes] = useState<number>(0);
+  const [activeTab, setActiveTab] = useState<'zones' | 'boxes'>('zones');
 
   // Batch selection
   const [availableBatches, setAvailableBatches] = useState<string[]>([]);
@@ -26,6 +28,9 @@ export function UnifiedLogisticsMonitor({ userEmail: _userEmail }: UnifiedLogist
 
   // Data for selected batch
   const [currentLocationData, setCurrentLocationData] = useState<LocationData[]>([]);
+  const [boxes, setBoxes] = useState<Awaited<ReturnType<typeof packingBoxesService.listBoxes>>>([]);
+  const [expandedBox, setExpandedBox] = useState<string | null>(null);
+  const [boxScans, setBoxScans] = useState<Record<string, Array<{ sku: string; qty: number; userEmail: string; timestamp: Date }>>>({});
 
   // Load initial data
   const loadData = async () => {
@@ -143,9 +148,22 @@ export function UnifiedLogisticsMonitor({ userEmail: _userEmail }: UnifiedLogist
   // Load batch data when selection changes
   useEffect(() => {
     if (selectedBatch) {
-      loadBatchData(selectedBatch);
+      if (activeTab === 'zones') {
+        loadBatchData(selectedBatch);
+      } else {
+        // Boxes tab: load boxes for batch
+        (async () => {
+          try {
+            const b = await packingBoxesService.listBoxes(selectedBatch);
+            setBoxes(b);
+          } catch (e) {
+            console.error('Failed to load boxes:', e);
+            setBoxes([]);
+          }
+        })();
+      }
     }
-  }, [selectedBatch]);
+  }, [selectedBatch, activeTab]);
 
   if (loading) {
     return (
@@ -158,6 +176,21 @@ export function UnifiedLogisticsMonitor({ userEmail: _userEmail }: UnifiedLogist
 
   return (
     <div className="space-y-6">
+      {/* Tabs */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-2 flex space-x-2">
+        <button
+          className={`px-3 py-1 rounded ${activeTab === 'zones' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+          onClick={() => setActiveTab('zones')}
+        >
+          Zones
+        </button>
+        <button
+          className={`px-3 py-1 rounded ${activeTab === 'boxes' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+          onClick={() => setActiveTab('boxes')}
+        >
+          Boxes
+        </button>
+      </div>
       {/* Top Metric Row */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <div className="flex items-center justify-center">
@@ -187,8 +220,8 @@ export function UnifiedLogisticsMonitor({ userEmail: _userEmail }: UnifiedLogist
         </div>
       </div>
 
-      {/* Single Panel - Grouped by Destination */}
-      {selectedBatch && (
+      {/* Zones view */}
+      {selectedBatch && activeTab === 'zones' && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200">
           <div className="p-4 border-b border-gray-200">
             <h3 className="text-lg font-semibold text-gray-900">🎯 Items Grouped by Target Destination</h3>
@@ -231,6 +264,108 @@ export function UnifiedLogisticsMonitor({ userEmail: _userEmail }: UnifiedLogist
                   );
                 })}
               </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Boxes view */}
+      {selectedBatch && activeTab === 'boxes' && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+          <div className="p-4 border-b border-gray-200">
+            <h3 className="text-lg font-semibold text-gray-900">📦 Boxes for Batch {selectedBatch}</h3>
+            <p className="text-sm text-gray-600">Track per-box progress and scan history</p>
+          </div>
+          <div className="p-4 space-y-2">
+            {boxes.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">No boxes found for this batch</div>
+            ) : (
+              boxes
+                .sort((a, b) => a.caseNo.localeCompare(b.caseNo))
+                .map((box) => {
+                  const pct = box.totals.expectedQty > 0 ? Math.round((box.totals.scannedQty / box.totals.expectedQty) * 100) : 0;
+                  const isExpanded = expandedBox === box.caseNo;
+                  return (
+                    <div key={box.caseNo} className="border rounded-md">
+                      <div className="flex items-center justify-between p-3 bg-gray-50">
+                        <div className="flex items-center space-x-3">
+                          <div className="text-sm font-mono">{box.caseNo}</div>
+                          <div className="text-xs px-2 py-0.5 rounded-full border">
+                            {box.status === 'complete' ? '✅ Complete' : box.status === 'in_progress' ? '⏳ In Progress' : box.status === 'not_started' ? '🕒 Not Started' : '⚠️ Over' }
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-3">
+                          <div className="w-40 h-2 bg-gray-200 rounded">
+                            <div className="h-2 bg-blue-600 rounded" style={{ width: `${pct}%` }} />
+                          </div>
+                          <div className="text-xs text-gray-600">{box.totals.scannedQty}/{box.totals.expectedQty}</div>
+                          <button
+                            className="text-blue-600 hover:underline text-sm"
+                            onClick={() => {
+                              // Save as active box for scanner (localStorage per batch)
+                              try { localStorage.setItem(`wms-active-box:${selectedBatch}`, box.caseNo); } catch {}
+                              alert(`Box ${box.caseNo} set as active. Open Scanner to continue.`);
+                            }}
+                          >
+                            Open in Scanner
+                          </button>
+                          <button
+                            className="text-gray-700 hover:underline text-sm"
+                            onClick={async () => {
+                              const next = isExpanded ? null : box.caseNo;
+                              setExpandedBox(next);
+                              if (next) {
+                                try {
+                                  const scans = await packingBoxesService.listScans(selectedBatch, next, 50);
+                                  setBoxScans((prev) => ({ ...prev, [next]: scans }));
+                                } catch (e) {
+                                  console.error('Failed to load scans for box', next, e);
+                                }
+                              }
+                            }}
+                          >
+                            {isExpanded ? 'Hide' : 'Details'}
+                          </button>
+                        </div>
+                      </div>
+                      {isExpanded && (
+                        <div className="p-3 space-y-3">
+                          <div>
+                            <div className="text-sm font-semibold mb-2">Expected vs Scanned</div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+                              {Object.keys(box.expectedBySku).sort().map((sku) => {
+                                const exp = box.expectedBySku[sku] || 0;
+                                const scn = box.scannedBySku[sku] || 0;
+                                const ok = scn === exp;
+                                const over = scn > exp;
+                                return (
+                                  <div key={sku} className={`flex items-center justify-between px-2 py-1 rounded ${ok ? 'bg-green-50' : over ? 'bg-red-50' : 'bg-yellow-50'}`}>
+                                    <div className="font-mono text-sm">{sku}</div>
+                                    <div className="text-xs text-gray-700">{scn}/{exp}</div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-sm font-semibold mb-2">Recent Scans</div>
+                            <div className="space-y-1">
+                              {(boxScans[box.caseNo] || []).map((ev, idx) => (
+                                <div key={idx} className="text-xs text-gray-700 flex justify-between">
+                                  <span className="font-mono">{ev.sku} × {ev.qty}</span>
+                                  <span>{new Date(ev.timestamp).toLocaleString()}</span>
+                                </div>
+                              ))}
+                              {(!boxScans[box.caseNo] || boxScans[box.caseNo].length === 0) && (
+                                <div className="text-xs text-gray-500">No scans yet</div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
             )}
           </div>
         </div>
