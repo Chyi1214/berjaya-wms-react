@@ -19,6 +19,7 @@ import { UserRole, AppSection, InventoryCountEntry, Transaction, TransactionStat
 const ManagerView = lazy(() => import('./components/ManagerView').then(module => ({ default: module.ManagerView })));
 // Lazy service loaders to reduce initial bundle size
 import { getInventoryService, getTransactionService, getTableStateService, getItemMasterService } from './services/lazyServices';
+import { applyTransferEffects } from './services/transferEffects';
 
 // Main app content (wrapped inside AuthProvider)
 function AppContent() {
@@ -441,106 +442,3 @@ function App() {
 }
 
 export default App;
-
-// Helper: Apply transfer effects (inventory and batch allocation move)
-async function applyTransferEffects(transaction: Transaction) {
-  const logger = createModuleLogger('TransferEffects');
-
-  try {
-    // Block BOMs for inventory effects (expansion not implemented here)
-    if (transaction.sku.startsWith('BOM')) {
-      logger.error('BOM transfer not supported in applyTransferEffects', {
-        sku: transaction.sku,
-        transactionId: transaction.id
-      });
-      return;
-    }
-
-    // Fetch correct item name from Item Master
-    let correctItemName = transaction.sku;
-    try {
-      const itemMasterService = await getItemMasterService();
-      const item = await itemMasterService.getItemBySKU(transaction.sku);
-      if (item) {
-        correctItemName = item.name;
-      }
-    } catch (e) {
-      logger.warn('Item Master lookup failed; using SKU as name', { sku: transaction.sku, error: e });
-    }
-
-    const actor = (transaction.approvedBy || transaction.performedBy || 'system') as string;
-    const destination = transaction.toLocation;
-    if (!destination) {
-      throw new Error('Destination location is required for transfer');
-    }
-
-    // Inventory updates: increment destination, decrement logistics
-    const tableStateService = await getTableStateService();
-    await tableStateService.addToInventoryCountOptimized(
-      transaction.sku,
-      correctItemName,
-      transaction.amount,
-      destination,
-      actor
-    );
-    await tableStateService.addToInventoryCountOptimized(
-      transaction.sku,
-      correctItemName,
-      -Math.abs(transaction.amount),
-      'logistics',
-      actor
-    );
-
-    logger.info('Inventory transfer applied', {
-      sku: transaction.sku,
-      amount: transaction.amount,
-      to: destination,
-      from: 'logistics'
-    });
-
-    // Batch allocation move (if batchId present)
-    if (transaction.batchId) {
-      try {
-        const { batchAllocationService } = await import('./services/batchAllocationService');
-        const existing = await batchAllocationService.getBatchAllocation(transaction.sku, 'logistics');
-        const currentForBatch = existing?.allocations?.[transaction.batchId] || 0;
-        const moveQty = Math.min(Math.abs(transaction.amount), currentForBatch);
-
-        if (moveQty > 0) {
-          await batchAllocationService.removeToBatchAllocation(
-            transaction.sku,
-            'logistics',
-            transaction.batchId,
-            moveQty
-          );
-          await batchAllocationService.addToBatchAllocation(
-            transaction.sku,
-            destination,
-            transaction.batchId,
-            moveQty
-          );
-
-          logger.info('Batch allocation moved', {
-            sku: transaction.sku,
-            batchId: transaction.batchId,
-            qty: moveQty,
-            from: 'logistics',
-            to: destination
-          });
-        } else {
-          logger.warn('No batch allocation available to move', {
-            sku: transaction.sku,
-            batchId: transaction.batchId,
-            requested: Math.abs(transaction.amount),
-            available: currentForBatch
-          });
-        }
-      } catch (batchError) {
-        logger.warn('Failed to update batch allocation', batchError);
-      }
-    }
-  } catch (error) {
-    logger.warn('applyTransferEffects failed', error);
-    throw error;
-  }
-}

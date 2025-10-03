@@ -16,6 +16,7 @@ import { Transaction, TransactionStatus } from '../types';
 import { createModuleLogger } from './logger';
 import { tableStateService } from './tableState';
 import { batchAllocationService } from './batchAllocationService';
+import { applyRectificationEffects } from './transferEffects';
 
 const logger = createModuleLogger('TransactionService');
 
@@ -329,68 +330,11 @@ class TransactionService {
 
       await this.saveTransaction(rectificationTransaction);
 
-      // Step 3: Apply the rectification to the actual inventory
-      // This is the missing piece - the rectification transaction needs to update inventory counts
+      // Step 3+4 unified: apply rectification effects (inventory + batch allocation)
       try {
-        await tableStateService.addToInventoryCountOptimized(
-          rectificationTransaction.sku,
-          rectificationTransaction.itemName,
-          rectificationTransaction.amount, // This is the negative amount to reverse the original
-          rectificationTransaction.location,
-          rectificationTransaction.performedBy
-        );
-
-        logger.info('Rectification applied to inventory', {
-          sku: rectificationTransaction.sku,
-          amount: rectificationTransaction.amount,
-          location: rectificationTransaction.location
-        });
-      } catch (inventoryError) {
-        logger.error('Failed to apply rectification to inventory', inventoryError);
-        // Note: Transaction is still saved, but inventory might be out of sync
-        // In a production system, you might want to implement compensation logic here
-      }
-
-      // Step 4: Update batch allocations if this transaction has a batch
-      if (rectificationTransaction.batchId) {
-        try {
-          const batchAllocation = await batchAllocationService.getBatchAllocation(
-            rectificationTransaction.sku,
-            rectificationTransaction.location
-          );
-
-          if (batchAllocation && batchAllocation.allocations[rectificationTransaction.batchId]) {
-            // Add the rectification amount back to the batch allocation
-            const currentBatchQuantity = batchAllocation.allocations[rectificationTransaction.batchId];
-            const newBatchQuantity = currentBatchQuantity + (-rectificationTransaction.amount); // Opposite of rectification
-
-            await batchAllocationService.updateBatchAllocation(
-              rectificationTransaction.sku,
-              rectificationTransaction.location,
-              rectificationTransaction.batchId,
-              newBatchQuantity,
-              rectificationTransaction.performedBy
-            );
-
-            logger.info('Batch allocation updated for rectification', {
-              sku: rectificationTransaction.sku,
-              location: rectificationTransaction.location,
-              batchId: rectificationTransaction.batchId,
-              previousQuantity: currentBatchQuantity,
-              newQuantity: newBatchQuantity,
-              rectificationAmount: -rectificationTransaction.amount
-            });
-          } else {
-            logger.warn('No batch allocation found for rectification', {
-              sku: rectificationTransaction.sku,
-              location: rectificationTransaction.location,
-              batchId: rectificationTransaction.batchId
-            });
-          }
-        } catch (batchError) {
-          logger.error('Failed to update batch allocation for rectification', batchError);
-          // Note: Transaction and inventory are updated, but batch allocation might be out of sync
-        }
+        await applyRectificationEffects(originalTransaction, performedBy);
+      } catch (effectsError) {
+        logger.error('Failed to apply rectification effects (inventory + allocation)', effectsError);
       }
 
       logger.info('Transaction cancelled and rectified', {
