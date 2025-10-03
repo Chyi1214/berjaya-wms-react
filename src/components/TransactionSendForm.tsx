@@ -51,6 +51,7 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [bomData, setBomData] = useState<BOM | null>(null);
   const [skipOTP, setSkipOTP] = useState(false);
+  const [allocationError, setAllocationError] = useState<string | null>(null);
   
   // QR Scanner state
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -167,8 +168,27 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
     }
 
     setIsSubmitting(true);
+    setAllocationError(null);
 
     try {
+      // Block send if batch allocation at logistics is insufficient (regular items only)
+      if (!formData.sku.startsWith('BOM')) {
+        try {
+          const allocation = await batchAllocationService.getBatchAllocation(formData.sku, 'logistics');
+          const availableInBatch = (allocation?.allocations && allocation.allocations[selectedBatch]) || 0;
+          if (formData.amount > availableInBatch) {
+            setAllocationError(
+              `Insufficient allocation in Batch ${selectedBatch} at logistics. Available: ${availableInBatch}, requested: ${formData.amount}.`
+            );
+            return;
+          }
+        } catch (err) {
+          // If we fail to fetch allocation, be safe and block
+          setAllocationError('Failed to verify batch allocation. Please try again.');
+          return;
+        }
+      }
+
       // Update the transaction notes to include batch information
       const enhancedFormData = {
         ...formData,
@@ -480,6 +500,11 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
             disabled={isBOM ? false : (!selectedItem || maxAvailableQuantity === 0)}
             required
           />
+
+          {/* Allocation shortage error */}
+          {allocationError && (
+            <p className="mt-2 text-sm text-red-600">{allocationError}</p>
+          )}
           
           {/* Show validation error */}
           {!isBOM && formData.amount > maxAvailableQuantity && selectedItem && (
