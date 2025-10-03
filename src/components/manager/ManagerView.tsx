@@ -1,5 +1,5 @@
 // Manager View Component - Refactored into modular components with V4.0 Production
-import React, { Suspense, lazy } from 'react';
+import React, { Suspense, lazy, useState } from 'react';
 import { User, InventoryCountEntry, Transaction } from '../../types';
 import { isInventoryTab, isProductionTab, isQATab, isOperationsTab, isFeedbackTab } from '../../types/manager';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -8,6 +8,10 @@ import { mockDataService } from '../../services/mockData';
 import { transactionService } from '../../services/transactions';
 import { inventoryService } from '../../services/inventory';
 import VersionFooter from '../VersionFooter';
+import { TranslationChannels } from '../chat/TranslationChannels';
+import { ElaMenu } from '../ela/ElaMenu';
+import { ElaChat } from '../ela/ElaChat';
+import PersonalSettings from '../PersonalSettings';
 
 // Custom hooks
 import { useManagerState } from './hooks/useManagerState';
@@ -40,6 +44,12 @@ export function ManagerView({ user: _user, onBack, inventoryCounts, onClearCount
   // Use custom hooks for state management
   const managerState = useManagerState();
   const { tableData, syncAllTables } = useTableData(inventoryCounts, transactions);
+
+  // ELA Menu and Translation Chat state (same as other roles)
+  const [showElaMenu, setShowElaMenu] = useState(false);
+  const [showElaChat, setShowElaChat] = useState(false);
+  const [showPersonalSettings, setShowPersonalSettings] = useState(false);
+  const [showTranslationChannels, setShowTranslationChannels] = useState(false);
 
   // Initialize Expected table from Yesterday if Expected is empty but Yesterday has data
   React.useEffect(() => {
@@ -186,6 +196,37 @@ export function ManagerView({ user: _user, onBack, inventoryCounts, onClearCount
               <span className="text-2xl">📊</span>
               <h1 className="text-lg font-bold text-gray-900">{t('manager.header')}</h1>
             </div>
+
+            {/* ELA Menu Button (same as other roles) */}
+            <div className="ml-auto mr-4">
+              <button
+                onClick={() => setShowElaMenu(!showElaMenu)}
+                className="p-2 text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors relative"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
+
+              {/* ELA Menu Dropdown */}
+              {showElaMenu && (
+                <ElaMenu
+                  onChatOpen={() => {
+                    setShowElaChat(true);
+                    setShowElaMenu(false);
+                  }}
+                  onTranslationChatOpen={() => {
+                    setShowTranslationChannels(true);
+                    setShowElaMenu(false);
+                  }}
+                  onPersonalSettingsOpen={() => {
+                    setShowPersonalSettings(true);
+                    setShowElaMenu(false);
+                  }}
+                  onClose={() => setShowElaMenu(false)}
+                />
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -281,7 +322,31 @@ export function ManagerView({ user: _user, onBack, inventoryCounts, onClearCount
         </div>
 
         <VersionFooter />
-        
+
+        {/* Translation Chat Modal */}
+        {showTranslationChannels && (
+          <TranslationChannels
+            onClose={() => setShowTranslationChannels(false)}
+          />
+        )}
+
+        {/* ELA Chat Modal */}
+        {showElaChat && (
+          <ElaChat
+            user={_user}
+            userRole="manager"
+            onClose={() => setShowElaChat(false)}
+          />
+        )}
+
+        {/* Personal Settings Modal */}
+        {showPersonalSettings && (
+          <PersonalSettings
+            user={_user}
+            onClose={() => setShowPersonalSettings(false)}
+          />
+        )}
+
         {/* CSV Import Dialog */}
         {managerState.showImportDialog && (
           <Suspense fallback={<div />}>

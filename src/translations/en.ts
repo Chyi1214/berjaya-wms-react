@@ -484,6 +484,55 @@ const englishTranslations: Translation = {
     productionTestData: 'Production Line Test Data',
     productionTestDescription: 'Creates test cars, work stations, and worker activities',
     generateProductionTest: 'Generate Production Test'
+  },
+
+  // Translation Chat System
+  translationChat: {
+    title: 'Translation Chat',
+    description: 'Multi-language communication channels',
+    channels: 'Translation Channels',
+    selectChannel: 'Select a Channel',
+    channel: 'Channel',
+    participants: 'Participants',
+    available: 'Available',
+    occupied: 'Occupied ({count}/2 users)',
+    full: 'Full (2/2 users)',
+    joinChannel: 'Join Channel',
+    leaveChannel: 'Leave Channel',
+    noChannelsAvailable: 'No channels available',
+    channelJoined: 'Successfully joined {channel}',
+    channelLeft: 'Left {channel}',
+    failedToJoin: 'Failed to join channel',
+    failedToLeave: 'Failed to leave channel',
+
+    // Chat interface
+    chatRoom: 'Chat Room',
+    typeMessage: 'Type your message...',
+    sendMessage: 'Send Message',
+    connecting: 'Connecting...',
+    connected: 'Connected',
+    disconnected: 'Disconnected',
+    noMessages: 'No messages yet. Start the conversation!',
+    originalText: 'Original',
+    translatedText: 'Translated',
+    sendingMessage: 'Sending...',
+    messageSent: 'Message sent',
+    failedToSend: 'Failed to send message',
+
+    // Languages
+    languages: {
+      English: 'English',
+      Malay: 'Malay',
+      Chinese: 'Chinese',
+      Myanmar: 'Myanmar',
+      Bengali: 'Bengali'
+    },
+
+    // Channel status
+    waitingForUser: 'Waiting for another user to join...',
+    userJoined: '{user} joined the channel',
+    userLeft: '{user} left the channel',
+    channelDescription: 'Up to 2 users can chat with automatic translation between different languages'
   }
 };
 

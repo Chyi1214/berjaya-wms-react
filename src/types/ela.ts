@@ -59,6 +59,7 @@ export interface ElaChatProps {
 
 export interface ElaMenuProps {
   onChatOpen: () => void;
+  onTranslationChatOpen: () => void;
   onPersonalSettingsOpen: () => void;
   onClose: () => void;
 }

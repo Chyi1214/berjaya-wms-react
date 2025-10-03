@@ -14,6 +14,7 @@ import ProductionInfoBoard from './production/ProductionInfoBoard';
 import { ElaMenu } from './ela/ElaMenu';
 import { ElaChat } from './ela/ElaChat';
 import PersonalSettings from './PersonalSettings';
+import { TranslationChannels } from './chat/TranslationChannels';
 import { reportService } from '../services/reportService';
 import { getDisplayName } from '../utils/displayName';
 import { useAuth } from '../contexts/AuthContext';
@@ -41,6 +42,7 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
   const [refreshKey, setRefreshKey] = useState(0);
   const [showElaMenu, setShowElaMenu] = useState(false);
   const [showElaChat, setShowElaChat] = useState(false);
+  const [showTranslationChat, setShowTranslationChat] = useState(false);
   const [showPersonalSettings, setShowPersonalSettings] = useState(false);
   const [hasActiveReport, setHasActiveReport] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -267,6 +269,7 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
                 {showElaMenu && (
                   <ElaMenu
                     onChatOpen={() => setShowElaChat(true)}
+                    onTranslationChatOpen={() => setShowTranslationChat(true)}
                     onPersonalSettingsOpen={() => setShowPersonalSettings(true)}
                     onClose={() => setShowElaMenu(false)}
                   />
@@ -378,6 +381,7 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
               {showElaMenu && (
                 <ElaMenu
                   onChatOpen={() => setShowElaChat(true)}
+                  onTranslationChatOpen={() => setShowTranslationChat(true)}
                   onPersonalSettingsOpen={() => setShowPersonalSettings(true)}
                   onClose={() => setShowElaMenu(false)}
                 />
@@ -757,6 +761,13 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
           user={user}
           userRole={`production-zone-${selectedZone}`}
           onClose={() => setShowElaChat(false)}
+        />
+      )}
+
+      {/* Translation Chat Modal */}
+      {showTranslationChat && (
+        <TranslationChannels
+          onClose={() => setShowTranslationChat(false)}
         />
       )}
 

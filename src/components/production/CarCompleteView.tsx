@@ -3,7 +3,6 @@ import { useState, useEffect } from 'react';
 import { User, Car } from '../../types';
 // Car completion uses hardcoded English text for production efficiency
 import { carTrackingService } from '../../services/carTrackingService';
-import { workStationService } from '../../services/workStationService';
 import { workerActivityService } from '../../services/workerActivityService';
 import { batchManagementService } from '../../services/batchManagement';
 
@@ -63,15 +62,13 @@ export function CarCompleteView({ user, zoneId, onBack, onCarCompleted }: CarCom
     setError(null);
 
     try {
-      // Complete car work
-      await carTrackingService.completeCarWork(
-        currentCar.vin, 
-        user.email, 
+      // Use atomic transaction to prevent ghost cars
+      await carTrackingService.completeCarWorkAtomic(
+        currentCar.vin,
+        zoneId,
+        user.email,
         notes.trim() || undefined
       );
-
-      // Update work station
-      await workStationService.clearCarFromStation(zoneId);
 
       // Mark worker activity as completed if worker is checked in
       const activeWorker = await workerActivityService.getActiveWorkerActivity(user.email);
@@ -95,16 +92,16 @@ export function CarCompleteView({ user, zoneId, onBack, onCarCompleted }: CarCom
         // Don't fail the entire car completion if BOM consumption fails
       }
 
-      // Get updated car data
+      // Get updated car data (should show car is no longer in zone)
       const updatedCar = await carTrackingService.getCarByVIN(currentCar.vin);
-      console.log('🔍 Updated car after completion:', updatedCar);
-      
-      // Check if car is still in zone
+      console.log('🔍 Updated car after atomic completion:', updatedCar);
+
+      // Verify completion worked
       const carsInZone = await carTrackingService.getCarsInZone(zoneId);
-      console.log('🔍 Cars still in zone after completion:', carsInZone);
-      
+      console.log('🔍 Cars still in zone after atomic completion:', carsInZone);
+
       if (updatedCar) {
-        setSuccess(`Work completed on car ${currentCar.vin} in Zone ${zoneId}`);
+        setSuccess(`✅ Atomic completion: Car ${currentCar.vin} completed in Zone ${zoneId} - Ghost car prevention active`);
         onCarCompleted(updatedCar);
         setCurrentCar(null);
         setNotes('');

@@ -151,11 +151,13 @@ class WorkStationService {
       }
 
       const updates = {
-        currentWorker: undefined,
+        currentWorker: null as null, // Clear worker from station
         lastUpdated: new Date()
       };
 
-      await this.updateWorkStation(zoneId, updates);
+      // Use direct updateDoc to handle null value properly
+      const docRef = doc(this.stationsCollection, zoneId.toString());
+      await updateDoc(docRef, updates);
       console.log('✅ Checked worker out of station:', zoneId);
     } catch (error) {
       console.error('Failed to check worker out:', error);
@@ -300,6 +302,72 @@ class WorkStationService {
       console.log('✅ Initialized all work stations (1-25)');
     } catch (error) {
       console.error('Failed to initialize work stations:', error);
+    }
+  }
+
+  // Clear car from work station (for ghost car cleanup)
+  async clearStationCar(zoneId: number, reason: string = 'Ghost car cleanup'): Promise<void> {
+    try {
+      console.log(`🧹 Clearing car from station ${zoneId}: ${reason}`);
+
+      const station = await this.getWorkStation(zoneId);
+      if (!station) {
+        console.log(`❌ Station ${zoneId} not found`);
+        return;
+      }
+
+      if (!station.currentCar) {
+        console.log(`ℹ️ Station ${zoneId} already has no car`);
+        return;
+      }
+
+      console.log(`🔍 Found car in station ${zoneId}: ${station.currentCar.vin}`);
+
+      // Clear the current car from the station
+      const updates = {
+        currentCar: null as null,
+        lastUpdated: new Date()
+      };
+
+      // Use direct updateDoc to avoid TypeScript issues with null (same as clearCarFromStation)
+      const docRef = doc(this.stationsCollection, zoneId.toString());
+      await updateDoc(docRef, updates);
+      console.log(`✅ Cleared car from station ${zoneId}`);
+    } catch (error) {
+      console.error(`Failed to clear car from station ${zoneId}:`, error);
+      throw error;
+    }
+  }
+
+  // Check for inconsistencies between cars and workStations
+  async findStationCarInconsistencies(): Promise<{ zoneId: number; carInStation: string; carOwnsZone: boolean }[]> {
+    try {
+      console.log('🔍 Checking for station-car inconsistencies...');
+
+      const inconsistencies: { zoneId: number; carInStation: string; carOwnsZone: boolean }[] = [];
+      const allStations = await this.getAllWorkStations();
+
+      for (const station of allStations) {
+        if (station.currentCar) {
+          // Check if the car thinks it's in this zone
+          const car = await carTrackingService.getCarByVIN(station.currentCar.vin);
+          const carOwnsZone = car?.currentZone === station.zoneId;
+
+          if (!carOwnsZone) {
+            inconsistencies.push({
+              zoneId: station.zoneId,
+              carInStation: station.currentCar.vin,
+              carOwnsZone
+            });
+          }
+        }
+      }
+
+      console.log(`🔍 Found ${inconsistencies.length} station-car inconsistencies`);
+      return inconsistencies;
+    } catch (error) {
+      console.error('Failed to find station-car inconsistencies:', error);
+      return [];
     }
   }
 

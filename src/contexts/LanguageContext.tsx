@@ -264,24 +264,21 @@ interface LanguageProviderProps {
 }
 
 export function LanguageProvider({ children }: LanguageProviderProps) {
-  const [currentLanguage, setCurrentLanguage] = useState<Language>('en');
+  // Initialize with saved language immediately to prevent race condition
+  const [currentLanguage, setCurrentLanguage] = useState<Language>(() => {
+    const savedLanguage = localStorage.getItem('berjaya-wms-language') as Language;
+    return (savedLanguage && LANGUAGES.find(lang => lang.code === savedLanguage)) ? savedLanguage : 'en';
+  });
   const [translations, setTranslations] = useState<Translation>(defaultTranslations);
 
-  // Load language from localStorage on mount
-  useEffect(() => {
-    const savedLanguage = localStorage.getItem('berjaya-wms-language') as Language;
-    if (savedLanguage && LANGUAGES.find(lang => lang.code === savedLanguage)) {
-      setCurrentLanguage(savedLanguage);
-    }
-  }, []);
-
-  // Load translations when language changes
+  // Load translations when language changes (now with correct initial language)
   useEffect(() => {
     const loadTranslations = async () => {
       try {
         // Import translation file dynamically for ALL languages including English
         const translationModule = await import(`../translations/${currentLanguage}.ts`);
         setTranslations(translationModule.default);
+        console.log(`✅ Loaded translations for: ${currentLanguage}`);
       } catch (error) {
         console.warn(`Failed to load translations for ${currentLanguage}, falling back to default`);
         setTranslations(defaultTranslations);

@@ -347,6 +347,23 @@ service cloud.firestore {
       );
       allow delete: if isDevAdmin() || hasRole('manager');
     }
+
+    // Translation Chat Collections - Multilingual Communication System
+
+    // Translation channels - 5-channel translation chat system
+    match /translationChannels/{channelId} {
+      allow read: if isActiveUser();  // All authenticated users can read channel status
+      allow create, update: if isActiveUser();  // All users can join/leave channels
+      allow delete: if isDevAdmin() || hasRole('manager');  // Only admins can delete channels
+    }
+
+    // Channel messages - Translation chat messages
+    match /channelMessages/{messageId} {
+      allow read: if isActiveUser();  // All authenticated users can read messages
+      allow create: if isActiveUser();  // All users can send messages
+      allow update: if isDevAdmin() || hasRole('manager');  // Only admins can edit messages
+      allow delete: if isDevAdmin() || hasRole('manager');  // Only admins can delete messages
+    }
     
     // Deny all other access
     match /{document=**} {

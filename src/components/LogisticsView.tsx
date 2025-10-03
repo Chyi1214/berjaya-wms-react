@@ -11,6 +11,7 @@ import WasteLostDefectView from './common/WasteLostDefectView';
 import { ElaMenu } from './ela/ElaMenu';
 import { ElaChat } from './ela/ElaChat';
 import PersonalSettings from './PersonalSettings';
+import { TranslationChannels } from './chat/TranslationChannels';
 
 interface LogisticsViewProps {
   user: User;
@@ -28,6 +29,7 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onTransacti
   const [showElaMenu, setShowElaMenu] = useState(false);
   const [showElaChat, setShowElaChat] = useState(false);
   const [showPersonalSettings, setShowPersonalSettings] = useState(false);
+  const [showTranslationChannels, setShowTranslationChannels] = useState(false);
   
   // Handle new count submission (now supports both single items and BOM expansion)
   const handleCountSubmit = async (entries: InventoryCountEntry[]) => {
@@ -120,6 +122,10 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onTransacti
               {showElaMenu && (
                 <ElaMenu
                   onChatOpen={() => setShowElaChat(true)}
+                  onTranslationChatOpen={() => {
+                    setShowTranslationChannels(true);
+                    setShowElaMenu(false);
+                  }}
                   onPersonalSettingsOpen={() => setShowPersonalSettings(true)}
                   onClose={() => setShowElaMenu(false)}
                 />
@@ -296,6 +302,13 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onTransacti
         <PersonalSettings
           user={user}
           onClose={() => setShowPersonalSettings(false)}
+        />
+      )}
+
+      {/* Translation Chat Modal */}
+      {showTranslationChannels && (
+        <TranslationChannels
+          onClose={() => setShowTranslationChannels(false)}
         />
       )}
     </div>

@@ -18,7 +18,7 @@ interface GeminiResponse {
 
 class GeminiService {
   private apiKey: string;
-  private apiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent';
+  private apiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
   
   // Simple, natural system prompt for conversational Ela
   private systemPrompt = `You are Ela, a friendly AI helper for warehouse workers at Berjaya Autotech.

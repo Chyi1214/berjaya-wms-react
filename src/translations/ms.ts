@@ -325,6 +325,55 @@ const malayTranslations: Translation = {
     failedToReject: 'Gagal menolak transaksi. Sila cuba lagi.'
   },
 
+  // Translation Chat System
+  translationChat: {
+    title: 'Sembang Terjemahan',
+    description: 'Saluran komunikasi berbilang bahasa',
+    channels: 'Saluran Terjemahan',
+    selectChannel: 'Pilih Saluran',
+    channel: 'Saluran',
+    participants: 'Peserta',
+    available: 'Tersedia',
+    occupied: 'Diterbitkan ({count}/2 pengguna)',
+    full: 'Penuh (2/2 pengguna)',
+    joinChannel: 'Sertai Saluran',
+    leaveChannel: 'Tinggalkan Saluran',
+    noChannelsAvailable: 'Tiada saluran tersedia',
+    channelJoined: 'Berjaya menyertai {channel}',
+    channelLeft: 'Meninggalkan {channel}',
+    failedToJoin: 'Gagal menyertai saluran',
+    failedToLeave: 'Gagal meninggalkan saluran',
+
+    // Chat interface
+    chatRoom: 'Bilik Sembang',
+    typeMessage: 'Taip mesej anda...',
+    sendMessage: 'Hantar Mesej',
+    connecting: 'Menyambung...',
+    connected: 'Disambungkan',
+    disconnected: 'Terputus',
+    noMessages: 'Belum ada mesej. Mulakan perbualan!',
+    originalText: 'Asal',
+    translatedText: 'Diterjemah',
+    sendingMessage: 'Menghantar...',
+    messageSent: 'Mesej dihantar',
+    failedToSend: 'Gagal menghantar mesej',
+
+    // Languages
+    languages: {
+      English: 'Bahasa Inggeris',
+      Malay: 'Bahasa Melayu',
+      Chinese: 'Bahasa Cina',
+      Myanmar: 'Bahasa Myanmar',
+      Bengali: 'Bahasa Bengali'
+    },
+
+    // Channel status
+    waitingForUser: 'Menunggu pengguna lain untuk menyertai...',
+    userJoined: '{user} menyertai saluran',
+    userLeft: '{user} meninggalkan saluran',
+    channelDescription: 'Sehingga 2 pengguna boleh berbual dengan terjemahan automatik antara bahasa berbeza'
+  },
+
   // Footer
   footer: {
     copyright: '© 2025 Berjaya Autotech - Sistem Pengurusan Gudang',

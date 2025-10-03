@@ -153,6 +153,62 @@
           "order": "DESCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "carMovements",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "vin",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "movedAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "carMovements",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "fromZone",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "movedAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "carMovements",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "toZone",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "movedAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "channelMessages",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "channelId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "timestamp",
+          "order": "DESCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": []

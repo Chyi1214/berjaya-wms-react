@@ -325,6 +325,55 @@ const chineseTranslations: Translation = {
     failedToReject: '拒绝事务失败。请重试。'
   },
 
+  // Translation Chat System
+  translationChat: {
+    title: '翻译聊天',
+    description: '多语言沟通频道',
+    channels: '翻译频道',
+    selectChannel: '选择频道',
+    channel: '频道',
+    participants: '参与者',
+    available: '可用',
+    occupied: '已占用 ({count}/2 用户)',
+    full: '已满 (2/2 用户)',
+    joinChannel: '加入频道',
+    leaveChannel: '离开频道',
+    noChannelsAvailable: '无可用频道',
+    channelJoined: '成功加入 {channel}',
+    channelLeft: '已离开 {channel}',
+    failedToJoin: '加入频道失败',
+    failedToLeave: '离开频道失败',
+
+    // Chat interface
+    chatRoom: '聊天室',
+    typeMessage: '输入您的消息...',
+    sendMessage: '发送消息',
+    connecting: '连接中...',
+    connected: '已连接',
+    disconnected: '已断开连接',
+    noMessages: '暂无消息。开始对话吧！',
+    originalText: '原文',
+    translatedText: '翻译',
+    sendingMessage: '发送中...',
+    messageSent: '消息已发送',
+    failedToSend: '发送消息失败',
+
+    // Languages
+    languages: {
+      English: '英语',
+      Malay: '马来语',
+      Chinese: '中文',
+      Myanmar: '缅甸语',
+      Bengali: '孟加拉语'
+    },
+
+    // Channel status
+    waitingForUser: '等待其他用户加入...',
+    userJoined: '{user} 加入了频道',
+    userLeft: '{user} 离开了频道',
+    channelDescription: '最多2位用户可以聊天，并在不同语言之间自动翻译'
+  },
+
   // Footer
   footer: {
     copyright: '© 2025 Berjaya Autotech - 仓库管理系统',

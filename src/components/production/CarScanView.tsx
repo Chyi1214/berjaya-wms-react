@@ -4,7 +4,6 @@ import { User, Car, CarScanFormData, CarStatus } from '../../types';
 // VIN scanning uses hardcoded English text for production speed
 import { scannerService } from '../../services/scannerService';
 import { carTrackingService } from '../../services/carTrackingService';
-import { workStationService } from '../../services/workStationService';
 
 interface CarScanViewProps {
   user: User;
@@ -151,17 +150,16 @@ export function CarScanView({ user, zoneId, onBack, onCarScanned }: CarScanViewP
     try {
       // Create the car
       await carTrackingService.createCar(autoCarData);
-      
-      // Immediately scan into zone
-      await carTrackingService.scanCarIntoZone(vin, zoneId, user.email);
-      await workStationService.updateStationWithCar(zoneId, vin);
-      
+
+      // Immediately scan into zone using ATOMIC operation
+      await carTrackingService.scanCarIntoZoneAtomic(vin, zoneId, user.email);
+
       // Get the created car
       const newCar = await carTrackingService.getCarByVIN(vin);
       if (newCar) {
-        setSuccess(`Car ${vin} created and scanned into Zone ${zoneId} - Time tracking started!`);
+        setSuccess(`✅ Atomic scan-in: Car ${vin} created and scanned into Zone ${zoneId} - Time tracking started!`);
         onCarScanned(newCar);
-        
+
         // Play success sound
         scannerService.triggerFeedback();
       }
@@ -174,22 +172,21 @@ export function CarScanView({ user, zoneId, onBack, onCarScanned }: CarScanViewP
     try {
       // Check if car already exists
       const existingCar = await carTrackingService.getCarByVIN(vin);
-      
+
       if (existingCar) {
-        // Car exists, scan into zone
+        // Car exists, scan into zone using ATOMIC operation
         if (existingCar.currentZone !== null) {
           throw new Error(`Car ${vin} is already in zone ${existingCar.currentZone}`);
         }
-        
-        await carTrackingService.scanCarIntoZone(vin, zoneId, user.email);
-        await workStationService.updateStationWithCar(zoneId, vin);
-        
+
+        await carTrackingService.scanCarIntoZoneAtomic(vin, zoneId, user.email);
+
         // Get updated car data
         const updatedCar = await carTrackingService.getCarByVIN(vin);
         if (updatedCar) {
-          setSuccess(`Car ${vin} successfully scanned into Zone ${zoneId}`);
+          setSuccess(`✅ Atomic scan-in: Car ${vin} successfully scanned into Zone ${zoneId}`);
           onCarScanned(updatedCar);
-          
+
           // Play success sound
           scannerService.triggerFeedback();
         }
@@ -197,7 +194,7 @@ export function CarScanView({ user, zoneId, onBack, onCarScanned }: CarScanViewP
         // New car, create automatically with default values for time tracking only
         await createCarAutomatically(vin);
       }
-      
+
       setIsProcessing(false);
     } catch (error) {
       throw error;
