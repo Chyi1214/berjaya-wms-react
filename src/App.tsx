@@ -469,7 +469,10 @@ async function applyTransferEffects(transaction: Transaction) {
     }
 
     const actor = (transaction.approvedBy || transaction.performedBy || 'system') as string;
-    const destination = transaction.toLocation || 'production_zone_1';
+    const destination = transaction.toLocation;
+    if (!destination) {
+      throw new Error('Destination location is required for transfer');
+    }
 
     // Inventory updates: increment destination, decrement logistics
     const tableStateService = await getTableStateService();
