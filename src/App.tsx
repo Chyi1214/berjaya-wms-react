@@ -18,7 +18,7 @@ import { UserRole, AppSection, InventoryCountEntry, Transaction, TransactionStat
 // Lazy load the heavy ManagerView component for better performance
 const ManagerView = lazy(() => import('./components/ManagerView').then(module => ({ default: module.ManagerView })));
 // Lazy service loaders to reduce initial bundle size
-import { getInventoryService, getTransactionService, getTableStateService, getItemMasterService } from './services/lazyServices';
+import { getInventoryService, getTransactionService, getTableStateService } from './services/lazyServices';
 import { applyTransferEffects } from './services/transferEffects';
 
 // Main app content (wrapped inside AuthProvider)

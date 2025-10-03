@@ -14,8 +14,6 @@ import {
 } from 'firebase/firestore';
 import { Transaction, TransactionStatus } from '../types';
 import { createModuleLogger } from './logger';
-import { tableStateService } from './tableState';
-import { batchAllocationService } from './batchAllocationService';
 import { applyRectificationEffects } from './transferEffects';
 
 const logger = createModuleLogger('TransactionService');
