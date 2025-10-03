@@ -9,7 +9,7 @@ interface ZoneActivityViewProps {
 
 export function ZoneActivityView({ className = '' }: ZoneActivityViewProps) {
   const [selectedZone, setSelectedZone] = useState<number>(1);
-  const [movements, setMovements] = useState<(CarMovement & { movedByName: string })[]>([]);
+  const [movements, setMovements] = useState<(CarMovement & { movedByName: string; idleTime?: number; groupIndex: number; isFirstInGroup: boolean; groupSize: number })[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>(() => {
@@ -43,15 +43,23 @@ export function ZoneActivityView({ className = '' }: ZoneActivityViewProps) {
         limit: 100
       });
 
-      console.log('📋 Loaded zone movements:', data.length);
-
       // Get display names for the movements
       const uniqueEmails = [...new Set(data.map(m => m.movedBy))];
       const emailToNameMap = new Map<string, string>();
 
       for (const email of uniqueEmails) {
         const displayName = await carTrackingService.getUserDisplayName(email);
-        emailToNameMap.set(email, displayName);
+
+        // If display name is same as email, try to create a simpler name
+        let finalName = displayName;
+        if (displayName === email) {
+          // Extract name from email - take part before @ and capitalize
+          const namePart = email.split('@')[0];
+          // Simple capitalization - just first letter
+          finalName = namePart.charAt(0).toUpperCase() + namePart.slice(1);
+        }
+
+        emailToNameMap.set(email, finalName);
       }
 
       // Add display names to movements
@@ -60,7 +68,13 @@ export function ZoneActivityView({ className = '' }: ZoneActivityViewProps) {
         movedByName: emailToNameMap.get(movement.movedBy) || movement.movedBy
       }));
 
-      setMovements(movementsWithNames);
+      // Calculate idle times for movements
+      const movementsWithIdleTime = calculateIdleTime(movementsWithNames);
+
+      // Add VIN grouping for visual organization
+      const groupedMovements = addVinGrouping(movementsWithIdleTime);
+
+      setMovements(groupedMovements);
     } catch (err) {
       console.error('Failed to load zone activity:', err);
       setError(`Failed to load data: ${err}`);
@@ -98,6 +112,98 @@ export function ZoneActivityView({ className = '' }: ZoneActivityViewProps) {
     return `${hours}h ${remainingMinutes}m`;
   };
 
+  // Group consecutive movements by VIN for visual organization
+  const addVinGrouping = (movements: (CarMovement & { movedByName: string; idleTime?: number })[]):
+    (CarMovement & { movedByName: string; idleTime?: number; groupIndex: number; isFirstInGroup: boolean; groupSize: number })[] => {
+
+    if (movements.length === 0) return [];
+
+    // First pass: count group sizes
+    const groupSizes: number[] = [];
+    let currentVin = movements[0].vin;
+    let currentGroupSize = 1;
+
+    for (let i = 1; i < movements.length; i++) {
+      if (movements[i].vin === currentVin) {
+        currentGroupSize++;
+      } else {
+        groupSizes.push(currentGroupSize);
+        currentVin = movements[i].vin;
+        currentGroupSize = 1;
+      }
+    }
+    groupSizes.push(currentGroupSize); // Add last group
+
+    // Second pass: add grouping metadata
+    const result = [];
+    let groupIndex = 0;
+    let positionInGroup = 0;
+    currentVin = movements[0].vin;
+
+    for (let i = 0; i < movements.length; i++) {
+      const movement = movements[i];
+
+      if (movement.vin !== currentVin) {
+        currentVin = movement.vin;
+        groupIndex++;
+        positionInGroup = 0;
+      }
+
+      result.push({
+        ...movement,
+        groupIndex,
+        isFirstInGroup: positionInGroup === 0,
+        groupSize: groupSizes[groupIndex]
+      });
+
+      positionInGroup++;
+    }
+
+    return result;
+  };
+
+  // Calculate idle time between car completion and next scan-in
+  const calculateIdleTime = (movements: (CarMovement & { movedByName: string })[]): (CarMovement & { movedByName: string; idleTime?: number })[] => {
+    // Sort movements by time to ensure proper order
+    const sortedMovements = [...movements].sort((a, b) => a.movedAt.getTime() - b.movedAt.getTime());
+
+    const enhancedMovements = [];
+
+    for (let i = 0; i < sortedMovements.length; i++) {
+      const current = sortedMovements[i];
+      let idleTime: number | undefined = undefined;
+
+      // If this is a scan_in, look for the previous complete in the same zone
+      if (current.movementType === 'scan_in') {
+        // Find the most recent complete action in this zone before current scan_in
+        for (let j = i - 1; j >= 0; j--) {
+          const previous = sortedMovements[j];
+
+          // Look for complete action FROM the zone we're scanning INTO
+          if (previous.movementType === 'complete' && previous.fromZone === current.toZone) {
+            // Calculate time difference in minutes
+            const timeDiffMs = current.movedAt.getTime() - previous.movedAt.getTime();
+            const timeDiffMinutes = Math.round(timeDiffMs / (1000 * 60));
+
+            // Only count idle time if it's less than 3 hours (180 minutes)
+            // Anything over 3 hours is considered off-clock time
+            if (timeDiffMinutes <= 180) {
+              idleTime = timeDiffMinutes;
+            }
+            break; // Found the relevant complete action
+          }
+        }
+      }
+
+      enhancedMovements.push({
+        ...current,
+        idleTime
+      });
+    }
+
+    return enhancedMovements;
+  };
+
   const getMovementTypeDisplay = (type: string): string => {
     switch (type) {
       case 'scan_in': return '📱 Scan In';
@@ -117,7 +223,11 @@ export function ZoneActivityView({ className = '' }: ZoneActivityViewProps) {
     completions: movements.filter(m => m.movementType === 'complete').length,
     avgTime: movements.filter(m => m.timeInPreviousZone).length > 0
       ? Math.round(movements.filter(m => m.timeInPreviousZone).reduce((sum, m) => sum + (m.timeInPreviousZone || 0), 0) / movements.filter(m => m.timeInPreviousZone).length)
-      : 0
+      : 0,
+    avgIdleTime: movements.filter(m => m.idleTime).length > 0
+      ? Math.round(movements.filter(m => m.idleTime).reduce((sum, m) => sum + (m.idleTime || 0), 0) / movements.filter(m => m.idleTime).length)
+      : 0,
+    totalIdleEvents: movements.filter(m => m.idleTime).length
   };
 
   // Generate zone options (1-23 for production zones)
@@ -178,7 +288,7 @@ export function ZoneActivityView({ className = '' }: ZoneActivityViewProps) {
 
       {/* Statistics Summary */}
       {!loading && movements.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-8 gap-4 mb-6">
           <div className="bg-blue-50 p-3 rounded-lg text-center">
             <div className="text-2xl font-bold text-blue-600">{stats.totalMovements}</div>
             <div className="text-xs text-blue-600">Total Movements</div>
@@ -202,7 +312,17 @@ export function ZoneActivityView({ className = '' }: ZoneActivityViewProps) {
           {stats.avgTime > 0 && (
             <div className="bg-indigo-50 p-3 rounded-lg text-center">
               <div className="text-2xl font-bold text-indigo-600">{formatDuration(stats.avgTime)}</div>
-              <div className="text-xs text-indigo-600">Avg Time</div>
+              <div className="text-xs text-indigo-600">Avg Work Time</div>
+            </div>
+          )}
+          <div className="bg-yellow-50 p-3 rounded-lg text-center">
+            <div className="text-2xl font-bold text-yellow-600">{stats.totalIdleEvents}</div>
+            <div className="text-xs text-yellow-600">Idle Events</div>
+          </div>
+          {stats.avgIdleTime > 0 && (
+            <div className="bg-red-50 p-3 rounded-lg text-center">
+              <div className="text-2xl font-bold text-red-600">{formatDuration(stats.avgIdleTime)}</div>
+              <div className="text-xs text-red-600">Avg Idle Time</div>
             </div>
           )}
         </div>
@@ -251,7 +371,10 @@ export function ZoneActivityView({ className = '' }: ZoneActivityViewProps) {
                   Worker
                 </th>
                 <th className="border border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Duration
+                  Work Time
+                </th>
+                <th className="border border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Idle Time
                 </th>
                 <th className="border border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Notes
@@ -259,28 +382,52 @@ export function ZoneActivityView({ className = '' }: ZoneActivityViewProps) {
               </tr>
             </thead>
             <tbody className="bg-white">
-              {movements.map((movement) => (
-                <tr key={movement.id} className="hover:bg-gray-50">
-                  <td className="border border-gray-200 px-4 py-3 text-sm">
-                    {formatTime(movement.movedAt)}
-                  </td>
-                  <td className="border border-gray-200 px-4 py-3 text-sm font-mono">
-                    {movement.vin}
-                  </td>
-                  <td className="border border-gray-200 px-4 py-3 text-sm">
-                    {getMovementTypeDisplay(movement.movementType)}
-                  </td>
-                  <td className="border border-gray-200 px-4 py-3 text-sm">
-                    {movement.movedByName}
-                  </td>
-                  <td className="border border-gray-200 px-4 py-3 text-sm">
-                    {movement.timeInPreviousZone ? formatDuration(movement.timeInPreviousZone) : '-'}
-                  </td>
-                  <td className="border border-gray-200 px-4 py-3 text-sm text-gray-600">
-                    {movement.notes || '-'}
-                  </td>
-                </tr>
-              ))}
+              {movements.map((movement) => {
+                // Alternating background colors per VIN group
+                const isEvenGroup = movement.groupIndex % 2 === 0;
+                const bgColor = isEvenGroup ? 'bg-white' : 'bg-gray-50';
+                const hoverColor = isEvenGroup ? 'hover:bg-gray-50' : 'hover:bg-gray-100';
+
+                return (
+                  <tr key={movement.id} className={`${bgColor} ${hoverColor}`}>
+                    <td className="border border-gray-200 px-4 py-3 text-sm">
+                      {formatTime(movement.movedAt)}
+                    </td>
+                    {/* VIN cell - only show in first row of each group */}
+                    {movement.isFirstInGroup ? (
+                      <td
+                        className="border border-gray-200 px-4 py-3 text-sm font-mono text-center align-top"
+                        rowSpan={movement.groupSize}
+                      >
+                        <div className="font-medium text-blue-900">
+                          {movement.vin}
+                        </div>
+                      </td>
+                    ) : null}
+                    <td className="border border-gray-200 px-4 py-3 text-sm">
+                      {getMovementTypeDisplay(movement.movementType)}
+                    </td>
+                    <td className="border border-gray-200 px-4 py-3 text-sm">
+                      {movement.movedByName}
+                    </td>
+                    <td className="border border-gray-200 px-4 py-3 text-sm">
+                      {movement.timeInPreviousZone ? formatDuration(movement.timeInPreviousZone) : '-'}
+                    </td>
+                    <td className="border border-gray-200 px-4 py-3 text-sm">
+                      {movement.idleTime ? (
+                        <span className="text-red-600 font-medium">
+                          {formatDuration(movement.idleTime)}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
+                    </td>
+                    <td className="border border-gray-200 px-4 py-3 text-sm text-gray-600">
+                      {movement.notes || '-'}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
 

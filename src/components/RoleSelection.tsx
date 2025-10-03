@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext'; // Import useAuth
 import { ElaMenu } from './ela/ElaMenu';
 import { ElaChat } from './ela/ElaChat';
 import PersonalSettings from './PersonalSettings';
+import { TranslationChannels } from './chat/TranslationChannels';
 import VersionFooter from './VersionFooter';
 import { getDisplayName, getUserInitial } from '../utils/displayName';
 
@@ -44,6 +45,7 @@ export function RoleSelection({ user, onRoleSelect, onLogout }: RoleSelectionPro
   const [showElaMenu, setShowElaMenu] = useState(false);
   const [showElaChat, setShowElaChat] = useState(false);
   const [showPersonalSettings, setShowPersonalSettings] = useState(false);
+  const [showTranslationChannels, setShowTranslationChannels] = useState(false);
 
   const userRole = authenticatedUser?.userRecord?.role;
 
@@ -87,6 +89,10 @@ export function RoleSelection({ user, onRoleSelect, onLogout }: RoleSelectionPro
             {showElaMenu && (
               <ElaMenu
                 onChatOpen={() => setShowElaChat(true)}
+                onTranslationChatOpen={() => {
+                  setShowTranslationChannels(true);
+                  setShowElaMenu(false);
+                }}
                 onPersonalSettingsOpen={() => setShowPersonalSettings(true)}
                 onClose={() => setShowElaMenu(false)}
               />
@@ -221,6 +227,13 @@ export function RoleSelection({ user, onRoleSelect, onLogout }: RoleSelectionPro
         <PersonalSettings
           user={user}
           onClose={() => setShowPersonalSettings(false)}
+        />
+      )}
+
+      {/* Translation Chat Modal */}
+      {showTranslationChannels && (
+        <TranslationChannels
+          onClose={() => setShowTranslationChannels(false)}
         />
       )}
     </div>

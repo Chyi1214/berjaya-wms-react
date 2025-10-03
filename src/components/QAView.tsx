@@ -7,6 +7,7 @@ import QACarListView from './qa/QACarListView';
 import QAInspectionView from './qa/QAInspectionView';
 import { ElaMenu } from './ela/ElaMenu';
 import { ElaChat } from './ela/ElaChat';
+import { TranslationChannels } from './chat/TranslationChannels';
 
 const QAView: React.FC<QAViewProps> = ({ user, onBack }) => {
   const [cars, setCars] = useState<Car[]>([]);
@@ -18,6 +19,7 @@ const QAView: React.FC<QAViewProps> = ({ user, onBack }) => {
   const [currentView, setCurrentView] = useState<'list' | 'inspection'>('list');
   const [showElaMenu, setShowElaMenu] = useState(false);
   const [showElaChat, setShowElaChat] = useState(false);
+  const [showTranslationChannels, setShowTranslationChannels] = useState(false);
 
   // Load today's cars and inspections
   useEffect(() => {
@@ -184,6 +186,10 @@ const QAView: React.FC<QAViewProps> = ({ user, onBack }) => {
                 {showElaMenu && (
                   <ElaMenu
                     onChatOpen={() => setShowElaChat(true)}
+                    onTranslationChatOpen={() => {
+                      setShowTranslationChannels(true);
+                      setShowElaMenu(false);
+                    }}
                     onPersonalSettingsOpen={() => {}}
                     onClose={() => setShowElaMenu(false)}
                   />
@@ -221,6 +227,13 @@ const QAView: React.FC<QAViewProps> = ({ user, onBack }) => {
           user={user}
           userRole="qa"
           onClose={() => setShowElaChat(false)}
+        />
+      )}
+
+      {/* Translation Chat Modal */}
+      {showTranslationChannels && (
+        <TranslationChannels
+          onClose={() => setShowTranslationChannels(false)}
         />
       )}
     </div>

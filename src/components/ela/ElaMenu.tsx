@@ -1,7 +1,7 @@
 // Ela Menu Dropdown Component
 import { ElaMenuProps } from '../../types/ela';
 
-export function ElaMenu({ onChatOpen, onPersonalSettingsOpen, onClose }: ElaMenuProps) {
+export function ElaMenu({ onChatOpen, onTranslationChatOpen, onPersonalSettingsOpen, onClose }: ElaMenuProps) {
 
   return (
     <>
@@ -24,7 +24,19 @@ export function ElaMenu({ onChatOpen, onPersonalSettingsOpen, onClose }: ElaMenu
           <span className="text-xl">💬</span>
           <span className="font-medium text-gray-900">Chat with Ela</span>
         </button>
-        
+
+        {/* Translation Chat */}
+        <button
+          onClick={() => {
+            onTranslationChatOpen();
+            onClose();
+          }}
+          className="w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors flex items-center space-x-2"
+        >
+          <span className="text-xl">🌍</span>
+          <span className="font-medium text-gray-900">Translation Chat</span>
+        </button>
+
         {/* Divider */}
         <div className="border-t border-gray-100 my-1" />
         

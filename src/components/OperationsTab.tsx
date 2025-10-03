@@ -5,6 +5,7 @@ import { OperationsTabs } from './operations/OperationsTabs';
 import { VinMonitorPanel } from './operations/VinMonitorPanel';
 import { EnhancedBatchManagement } from './operations/EnhancedBatchManagement';
 import { BatchSetupPage } from './operations/BatchSetupPage';
+import { GhostCarCleanupCard } from './operations/GhostCarCleanupCard';
 
 interface OperationsTabProps {
   onRefresh?: () => void;
@@ -12,7 +13,7 @@ interface OperationsTabProps {
 
 export function OperationsTab({ onRefresh }: OperationsTabProps) {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'batches' | 'vins' | 'setup' | 'tasks'>('batches');
+  const [activeTab, setActiveTab] = useState<'batches' | 'vins' | 'setup' | 'system'>('batches');
 
   return (
     <div className="space-y-6">
@@ -38,6 +39,12 @@ export function OperationsTab({ onRefresh }: OperationsTabProps) {
 
       {activeTab === 'setup' && (
         <BatchSetupPage user={user} />
+      )}
+
+      {activeTab === 'system' && (
+        <div className="space-y-6">
+          <GhostCarCleanupCard user={user} onRefresh={onRefresh} />
+        </div>
       )}
     </div>
   );

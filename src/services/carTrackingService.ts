@@ -10,7 +10,8 @@ import {
   orderBy,
   where,
   Timestamp,
-  addDoc
+  addDoc,
+  runTransaction
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { prepareForFirestore } from '../utils/firestore';
@@ -68,7 +69,7 @@ class CarTrackingService {
     }
   }
 
-  // Scan car into zone
+  // Scan car into zone (DEPRECATED - Use scanCarIntoZoneAtomic instead)
   async scanCarIntoZone(vin: string, zoneId: number, scannedBy: string): Promise<void> {
     try {
       const car = await this.getCarByVIN(vin);
@@ -109,6 +110,110 @@ class CarTrackingService {
       console.log('✅ Scanned car into zone:', vin, 'Zone:', zoneId);
     } catch (error) {
       console.error('Failed to scan car into zone:', error);
+      throw error;
+    }
+  }
+
+  // Atomic car scan-in - prevents ghost cars by using Firestore transaction
+  async scanCarIntoZoneAtomic(vin: string, zoneId: number, scannedBy: string): Promise<void> {
+    try {
+      console.log('🔧 Starting atomic car scan-in:', vin, 'Zone:', zoneId);
+
+      await runTransaction(db, async (transaction) => {
+        // Step 1: Read both collections
+        const carRef = doc(this.carsCollection, vin.toUpperCase());
+        const stationRef = doc(collection(db, 'workStations'), zoneId.toString());
+
+        const carDoc = await transaction.get(carRef);
+        const stationDoc = await transaction.get(stationRef);
+
+        // Step 2: Validate state before making changes
+        if (!carDoc.exists()) {
+          throw new Error(`Car with VIN ${vin} not found in system`);
+        }
+
+        const carData = carDoc.data();
+        const car = this.convertTimestamps(carData) as Car;
+
+        // Check if car is already in a zone
+        if (car.currentZone !== null) {
+          throw new Error(`Car ${vin} is already in zone ${car.currentZone}`);
+        }
+
+        // Check if zone already has a different car
+        if (stationDoc.exists()) {
+          const station = stationDoc.data();
+          if (station.currentCar && station.currentCar.vin !== vin) {
+            throw new Error(`Zone ${zoneId} already has car: ${station.currentCar.vin}`);
+          }
+        }
+
+        // Step 3: Prepare car updates
+        const enteredAt = new Date();
+        const zoneEntry: ZoneEntry = {
+          zoneId,
+          enteredAt,
+          enteredBy: scannedBy
+        };
+
+        // Clean zone history to remove any undefined values
+        const cleanedZoneHistory = car.zoneHistory.map(entry => prepareForFirestore(entry));
+        const newZoneHistory = [...cleanedZoneHistory, zoneEntry];
+
+        const carUpdates = prepareForFirestore({
+          currentZone: zoneId,
+          zoneHistory: newZoneHistory,
+          updatedAt: enteredAt
+        });
+
+        // Step 4: Prepare workStation updates
+        const timeElapsed = 0; // Just entered
+        const currentCarData = prepareForFirestore({
+          vin: car.vin,
+          type: car.type || 'Standard',
+          color: car.color || 'Unknown',
+          enteredAt,
+          timeElapsed
+        });
+
+        const stationUpdates = prepareForFirestore({
+          currentCar: currentCarData,
+          lastUpdated: enteredAt
+        });
+
+        // Step 5: Atomic updates - both succeed or both fail
+        transaction.update(carRef, carUpdates);
+
+        if (stationDoc.exists()) {
+          transaction.update(stationRef, stationUpdates);
+        } else {
+          // Create workStation if it doesn't exist
+          const newStationData = prepareForFirestore({
+            zoneId,
+            carsProcessedToday: 0,
+            averageProcessingTime: 0,
+            currentCar: currentCarData,
+            lastUpdated: enteredAt
+          });
+          transaction.set(stationRef, newStationData);
+        }
+
+        console.log('✅ Atomic scan-in transaction prepared for:', vin, 'Zone:', zoneId);
+      });
+
+      // Step 6: Log movement after transaction succeeds
+      await this.logCarMovement({
+        vin,
+        fromZone: null,
+        toZone: zoneId,
+        movedAt: new Date(),
+        movedBy: scannedBy,
+        movementType: 'scan_in'
+      });
+
+      console.log('✅ Atomic car scan-in succeeded:', vin, 'Zone:', zoneId);
+    } catch (error) {
+      console.error('❌ Failed atomic car scan-in:', error);
       throw error;
     }
   }
@@ -179,6 +284,123 @@ class CarTrackingService {
       console.error('Failed to complete car work:', error);
       throw error;
     }
+  }
+
+  // Atomic car completion - prevents ghost cars by using Firestore transaction
+  async completeCarWorkAtomic(vin: string, zoneId: number, completedBy: string, notes?: string): Promise<void> {
+    try {
+      console.log('🔧 Starting atomic car completion:', vin, 'Zone:', zoneId);
+
+      await runTransaction(db, async (transaction) => {
+        // Step 1: Read both collections
+        const carRef = doc(this.carsCollection, vin.toUpperCase());
+        const stationRef = doc(collection(db, 'workStations'), zoneId.toString());
+
+        const carDoc = await transaction.get(carRef);
+        const stationDoc = await transaction.get(stationRef);
+
+        // Step 2: Validate state before making changes
+        if (!carDoc.exists()) {
+          throw new Error(`Car with VIN ${vin} not found in system`);
+        }
+
+        const carData = carDoc.data();
+        // CRITICAL: Convert Firestore Timestamps to Dates before using the data
+        const car = this.convertTimestamps(carData) as Car;
+
+        if (car.currentZone !== zoneId) {
+          throw new Error(`Car ${vin} is not in zone ${zoneId} (currently in zone ${car.currentZone})`);
+        }
+
+        if (car.currentZone === null) {
+          throw new Error(`Car ${vin} is not currently in any zone`);
+        }
+
+        // Validate workStation consistency
+        if (stationDoc.exists()) {
+          const station = stationDoc.data();
+          if (station.currentCar && station.currentCar.vin !== vin) {
+            throw new Error(`Zone ${zoneId} shows different car: ${station.currentCar.vin}`);
+          }
+        }
+
+        // Step 3: Prepare car updates
+        const updatedHistory = car.zoneHistory.map((entry, index) => {
+          if (index === car.zoneHistory.length - 1 && entry.zoneId === car.currentZone) {
+            const exitedAt = new Date();
+            const timeSpent = Math.floor((exitedAt.getTime() - entry.enteredAt.getTime()) / (1000 * 60));
+
+            const completedEntry = {
+              ...entry,
+              exitedAt,
+              completedBy,
+              timeSpent
+            };
+
+            if (notes !== undefined && notes.trim() !== '') {
+              completedEntry.notes = notes;
+            }
+
+            return prepareForFirestore(completedEntry);
+          }
+          return prepareForFirestore(entry);
+        });
+
+        const carUpdates = prepareForFirestore({
+          currentZone: null,
+          zoneHistory: updatedHistory,
+          updatedAt: new Date()
+        });
+
+        // Step 4: Prepare workStation updates (if station exists)
+        let stationUpdates = null;
+        if (stationDoc.exists()) {
+          const station = stationDoc.data();
+          stationUpdates = {
+            carsProcessedToday: (station.carsProcessedToday || 0) + 1,
+            currentCar: null,
+            lastUpdated: new Date()
+          };
+        }
+
+        // Step 5: Atomic updates - both succeed or both fail
+        transaction.update(carRef, carUpdates);
+
+        if (stationUpdates) {
+          transaction.update(stationRef, stationUpdates);
+        }
+
+        console.log('✅ Atomic transaction prepared for:', vin, 'Zone:', zoneId);
+      });
+
+      // Step 6: Log movement after transaction succeeds
+      const currentZoneEntry = await this.getCurrentZoneEntry(vin, zoneId);
+      await this.logCarMovement({
+        vin,
+        fromZone: zoneId,
+        toZone: null,
+        movedAt: new Date(),
+        movedBy: completedBy,
+        movementType: 'complete',
+        timeInPreviousZone: currentZoneEntry?.timeSpent,
+        notes
+      });
+
+      console.log('✅ Atomic car completion succeeded:', vin, 'Zone:', zoneId);
+    } catch (error) {
+      console.error('Failed atomic car completion:', error);
+      throw error;
+    }
+  }
+
+  // Helper method to get current zone entry
+  private async getCurrentZoneEntry(vin: string, zoneId: number): Promise<ZoneEntry | null> {
+    const car = await this.getCarByVIN(vin);
+    if (!car) return null;
+
+    return car.zoneHistory.find(entry =>
+      entry.zoneId === zoneId && entry.exitedAt
+    ) || null;
   }
 
   // Complete car production (all zones done)
@@ -323,26 +545,46 @@ class CarTrackingService {
   }): Promise<CarMovement[]> {
     try {
       const limit = options?.limit || 50;
-      let q = query(this.movementsCollection, orderBy('movedAt', 'desc'));
 
-      // Apply Firestore filters where possible
-      if (options?.vin) {
-        q = query(q, where('vin', '==', options.vin.toUpperCase()));
-      }
-
-      const snapshot = await getDocs(q);
+      // Strategy: Use different query approaches based on available filters
       let movements: CarMovement[] = [];
 
-      snapshot.forEach((doc) => {
-        const data = this.convertTimestamps(doc.data());
-        movements.push({ id: doc.id, ...data } as CarMovement);
-      });
+      if (options?.vin) {
+        // VIN-specific query: Use simple where without orderBy to avoid index requirement
+        console.log('🔍 Querying movements for VIN:', options.vin);
+        const vinQuery = query(
+          this.movementsCollection,
+          where('vin', '==', options.vin.toUpperCase())
+        );
 
-      // Apply filters in memory (Firestore limitations)
+        const snapshot = await getDocs(vinQuery);
+        snapshot.forEach((doc) => {
+          const data = this.convertTimestamps(doc.data());
+          movements.push({ id: doc.id, ...data } as CarMovement);
+        });
+
+        // Sort in memory since we can't use orderBy with where clause without index
+        movements.sort((a, b) => b.movedAt.getTime() - a.movedAt.getTime());
+
+      } else {
+        // General query: Use orderBy when no VIN filter
+        const generalQuery = query(this.movementsCollection, orderBy('movedAt', 'desc'));
+        const snapshot = await getDocs(generalQuery);
+
+        snapshot.forEach((doc) => {
+          const data = this.convertTimestamps(doc.data());
+          movements.push({ id: doc.id, ...data } as CarMovement);
+        });
+      }
+
+      console.log('📋 Raw movements found:', movements.length);
+
+      // Apply additional filters in memory
       if (options?.zoneId !== undefined) {
         movements = movements.filter(movement =>
           movement.fromZone === options.zoneId || movement.toZone === options.zoneId
         );
+        console.log('🏭 After zone filter:', movements.length);
       }
 
       if (options?.dateFrom || options?.dateTo) {
@@ -352,11 +594,15 @@ class CarTrackingService {
           if (options.dateTo && movementDate > options.dateTo) return false;
           return true;
         });
+        console.log('📅 After date filter:', movements.length);
       }
 
-      return movements.slice(0, limit);
+      const result = movements.slice(0, limit);
+      console.log('✅ Final movements returned:', result.length);
+      return result;
+
     } catch (error) {
-      console.error('Failed to get car movements:', error);
+      console.error('❌ Failed to get car movements:', error);
       return [];
     }
   }
@@ -524,6 +770,119 @@ class CarTrackingService {
       console.log('✅ Test car data initialized');
     } catch (error) {
       console.error('Failed to initialize test data:', error);
+    }
+  }
+
+  // Fix ghost cars - force clear a specific car from a zone
+  async forceRemoveCarFromZone(vin: string, reason: string = 'Ghost car cleanup'): Promise<void> {
+    try {
+      console.log('🧹 Force removing ghost car from zone:', vin);
+
+      const car = await this.getCarByVIN(vin);
+      if (!car) {
+        console.log('❌ Car not found:', vin);
+        return;
+      }
+
+      console.log('🔍 Current car state:', {
+        vin: car.vin,
+        currentZone: car.currentZone,
+        status: car.status
+      });
+
+      const currentZone = car.currentZone;
+
+      // 1. Force update car to remove from current zone
+      const docRef = doc(this.carsCollection, vin.toUpperCase());
+      await updateDoc(docRef, {
+        currentZone: null,
+        updatedAt: new Date()
+      });
+
+      // 2. Also clear the car from the workStation (avoid circular import)
+      if (currentZone) {
+        try {
+          const { workStationService } = await import('./workStationService');
+          await workStationService.clearStationCar(currentZone, reason);
+        } catch (error) {
+          console.error('Failed to clear car from workStation:', error);
+        }
+      }
+
+      // 3. Log the forced removal
+      if (currentZone) {
+        await this.logCarMovement({
+          vin,
+          fromZone: currentZone,
+          toZone: null,
+          movedAt: new Date(),
+          movedBy: 'system',
+          movementType: 'force_remove',
+          notes: `Force removed: ${reason}`
+        });
+      }
+
+      console.log('✅ Ghost car removed from both cars and workStations:', vin);
+    } catch (error) {
+      console.error('Failed to force remove car from zone:', error);
+      throw error;
+    }
+  }
+
+  // Clean up all ghost cars - find inconsistencies and fix them
+  async cleanupGhostCars(): Promise<{ fixed: number; issues: string[] }> {
+    try {
+      console.log('🧹 Starting comprehensive ghost car cleanup...');
+
+      const results = { fixed: 0, issues: [] as string[] };
+
+      // PHASE 1: Fix duplicate cars in same zone
+      const carsInProduction = await this.getCarsInProduction();
+
+      for (const car of carsInProduction) {
+        if (car.currentZone !== null) {
+          // Check if this is the only car claiming to be in this zone
+          const carsInSameZone = await this.getCarsInZone(car.currentZone);
+
+          if (carsInSameZone.length > 1) {
+            // Multiple cars in same zone - fix all but the first one
+            const duplicates = carsInSameZone.slice(1);
+            for (const duplicate of duplicates) {
+              await this.forceRemoveCarFromZone(duplicate.vin, 'Multiple cars in same zone');
+              results.fixed++;
+              results.issues.push(`Fixed duplicate in Zone ${car.currentZone}: ${duplicate.vin}`);
+            }
+          }
+        }
+      }
+
+      // PHASE 2: Fix workStation-car inconsistencies
+      try {
+        const { workStationService } = await import('./workStationService');
+        const inconsistencies = await workStationService.findStationCarInconsistencies();
+
+        for (const inconsistency of inconsistencies) {
+          // Clear the car from the workStation since the car doesn't think it's there
+          await workStationService.clearStationCar(
+            inconsistency.zoneId,
+            'Station-car data inconsistency'
+          );
+
+          results.fixed++;
+          results.issues.push(
+            `Fixed workStation inconsistency in Zone ${inconsistency.zoneId}: cleared ${inconsistency.carInStation} (car was not in zone)`
+          );
+        }
+      } catch (error) {
+        console.error('Failed to check workStation inconsistencies:', error);
+        results.issues.push('Failed to check workStation inconsistencies');
+      }
+
+      console.log('✅ Comprehensive ghost car cleanup completed:', results);
+      return results;
+    } catch (error) {
+      console.error('Failed to cleanup ghost cars:', error);
+      return { fixed: 0, issues: [`Error: ${error instanceof Error ? error.message : String(error)}`] };
     }
   }
 }

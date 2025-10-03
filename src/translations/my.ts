@@ -325,6 +325,55 @@ const myanmarTranslations: Translation = {
     failedToReject: 'ငွေလွှဲခြင်းကို ငြင်းပယ်ရန် မအောင်မြင်ပါ။ ထပ်ကြိုးစားပါ။'
   },
 
+  // Translation Chat System
+  translationChat: {
+    title: 'ဘာသာပြန် စကားပြောခန်း',
+    description: 'ဘာသာစုံ ဆက်သွယ်ရေး လမ်းကြောင်းများ',
+    channels: 'ဘာသာပြန် လမ်းကြောင်းများ',
+    selectChannel: 'လမ်းကြောင်း ရွေးချယ်ပါ',
+    channel: 'လမ်းကြောင်း',
+    participants: 'ပါဝင်သူများ',
+    available: 'ရရှိနိုင်သည်',
+    occupied: 'အသုံးပြုနေသည် ({count}/2 အသုံးပြုသူ)',
+    full: 'ပြည့်နေသည် (2/2 အသုံးပြုသူ)',
+    joinChannel: 'လမ်းကြောင်းတွင် ပါဝင်ပါ',
+    leaveChannel: 'လမ်းကြောင်းမှ ထွက်ပါ',
+    noChannelsAvailable: 'အသုံးပြုနိုင်သော လမ်းကြောင်းများ မရှိပါ',
+    channelJoined: '{channel} တွင် အောင်မြင်စွာ ပါဝင်ပြီးပါပြီ',
+    channelLeft: '{channel} မှ ထွက်ခွာပြီးပါပြီ',
+    failedToJoin: 'လမ်းကြောင်းတွင် ပါဝင်ရန် မအောင်မြင်ပါ',
+    failedToLeave: 'လမ်းကြောင်းမှ ထွက်ရန် မအောင်မြင်ပါ',
+
+    // Chat interface
+    chatRoom: 'စကားပြောခန်း',
+    typeMessage: 'သင့်စာကို ရိုက်ထည့်ပါ...',
+    sendMessage: 'စာကို ပို့ပါ',
+    connecting: 'ချိတ်ဆက်နေသည်...',
+    connected: 'ချိတ်ဆက်ပြီးပါပြီ',
+    disconnected: 'ချိတ်ဆက်မှု ပြတ်တောက်သည်',
+    noMessages: 'စာများ မရှိသေးပါ။ စကားပြောခြင်းကို စတင်ပါ!',
+    originalText: 'မူရင်း',
+    translatedText: 'ဘာသာပြန်ပြီး',
+    sendingMessage: 'ပို့နေသည်...',
+    messageSent: 'စာကို ပို့ပြီးပါပြီ',
+    failedToSend: 'စာကို ပို့ရန် မအောင်မြင်ပါ',
+
+    // Languages
+    languages: {
+      English: 'အင်္ဂလိပ်',
+      Malay: 'မလေး',
+      Chinese: 'တရုတ်',
+      Myanmar: 'မြန်မာ',
+      Bengali: 'ဘင်္ဂါလီ'
+    },
+
+    // Channel status
+    waitingForUser: 'အခြားအသုံးပြုသူ ပါဝင်ရန် စောင့်နေသည်...',
+    userJoined: '{user} သည် လမ်းကြောင်းတွင် ပါဝင်လာပါပြီ',
+    userLeft: '{user} သည် လမ်းကြောင်းမှ ထွက်ခွာသွားပါပြီ',
+    channelDescription: 'အသုံးပြုသူ ၂ ဦး အထိ ကွဲပြားသော ဘာသာစကားများကြား အလိုအလျောက် ဘာသာပြန်ဆိုမှုဖြင့် စကားပြောနိုင်သည်'
+  },
+
   // Footer
   footer: {
     copyright: '© 2025 Berjaya Autotech - ကုန်လှောင်ရုံ စီမံခန့်ခွဲမှုစနစ်',

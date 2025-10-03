@@ -102,7 +102,7 @@ export interface CarMovement {
   movedBy: string;          // User email who performed scan/action
   
   // Movement type
-  movementType: 'scan_in' | 'complete' | 'transfer' | 'hold';
+  movementType: 'scan_in' | 'complete' | 'transfer' | 'hold' | 'force_remove';
   
   // Metadata
   timeInPreviousZone?: number; // Minutes spent in previous zone

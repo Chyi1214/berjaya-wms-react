@@ -325,6 +325,55 @@ const bengaliTranslations: Translation = {
     failedToReject: 'লেনদেন প্রত্যাখ্যান করতে ব্যর্থ। অনুগ্রহ করে আবার চেষ্টা করুন।'
   },
 
+  // Translation Chat System
+  translationChat: {
+    title: 'অনুবাদ চ্যাট',
+    description: 'বহুভাষিক যোগাযোগ চ্যানেল',
+    channels: 'অনুবাদ চ্যানেল',
+    selectChannel: 'একটি চ্যানেল নির্বাচন করুন',
+    channel: 'চ্যানেল',
+    participants: 'অংশগ্রহণকারী',
+    available: 'উপলব্ধ',
+    occupied: 'দখলে ({count}/2 ব্যবহারকারী)',
+    full: 'পূর্ণ (2/2 ব্যবহারকারী)',
+    joinChannel: 'চ্যানেলে যোগ দিন',
+    leaveChannel: 'চ্যানেল ছেড়ে দিন',
+    noChannelsAvailable: 'কোনো চ্যানেল উপলব্ধ নেই',
+    channelJoined: 'সফলভাবে {channel} এ যোগ দিয়েছেন',
+    channelLeft: '{channel} ছেড়ে দিয়েছেন',
+    failedToJoin: 'চ্যানেলে যোগ দিতে ব্যর্থ',
+    failedToLeave: 'চ্যানেল ছেড়ে দিতে ব্যর্থ',
+
+    // Chat interface
+    chatRoom: 'চ্যাট রুম',
+    typeMessage: 'আপনার বার্তা টাইপ করুন...',
+    sendMessage: 'বার্তা পাঠান',
+    connecting: 'সংযোগ করা হচ্ছে...',
+    connected: 'সংযুক্ত',
+    disconnected: 'সংযোগ বিচ্ছিন্ন',
+    noMessages: 'এখনো কোনো বার্তা নেই। কথোপকথন শুরু করুন!',
+    originalText: 'মূল',
+    translatedText: 'অনূদিত',
+    sendingMessage: 'পাঠানো হচ্ছে...',
+    messageSent: 'বার্তা পাঠানো হয়েছে',
+    failedToSend: 'বার্তা পাঠাতে ব্যর্থ',
+
+    // Languages
+    languages: {
+      English: 'ইংরেজি',
+      Malay: 'মালয়',
+      Chinese: 'চীনা',
+      Myanmar: 'মিয়ানমার',
+      Bengali: 'বাংলা'
+    },
+
+    // Channel status
+    waitingForUser: 'অন্য ব্যবহারকারীর যোগ দেওয়ার অপেক্ষায়...',
+    userJoined: '{user} চ্যানেলে যোগ দিয়েছেন',
+    userLeft: '{user} চ্যানেল ছেড়ে দিয়েছেন',
+    channelDescription: 'সর্বোচ্চ ২ জন ব্যবহারকারী বিভিন্ন ভাষার মধ্যে স্বয়ংক্রিয় অনুবাদ সহ চ্যাট করতে পারেন'
+  },
+
   // Footer
   footer: {
     copyright: '© 2025 Berjaya Autotech - গুদাম ব্যবস্থাপনা সিস্টেম',
