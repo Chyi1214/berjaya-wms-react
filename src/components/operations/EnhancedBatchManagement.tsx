@@ -279,35 +279,29 @@ export const EnhancedBatchManagement = memo(function EnhancedBatchManagement({
     try {
       const text = await file.text();
 
-      // Safety check: ensure CSV batchId matches currently selected batch (if any)
-      if (selectedBatch) {
-        const lines = text.trim().split('\n');
-        if (lines.length > 1) {
-          const header = lines[0].split(',').map(s => s.trim().toLowerCase());
-          const batchIdIdx = header.indexOf('batchid');
-          if (batchIdIdx >= 0) {
-            const ids = new Set<string>();
-            for (let i = 1; i < lines.length; i++) {
-              const row = lines[i].trim();
-              if (!row) continue;
-              const cols = row.split(',');
-              const id = (cols[batchIdIdx] || '').trim();
-              if (id) ids.add(id);
-            }
-            if (ids.size > 0 && (ids.size !== 1 || !ids.has(selectedBatch.batchId))) {
-              alert(`CSV batchId does not match selected batch.\nSelected: ${selectedBatch.batchId}\nFound in file: ${[...ids].join(', ')}`);
-              return;
-            }
-          }
-        }
-      }
-
       let result: UploadResult;
-      
       if (uploadType === 'vinPlans') {
+        // Original VIN upload path remains unchanged
         result = await batchManagementService.uploadVinPlansFromCSV(text, user.email);
       } else {
-        result = await batchManagementService.uploadPackingListFromCSV(text, user.email);
+        // New packing list flow: minimal CASE NO / PART NO / QTY and Replace for selected batch
+        if (!selectedBatch) {
+          alert('Please select a batch first');
+          return;
+        }
+
+        const confirmReplace = window.confirm(
+          `This will replace all boxes for batch ${selectedBatch.batchId}. Continue?`
+        );
+        if (!confirmReplace) return;
+
+        const { packingBoxesService } = await import('../../services/packingBoxesService');
+        const stats = await packingBoxesService.importPackingListForBatch(selectedBatch.batchId, text);
+        result = {
+          success: stats.boxes,
+          errors: stats.errors,
+          stats: { totalRows: stats.totalRows, skippedRows: stats.skippedRows },
+        };
       }
       
       setUploadResult(result);
@@ -503,7 +497,8 @@ Material consumption will be tracked automatically as cars complete.`);
       csvContent = `batchId,vin,carType\n${bid},VIN001${bid},TK1_Red_High\n${bid},VIN002${bid},TK1_Red_High\n${bid},VIN003${bid},TK1_Red_High`;
       filename = 'vin-cartype-template.csv';
     } else {
-      csvContent = `batchId,sku,quantity,location,boxId,notes\n${bid},A001,50,logistics,BOX-1,Engine components\n${bid},B001,25,logistics,BOX-2,Body panels\n${bid},C001,10,logistics,BOX-3,Control modules`;
+      // Minimal packing list template (batch chosen in UI)
+      csvContent = `CASE NO,PART NO,QTY\nC10C1,A001,2\nC10C1,B001,1\nC10C2,C001,3`;
       filename = 'packing-list-template.csv';
     }
     
