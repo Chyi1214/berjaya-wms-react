@@ -5,8 +5,8 @@ interface VersionFooterProps {
 }
 
 export function VersionFooter({ className = '' }: VersionFooterProps) {
-  // Get version (keep in sync with package.json)
-  const version = '7.1.0';
+  // Display version (marketing format)
+  const version = '7.1';
   const buildDate = new Date().toLocaleDateString();
 
   return (
