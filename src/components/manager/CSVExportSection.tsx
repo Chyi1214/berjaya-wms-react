@@ -10,7 +10,6 @@ interface CSVExportSectionProps {
   tableData: {
     checked: InventoryCountEntry[];
     expected: InventoryCountEntry[];
-    yesterday: InventoryCountEntry[];
   };
   transactions: Transaction[];
   items: ItemMaster[];
@@ -34,8 +33,6 @@ export function CSVExportSection({
       csvExportService.exportInventoryCounts(tableData.checked, 'checked-items');
     } else if (activeTab === 'expected') {
       csvExportService.exportInventoryCounts(tableData.expected, 'expected-inventory');
-    } else if (activeTab === 'yesterday') {
-      csvExportService.exportInventoryCounts(tableData.yesterday, 'yesterday-results');
     } else if (activeTab === 'transaction') {
       csvExportService.exportTransactions(transactions);
     } else if (activeTab === 'itemmaster') {
@@ -50,7 +47,6 @@ export function CSVExportSection({
   const getCurrentTabLabel = (): string => {
     if (activeTab === 'checked') return 'Checked';
     if (activeTab === 'expected') return 'Expected';
-    if (activeTab === 'yesterday') return 'Yesterday';
     if (activeTab === 'transaction') return 'Transactions';
     if (activeTab === 'itemmaster') {
       return activeItemTab === 'items' ? 'Items' : 'BOMs';
@@ -100,14 +96,11 @@ export function CSVExportSection({
           <div className="text-blue-600 mb-2">📊</div>
           <h4 className="font-medium text-blue-900 mb-1">Export All Data</h4>
           <p className="text-blue-700 text-sm mb-3">Export all tables and transactions to separate CSV files</p>
-          <button 
+          <button
             onClick={() => {
-              csvExportService.exportAllData(
-                tableData.checked,
-                tableData.expected,
-                tableData.yesterday,
-                transactions
-              );
+              csvExportService.exportInventoryCounts(tableData.checked, 'checked-items');
+              csvExportService.exportInventoryCounts(tableData.expected, 'expected-inventory');
+              csvExportService.exportTransactions(transactions);
             }}
             disabled={isLoading}
             className="w-full bg-blue-500 hover:bg-blue-600 disabled:bg-blue-300 text-white text-sm py-2 px-3 rounded transition-colors"
@@ -116,24 +109,17 @@ export function CSVExportSection({
           </button>
         </div>
 
-        {/* Export Summary Report */}
+        {/* Export Transactions */}
         <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
           <div className="text-purple-600 mb-2">📋</div>
-          <h4 className="font-medium text-purple-900 mb-1">Summary Report</h4>
-          <p className="text-purple-700 text-sm mb-3">Export summary statistics for all tables</p>
-          <button 
-            onClick={() => {
-              csvExportService.exportSummaryReport(
-                tableData.checked,
-                tableData.expected,
-                tableData.yesterday,
-                transactions
-              );
-            }}
+          <h4 className="font-medium text-purple-900 mb-1">Export Transactions</h4>
+          <p className="text-purple-700 text-sm mb-3">Export transaction history</p>
+          <button
+            onClick={() => csvExportService.exportTransactions(transactions)}
             disabled={isLoading}
             className="w-full bg-purple-500 hover:bg-purple-600 disabled:bg-purple-300 text-white text-sm py-2 px-3 rounded transition-colors"
           >
-            📋 Export Summary
+            📋 Export Transactions
           </button>
         </div>
       </div>

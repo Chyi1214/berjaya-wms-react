@@ -1,4 +1,4 @@
-// Table State Service - Cross-device sync for Expected & Yesterday tables
+// Table State Service - Cross-device sync for Expected inventory
 import {
   collection,
   doc,
@@ -17,7 +17,6 @@ import { InventoryCountEntry } from '../types';
 
 // Firestore collections
 const EXPECTED_COLLECTION = 'expected_inventory';
-const YESTERDAY_COLLECTION = 'yesterday_results';
 
 // Convert Firestore document to InventoryCountEntry
 const mapFirestoreToEntry = (_id: string, data: any): InventoryCountEntry => ({
@@ -300,55 +299,6 @@ class TableStateService {
     }
   }
 
-  // Yesterday Results Methods
-  async saveYesterdayResults(entries: InventoryCountEntry[]): Promise<void> {
-    console.log('💾 Saving yesterday results to Firebase:', entries.length, 'entries');
-    
-    // Clear existing yesterday data
-    await this.clearYesterdayResults();
-    
-    // Save all entries
-    for (const entry of entries) {
-      const docRef = doc(collection(db, YESTERDAY_COLLECTION));
-      const dataToSave = {
-        ...entry,
-        timestamp: Timestamp.fromDate(entry.timestamp),
-        savedAt: Timestamp.now()
-      };
-      
-      await setDoc(docRef, dataToSave);
-    }
-    
-    console.log('✅ Yesterday results saved to Firebase');
-  }
-
-  async getYesterdayResults(): Promise<InventoryCountEntry[]> {
-    const yesterdayQuery = query(
-      collection(db, YESTERDAY_COLLECTION),
-      orderBy('sku')
-    );
-    
-    const snapshot = await getDocs(yesterdayQuery);
-    return snapshot.docs.map(doc => mapFirestoreToEntry(doc.id, doc.data()));
-  }
-
-  onYesterdayResultsChange(callback: (entries: InventoryCountEntry[]) => void): () => void {
-    const yesterdayQuery = query(
-      collection(db, YESTERDAY_COLLECTION),
-      orderBy('sku')
-    );
-    
-    return onSnapshot(yesterdayQuery, (snapshot) => {
-      const entries = snapshot.docs.map(doc => mapFirestoreToEntry(doc.id, doc.data()));
-      callback(entries);
-    });
-  }
-
-  async clearYesterdayResults(): Promise<void> {
-    const snapshot = await getDocs(collection(db, YESTERDAY_COLLECTION));
-    const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
-    await Promise.all(deletePromises);
-  }
 
   // Reset all quantities to zero while keeping items intact
   async resetAllQuantitiesToZero(): Promise<{ resetCount: number }> {
@@ -404,10 +354,7 @@ class TableStateService {
   // Clear all table state data
   async clearAllTableState(): Promise<void> {
     console.log('🧹 Clearing all table state from Firebase...');
-    await Promise.all([
-      this.clearExpectedInventory(),
-      this.clearYesterdayResults()
-    ]);
+    await this.clearExpectedInventory();
     console.log('✅ All table state cleared');
   }
 }

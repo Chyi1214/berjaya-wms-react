@@ -18,3 +18,6 @@ export * from './task';
 
 // Re-export all tool check types
 export * from './toolCheck';
+
+// Re-export all inspection types
+export * from './inspection';

@@ -45,7 +45,7 @@ interface UseManagerStateReturn {
 
 export function useManagerState(): UseManagerStateReturn {
   // Navigation state
-  const [activeTab, setActiveTab] = useState<ManagerTab>('overview');
+  const [activeTab, setActiveTab] = useState<ManagerTab>('expected');
   const [activeCategory, setActiveCategory] = useState<ManagerCategory>('inventory');
   const [activeItemTab, setActiveItemTab] = useState<ItemTab>('items');
   
@@ -73,7 +73,7 @@ export function useManagerState(): UseManagerStateReturn {
     setActiveCategory(category);
     // Switch to first tab of the category using type-safe logic
     if (category === 'inventory' && !isInventoryTab(activeTab)) {
-      setActiveTab('overview');
+      setActiveTab('expected');
     } else if (category === 'production' && !['production_line', 'production_stats'].includes(activeTab)) {
       setActiveTab('production_line');
     } else if (category === 'qa' && activeTab !== 'qa') {

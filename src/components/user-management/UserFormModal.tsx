@@ -123,6 +123,7 @@ export const UserFormModal = memo(function UserFormModal({ user, isOpen, onClose
               <option value={UserRole.VIEWER}>👁️ Viewer - Read-only access</option>
               <option value={UserRole.LOGISTICS}>📦 Logistics - Warehouse operations</option>
               <option value={UserRole.PRODUCTION}>🔧 Production - Manufacturing floor</option>
+              <option value={UserRole.QA}>🔍 QA - Quality Assurance worker</option>
               <option value={UserRole.SUPERVISOR}>👨‍💼 Supervisor - Team management</option>
               <option value={UserRole.MANAGER}>📊 Manager - Full department access</option>
             </select>

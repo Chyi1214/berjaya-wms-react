@@ -303,63 +303,91 @@ class BatchManagementService {
   async activateBatchWithSmartHealth(batchId: string, _activatedBy: string): Promise<void> {
     try {
       logger.info('Activating batch with smart health tracking:', batchId);
-      
+
       // Get batch data
       const batchDoc = await getDocs(query(collection(db, 'batches'), where('batchId', '==', batchId)));
       if (batchDoc.empty) {
         throw new Error(`Batch ${batchId} not found`);
       }
-      
+
       const batch = batchDoc.docs[0].data() as Batch;
-      
+
       // Calculate total requirements from packing list
       const batchRequirementsCol = collection(db, 'batchRequirements');
-      
-      // Clear any existing requirements for this batch
+
+      // Clear any existing requirements for this batch (parallelized)
       const existingReqs = await getDocs(query(batchRequirementsCol, where('batchId', '==', batchId)));
-      for (const reqDoc of existingReqs.docs) {
-        await deleteDoc(reqDoc.ref);
+      await Promise.all(existingReqs.docs.map(reqDoc => deleteDoc(reqDoc.ref)));
+
+      // Load packing boxes for this batch and aggregate SKU quantities
+      const { packingBoxesService } = await import('./packingBoxesService');
+      const boxes = await packingBoxesService.listBoxes(batchId);
+
+      // Aggregate expectedBySku from all boxes
+      const aggregatedBySku = new Map<string, number>();
+      for (const box of boxes) {
+        for (const [sku, qty] of Object.entries(box.expectedBySku)) {
+          aggregatedBySku.set(sku, (aggregatedBySku.get(sku) || 0) + qty);
+        }
       }
-      
-      // Create new requirements based on batch items (packing list)
+
+      logger.info(`Found ${boxes.length} boxes with ${aggregatedBySku.size} unique SKUs`);
+
+      // Create new requirements based on aggregated packing boxes
       // Use Item Master as source of truth for names
       const { itemMasterService } = await import('./itemMaster');
-      
-      for (const item of batch.items) {
-        // Get current name from Item Master
-        let actualName = item.name; // fallback to cached name
-        try {
-          const itemMasterItem = await itemMasterService.getItemBySKU(item.sku);
-          if (itemMasterItem) {
-            actualName = itemMasterItem.name; // Use current name from Item Master
+
+      // OPTIMIZATION: Batch fetch all Item Master names in parallel
+      const skuArray = Array.from(aggregatedBySku.keys());
+      logger.info(`Fetching names for ${skuArray.length} SKUs from Item Master in parallel`);
+
+      const itemMasterLookups = await Promise.allSettled(
+        skuArray.map(sku => itemMasterService.getItemBySKU(sku))
+      );
+
+      // Create a map of SKU -> name for fast lookup
+      const skuToName = new Map<string, string>();
+      skuArray.forEach((sku, index) => {
+        const result = itemMasterLookups[index];
+        if (result.status === 'fulfilled' && result.value) {
+          skuToName.set(sku, result.value.name);
+        } else {
+          skuToName.set(sku, sku); // fallback to SKU
+          if (result.status === 'rejected') {
+            logger.warn(`Could not fetch name from Item Master for ${sku}, using SKU as name`);
           }
-        } catch (error) {
-          logger.warn(`Could not fetch name from Item Master for ${item.sku}, using cached name`);
         }
-        
+      });
+
+      // OPTIMIZATION: Create all requirement documents in parallel
+      logger.info(`Creating ${aggregatedBySku.size} requirement documents in parallel`);
+
+      const requirementWrites = Array.from(aggregatedBySku.entries()).map(([sku, totalNeeded]) => {
         const requirement: BatchRequirement = {
           batchId,
-          sku: item.sku,
-          name: actualName, // Use actual name from Item Master
-          totalNeeded: item.quantity,
+          sku,
+          name: skuToName.get(sku) || sku,
+          totalNeeded,
           consumed: 0,
-          remaining: item.quantity,
+          remaining: totalNeeded,
           carsCompleted: 0,
           totalCars: batch.totalCars,
           createdAt: new Date(),
           updatedAt: new Date()
         };
-        
-        await addDoc(batchRequirementsCol, requirement);
-      }
-      
+
+        return addDoc(batchRequirementsCol, requirement);
+      });
+
+      await Promise.all(requirementWrites);
+
       // Update batch status to in_progress
       await updateDoc(batchDoc.docs[0].ref, {
         status: 'in_progress',
         updatedAt: new Date()
       });
-      
-      logger.info(`Batch ${batchId} activated with ${batch.items.length} tracked requirements`);
+
+      logger.info(`Batch ${batchId} activated with ${aggregatedBySku.size} tracked requirements from ${boxes.length} boxes`);
     } catch (error) {
       logger.error('Failed to activate batch with smart health:', error);
       throw error;
@@ -372,36 +400,38 @@ class BatchManagementService {
       logger.info('Updating batch requirements for car completion:', { batchId, vin });
       
       const batchRequirementsCol = collection(db, 'batchRequirements');
-      
-      // Update each consumed component
-      for (const component of consumedComponents) {
+
+      // OPTIMIZED: Query and update all components in parallel
+      const componentUpdates = consumedComponents.map(async (component) => {
         const reqQuery = query(
-          batchRequirementsCol, 
+          batchRequirementsCol,
           where('batchId', '==', batchId),
           where('sku', '==', component.sku)
         );
-        
+
         const reqSnapshot = await getDocs(reqQuery);
-        
+
         if (!reqSnapshot.empty) {
           const reqDoc = reqSnapshot.docs[0];
           const currentReq = reqDoc.data() as BatchRequirement;
-          
+
           // Update consumption
           const newConsumed = currentReq.consumed + component.quantity;
           const newRemaining = Math.max(0, currentReq.totalNeeded - newConsumed);
           const newCarsCompleted = currentReq.carsCompleted + (1 / currentReq.totalCars); // Fractional completion
-          
+
           await updateDoc(reqDoc.ref, {
             consumed: newConsumed,
             remaining: newRemaining,
             carsCompleted: Math.round(newCarsCompleted * currentReq.totalCars), // Round to whole cars
             updatedAt: new Date()
           });
-          
+
           logger.info(`Updated ${component.sku}: consumed ${newConsumed}/${currentReq.totalNeeded}, remaining ${newRemaining}`);
         }
-      }
+      });
+
+      await Promise.all(componentUpdates);
       
     } catch (error) {
       logger.error('Failed to update batch on car completion:', error);

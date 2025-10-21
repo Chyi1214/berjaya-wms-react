@@ -374,6 +374,125 @@ const bengaliTranslations: Translation = {
     channelDescription: 'সর্বোচ্চ ২ জন ব্যবহারকারী বিভিন্ন ভাষার মধ্যে স্বয়ংক্রিয় অনুবাদ সহ চ্যাট করতে পারেন'
   },
 
+  // QA (Quality Assurance) Inspection
+  qa: {
+    title: 'গুণমান নিশ্চিতকরণ',
+    carInspection: 'গাড়ি পরিদর্শন',
+    selectPositionAndScan: 'আপনার অবস্থান নির্বাচন করুন, তারপর পরিদর্শন শুরু করতে VIN স্ক্যান করুন',
+    scanVIN: 'VIN স্ক্যান করুন',
+    enterVIN: 'VIN লিখুন',
+    enterVINNumber: 'VIN নম্বর লিখুন...',
+    enterVINOrUseScanner: 'VIN লিখুন বা স্ক্যানার ব্যবহার করুন',
+    startInspection: 'পরিদর্শন শুরু করুন',
+    start: 'শুরু করুন',
+    completeInspection: 'পরিদর্শন সম্পূর্ণ করুন',
+    completeSection: 'বিভাগ সম্পূর্ণ করুন',
+    backToDashboard: 'ড্যাশবোর্ডে ফিরে যান',
+    selectYourPosition: 'আপনার অবস্থান নির্বাচন করুন',
+    scanVINNumber: 'VIN নম্বর স্ক্যান করুন',
+    openCameraScanner: 'ক্যামেরা স্ক্যানার খুলুন',
+    scanVINBarcode: 'VIN বারকোড স্ক্যান করুন',
+    position: 'অবস্থান',
+    step: 'ধাপ',
+    instructions: 'নির্দেশাবলী',
+    tip: 'পরামর্শ',
+    tipText: 'উপরের ক্যামেরা স্ক্যানার বোতাম ব্যবহার করুন, অথবা ম্যানুয়ালি VIN টাইপ করুন',
+    loading: 'লোড হচ্ছে...',
+    points: 'পয়েন্ট',
+
+    // Instructions list
+    instructionsList: {
+      step1: 'আপনার অবস্থান নির্বাচন করুন (আপনি যে এলাকা পরিদর্শন করবেন)',
+      step2: 'ক্যামেরা স্ক্যানার ব্যবহার করে VIN স্ক্যান করুন বা ম্যানুয়ালি টাইপ করুন',
+      step3: 'চেকলিস্ট দিয়ে যান এবং প্রতিটি আইটেম চিহ্নিত করুন',
+      step4: 'আপনার বিভাগের সমস্ত আইটেম পরীক্ষা করা হলে সম্পূর্ণ করুন'
+    },
+
+    // Sections
+    sections: {
+      rightOutside: 'ডান বাহিরে',
+      leftOutside: 'বাম বাহিরে',
+      frontBack: 'সামনে এবং পিছনে',
+      interiorRight: 'অভ্যন্তর ডান',
+      interiorLeft: 'অভ্যন্তর বাম'
+    },
+
+    // Status
+    status: {
+      notStarted: 'শুরু হয়নি',
+      inProgress: 'চলছে',
+      completed: 'সম্পন্ন'
+    },
+
+    // Checklist view
+    checklist: {
+      title: 'চেকলিস্ট',
+      progress: 'অগ্রগতি',
+      itemsChecked: 'পরীক্ষিত আইটেম',
+      defectType: 'ত্রুটির ধরন',
+      notes: 'নোট',
+      photos: 'ফটো',
+      addPhoto: 'ফটো যোগ করুন',
+      addNotes: 'নোট যোগ করুন',
+      markAsComplete: 'সম্পূর্ণ হিসাবে চিহ্নিত করুন',
+      markAsDefect: 'ত্রুটি হিসাবে চিহ্নিত করুন',
+      saveAndNext: 'সংরক্ষণ করুন এবং পরবর্তী',
+      previous: 'পূর্ববর্তী',
+      next: 'পরবর্তী',
+      itemDetails: 'আইটেম বিবরণ',
+      noPhotos: 'কোন ফটো যোগ করা হয়নি',
+      uploadPhoto: 'ফটো আপলোড করুন',
+      takePhoto: 'ফটো তুলুন',
+      removePhoto: 'ফটো সরান',
+      enterNotes: 'নোট লিখুন...',
+      selectDefectType: 'ত্রুটির ধরন নির্বাচন করুন...'
+    },
+
+    // Defect types
+    defects: {
+      notInstalled: 'সঠিকভাবে ইনস্টল করা হয়নি',
+      scratches: 'আঁচড়',
+      paintDefect: 'রং ত্রুটি',
+      dent: 'দাগ',
+      gap: 'ফাঁক',
+      ok: 'ঠিক আছে',
+      missing: 'নেই',
+      broken: 'ভাঙা',
+      dirty: 'নোংরা',
+      crack: 'ফাটল'
+    },
+
+    // Messages
+    messages: {
+      pleaseSelectSection: 'প্রথমে আপনার পরিদর্শন অবস্থান নির্বাচন করুন',
+      inspectionCreated: 'পরিদর্শন তৈরি হয়েছে',
+      inspectionUpdated: 'পরিদর্শন আপডেট হয়েছে',
+      failedToSave: 'সংরক্ষণ করতে ব্যর্থ। আবার চেষ্টা করুন।',
+      allItemsChecked: 'সমস্ত আইটেম পরীক্ষা করা হয়েছে',
+      sectionComplete: 'বিভাগ সম্পূর্ণ',
+      inspectionComplete: 'পরিদর্শন সম্পূর্ণ',
+      confirmComplete: 'নিশ্চিত করুন যে সমস্ত আইটেম সঠিকভাবে পরীক্ষা করা হয়েছে?',
+      confirmCompleteSection: 'এই বিভাগটি সম্পূর্ণ করার বিষয়ে নিশ্চিত?',
+      invalidVIN: 'অবৈধ VIN',
+      vinRequired: 'VIN নম্বর প্রয়োজন',
+      photoRequired: 'ত্রুটি আইটেমের জন্য ফটো প্রয়োজন',
+      notesRequired: 'ত্রুটি আইটেমের জন্য নোট প্রয়োজন'
+    },
+
+    // Inspection info
+    inspectionInfo: {
+      vin: 'VIN নম্বর',
+      carType: 'গাড়ির ধরন',
+      inspector: 'পরিদর্শক',
+      inspectionDate: 'পরিদর্শনের তারিখ',
+      section: 'বিভাগ',
+      status: 'অবস্থা',
+      totalDefects: 'মোট ত্রুটি',
+      completedBy: 'সম্পন্নকারী',
+      completedDate: 'সম্পন্নের তারিখ'
+    }
+  },
+
   // Footer
   footer: {
     copyright: '© 2025 Berjaya Autotech - গুদাম ব্যবস্থাপনা সিস্টেম',

@@ -203,32 +203,104 @@ const englishTranslations: Translation = {
     reportActive: 'Report Active'
   },
 
-  // Quality Assurance
+  // QA (Quality Assurance) Inspection
   qa: {
     title: 'Quality Assurance',
-    description: 'Inspect cars and ensure quality standards',
-    role: 'Quality Assurance Role',
-    carsForInspection: 'Cars for Inspection',
-    notInspected: 'Not Inspected',
-    inspectionInProgress: 'In Progress',
-    inspectionPassed: 'Passed',
-    inspectionFailed: 'Failed',
-    inspectCar: 'Inspect Car',
+    carInspection: 'Car Inspection',
+    selectPositionAndScan: 'Select your position, then scan the VIN to start inspection',
+    scanVIN: 'Scan VIN',
+    enterVIN: 'Enter VIN',
+    enterVINNumber: 'Enter VIN number...',
+    enterVINOrUseScanner: 'Enter VIN or use scanner',
     startInspection: 'Start Inspection',
+    start: 'Start',
     completeInspection: 'Complete Inspection',
-    inspectionStatus: 'Inspection Status',
-    checklist: 'Checklist',
-    checksPassed: 'Checks Passed',
-    checksFailed: 'Checks Failed',
-    requiredChecks: 'Required Checks',
-    optionalChecks: 'Optional Checks',
-    passCheck: 'Pass',
-    failCheck: 'Fail',
-    skipCheck: 'Skip',
+    completeSection: 'Complete Section',
+    backToDashboard: 'Back to Dashboard',
+    selectYourPosition: 'Select Your Position',
+    scanVINNumber: 'Scan VIN Number',
+    openCameraScanner: 'Open Camera Scanner',
+    scanVINBarcode: 'Scan VIN Barcode',
+    position: 'Position',
+    step: 'Step',
+    instructions: 'Instructions',
+    instructionsList: {
+      step1: 'Select your position (which area you will inspect)',
+      step2: 'Scan VIN using camera scanner or type manually',
+      step3: 'Go through checklist and mark each item',
+      step4: 'Complete when all items in your section are checked'
+    },
+    tip: 'Tip',
+    tipText: 'Use the camera scanner button above, or type the VIN manually',
+    loading: 'Loading...',
+    points: 'points',
+
+    // Sections
+    sections: {
+      rightOutside: 'Right Outside',
+      leftOutside: 'Left Outside',
+      frontBack: 'Front & Back',
+      interiorRight: 'Interior Right',
+      interiorLeft: 'Interior Left'
+    },
+
+    // Status
+    status: {
+      notStarted: 'Not Started',
+      inProgress: 'In Progress',
+      completed: 'Completed'
+    },
+
+    // Inspection checklist
+    progress: 'Progress',
+    itemsChecked: 'Items Checked',
+    item: 'Item',
+    items: 'Items',
+    defectType: 'Defect Type',
+    selectDefectType: 'Select defect type',
+    notes: 'Notes',
     addNotes: 'Add notes (optional)',
-    noCarsAvailable: 'No cars available for inspection',
-    inspectionComplete: 'Inspection Complete',
-    noChecklistAvailable: 'No quality checklist available for this car type'
+    photos: 'Photos',
+    addPhoto: 'Add Photo',
+    uploadPhoto: 'Upload Photo',
+    takePhoto: 'Take Photo',
+    removePhoto: 'Remove Photo',
+
+    // Defect types (common defaults - can be customized via CSV)
+    defects: {
+      notInstalled: 'Not installed properly',
+      scratches: 'Scratches',
+      paintDefect: 'Paint Defect',
+      dent: 'Dent',
+      gap: 'Gap',
+      ok: 'OK',
+      missing: 'Missing',
+      broken: 'Broken',
+      dirty: 'Dirty',
+      crack: 'Crack'
+    },
+
+    // Messages
+    messages: {
+      pleaseSelectSection: 'Please select a section',
+      pleaseEnterVIN: 'Please enter a VIN number',
+      inspectionCreated: 'Inspection created',
+      sectionCompleted: 'Section completed',
+      inspectionCompleted: 'Inspection completed',
+      failedToSave: 'Failed to save',
+      pleaseCheckAllItems: 'Please check all items',
+      uploadingPhoto: 'Uploading photo...',
+      photoUploaded: 'Photo uploaded',
+      photoUploadFailed: 'Failed to upload photo'
+    },
+
+    // Inspection info
+    vin: 'VIN',
+    carType: 'Car Type',
+    inspector: 'Inspector',
+    inspectionDate: 'Inspection Date',
+    inspectionTime: 'Inspection Time',
+    totalDefects: 'Total Defects'
   },
 
   // Manager

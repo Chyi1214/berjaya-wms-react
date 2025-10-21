@@ -364,7 +364,51 @@ service cloud.firestore {
       allow update: if isDevAdmin() || hasRole('manager');  // Only admins can edit messages
       allow delete: if isDevAdmin() || hasRole('manager');  // Only admins can delete messages
     }
-    
+
+    // Packing Boxes - Box-level packing list tracking per batch
+    match /packingBoxes/{boxId} {
+      allow read: if isActiveUser();  // All authenticated users can read packing boxes
+      allow write: if isDevAdmin() || hasRole('manager') || hasRole('logistics');  // Managers and logistics can manage boxes
+
+      // Scan events subcollection
+      match /scans/{scanId} {
+        allow read: if isActiveUser();  // All users can read scan history
+        allow create: if isActiveUser() && (
+          hasRole('logistics') || hasRole('production') ||
+          hasRole('supervisor') || hasRole('manager')
+        );
+        allow update, delete: if isDevAdmin() || hasRole('manager');
+      }
+    }
+
+    // Car Inspection QA System - Vehicle quality inspection tracking
+
+    // Inspection templates - Master checklists for car inspections
+    match /inspectionTemplates/{templateId} {
+      allow read: if isActiveUser();  // All authenticated users can read templates
+      allow write: if isDevAdmin() || hasRole('manager');  // Only managers can create/modify templates
+    }
+
+    // Car inspections - Individual car inspection records
+    match /carInspections/{inspectionId} {
+      allow read: if isActiveUser();  // All authenticated users can read inspections
+      allow create: if isActiveUser() && (
+        hasRole('qa') || hasRole('supervisor') || hasRole('manager')
+      );
+      allow update: if isActiveUser() && (
+        // QA workers can update inspections they're working on
+        hasRole('qa') || hasRole('supervisor') || hasRole('manager')
+      );
+      allow delete: if isDevAdmin() || hasRole('manager');
+
+      // Inspection photos subcollection (optional future feature)
+      match /photos/{photoId} {
+        allow read: if isActiveUser();
+        allow create: if isActiveUser() && hasRole('qa');
+        allow delete: if isDevAdmin() || hasRole('manager');
+      }
+    }
+
     // Deny all other access
     match /{document=**} {
       allow read, write: if false;

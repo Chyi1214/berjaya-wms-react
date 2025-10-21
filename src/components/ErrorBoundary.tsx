@@ -1,5 +1,6 @@
 // Error Boundary component to catch React component errors
 import { Component, ErrorInfo, ReactNode } from 'react';
+import { APP_VERSION } from '../version';
 
 interface Props {
   children: ReactNode;
@@ -110,7 +111,7 @@ class ErrorBoundary extends Component<Props, State> {
             </div>
             
             <p className="text-xs text-gray-500 mt-4">
-              Berjaya WMS v5.4.24 - Error ID: {Date.now().toString(36).toUpperCase()}
+              Berjaya WMS v{APP_VERSION} - Error ID: {Date.now().toString(36).toUpperCase()}
             </p>
           </div>
         </div>

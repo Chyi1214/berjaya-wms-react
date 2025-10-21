@@ -1,12 +1,8 @@
 // Manager View Component - Refactored into modular components with V4.0 Production
-import React, { Suspense, lazy, useState } from 'react';
+import { Suspense, lazy, useState } from 'react';
 import { User, InventoryCountEntry, Transaction } from '../../types';
 import { isInventoryTab, isProductionTab, isQATab, isOperationsTab, isFeedbackTab } from '../../types/manager';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { tableStateService } from '../../services/tableState';
-import { mockDataService } from '../../services/mockData';
-import { transactionService } from '../../services/transactions';
-import { inventoryService } from '../../services/inventory';
 import VersionFooter from '../VersionFooter';
 import { TranslationChannels } from '../chat/TranslationChannels';
 import { ElaMenu } from '../ela/ElaMenu';
@@ -43,136 +39,13 @@ export function ManagerView({ user: _user, onBack, inventoryCounts, onClearCount
 
   // Use custom hooks for state management
   const managerState = useManagerState();
-  const { tableData, syncAllTables } = useTableData(inventoryCounts, transactions);
+  const { tableData } = useTableData(inventoryCounts, transactions);
 
   // ELA Menu and Translation Chat state (same as other roles)
   const [showElaMenu, setShowElaMenu] = useState(false);
   const [showElaChat, setShowElaChat] = useState(false);
   const [showPersonalSettings, setShowPersonalSettings] = useState(false);
   const [showTranslationChannels, setShowTranslationChannels] = useState(false);
-
-  // Initialize Expected table from Yesterday if Expected is empty but Yesterday has data
-  React.useEffect(() => {
-    const initializeExpectedFromYesterday = async () => {
-      if (tableData.yesterday.length > 0 && tableData.expected.length === 0) {
-        console.log('🔄 Initializing Expected table from Yesterday data...');
-        try {
-          const baselineData = tableData.yesterday.map(item => ({
-            ...item,
-            countedBy: 'system.initialized',
-            timestamp: new Date()
-          }));
-          await tableStateService.saveExpectedInventory(baselineData);
-          console.log('✅ Expected table initialized from Yesterday baseline');
-        } catch (error) {
-          console.error('Failed to initialize Expected table:', error);
-        }
-      }
-    };
-
-    initializeExpectedFromYesterday();
-  }, [tableData.yesterday, tableData.expected]);
-
-  // Inventory mock data generator for Overview tab
-  const handleGenerateInventoryMockData = async () => {
-    managerState.setIsLoading(true);
-    try {
-      // Generate complete test scenario with inventory counts
-      await mockDataService.generateCompleteTestScenario();
-      
-      // Get the latest counts and sync all three tables properly
-      const latestCounts = await inventoryService.getAllInventoryCounts();
-      
-      if (latestCounts.length > 0) {
-        // Use the proper sync function that handles all edge cases
-        const totalItems = await syncAllTables(latestCounts);
-        
-        alert(`✅ All three tables synced! ${latestCounts.length} SKUs, ${totalItems} total items in Checked, Expected, and Yesterday tables.`);
-      } else {
-        alert('⚠️ No inventory data generated. Please try again.');
-      }
-    } catch (error) {
-      console.error('Failed to generate inventory mock data:', error);
-      alert('❌ Failed to generate inventory mock data. Check console for details.');
-    } finally {
-      managerState.setIsLoading(false);
-    }
-  };
-
-  const handleConcludePeriod = async () => {
-    if (!confirm('⚠️ Conclude current period? This will:\n• Mark completed transactions as concluded\n• Save Expected table as new Yesterday baseline\n• Checked and Expected tables remain unchanged for reference\n\nThis cannot be undone!')) {
-      return;
-    }
-
-    managerState.setIsLoading(true);
-    try {
-      const now = new Date();
-      
-      // Step 1: Mark all completed transactions as concluded
-      const completedTransactions = transactions.filter(t => t.status === 'completed' && !t.concludedAt);
-      const transactionUpdates = completedTransactions.map(transaction => 
-        transactionService.updateTransaction(transaction.id, { concludedAt: now })
-      );
-      
-      // Step 2: Save current expected data as yesterday results (new baseline)
-      const newYesterday = tableData.expected.map(item => ({
-        ...item,
-        countedBy: 'system.concluded',
-        timestamp: now
-      }));
-      
-      // Execute all updates (Expected and Checked tables remain unchanged)
-      await Promise.all([
-        ...transactionUpdates,
-        tableStateService.saveYesterdayResults(newYesterday)
-      ]);
-      
-      alert(`✅ Period concluded! ${completedTransactions.length} transactions marked, Expected saved as new baseline.`);
-      managerState.handleTabChange('yesterday');
-    } catch (error) {
-      console.error('Failed to conclude period:', error);
-      alert('❌ Failed to conclude period. Check console for details.');
-    } finally {
-      managerState.setIsLoading(false);
-    }
-  };
-
-  const handleClearAllData = async () => {
-    if (!confirm('🗑️ Clear ALL data including yesterday results? This will reset everything!')) {
-      return;
-    }
-
-    managerState.setIsLoading(true);
-    try {
-      await tableStateService.clearAllTableState();
-      
-      managerState.setShowComparison(false);
-      alert('✅ All data cleared! Starting fresh.');
-    } catch (error) {
-      console.error('Failed to clear data:', error);
-      alert('❌ Failed to clear data. Check console for details.');
-    } finally {
-      managerState.setIsLoading(false);
-    }
-  };
-
-  const handleResetAllQuantities = async () => {
-    if (!confirm('🔄 Reset all inventory quantities to zero?\n\nThis will:\n• Set all item quantities to 0\n• Keep all items and locations intact\n• Only affect quantity numbers\n\nThis cannot be undone!')) {
-      return;
-    }
-
-    managerState.setIsLoading(true);
-    try {
-      const result = await tableStateService.resetAllQuantitiesToZero();
-
-      alert(`✅ All quantities reset to zero!\n\n📊 Summary:\n• ${result.resetCount} items reset to 0\n• Items and locations preserved\n• Only quantities changed`);
-    } catch (error) {
-      console.error('Failed to reset quantities:', error);
-      alert('❌ Failed to reset quantities. Check console for details.');
-    } finally {
-      managerState.setIsLoading(false);
-    }
-  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -255,7 +128,6 @@ export function ManagerView({ user: _user, onBack, inventoryCounts, onClearCount
               transactions={transactions}
               items={managerState.items}
               boms={managerState.boms}
-              showComparison={managerState.showComparison}
               itemsLoading={managerState.itemsLoading}
               setActiveItemTab={managerState.setActiveItemTab}
               loadItemsAndBOMs={managerState.loadItemsAndBOMs}
@@ -263,11 +135,7 @@ export function ManagerView({ user: _user, onBack, inventoryCounts, onClearCount
               handleExportBOMs={managerState.handleExportBOMs}
               handleExportAllItemData={managerState.handleExportAllItemData}
               handleGenerateItemMockData={managerState.handleGenerateItemMockData}
-              handleGenerateInventoryMockData={handleGenerateInventoryMockData}
               setItemsLoading={managerState.setItemsLoading}
-              onConcludeToday={handleConcludePeriod}
-              onClearAllData={handleClearAllData}
-              onResetAllQuantities={handleResetAllQuantities}
             />
           )}
 

@@ -1,5 +1,6 @@
 import { memo, useState } from 'react';
 import { batchManagementService } from '../../services/batchManagement';
+import { packingBoxesService } from '../../services/packingBoxesService';
 
 interface BatchManagementCardProps {
   user: { email: string } | null;
@@ -21,13 +22,25 @@ export const BatchManagementCard = memo(function BatchManagementCard({
 }: BatchManagementCardProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
-  const [uploadType, setUploadType] = useState<'carTypes' | 'batches' | 'vinPlans' | 'packingList'>('carTypes');
+  const [uploadType, setUploadType] = useState<'carTypes' | 'batches' | 'vinPlans' | 'packingList' | 'boxPackingList'>('carTypes');
   const [healthBatchId, setHealthBatchId] = useState('');
+  const [boxBatchId, setBoxBatchId] = useState('');
   
   // Handle CSV file upload
   const handleCSVUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !user?.email) return;
+
+    // Validate batch ID for box packing list
+    if (uploadType === 'boxPackingList' && !boxBatchId.trim()) {
+      setUploadResult({
+        success: 0,
+        errors: ['Please enter a Batch ID for box packing list upload'],
+        stats: { totalRows: 0, skippedRows: 0 }
+      });
+      event.target.value = '';
+      return;
+    }
 
     setIsUploading(true);
     setUploadResult(null);
@@ -35,19 +48,30 @@ export const BatchManagementCard = memo(function BatchManagementCard({
     try {
       const text = await file.text();
       let result: UploadResult;
-      
+
       if (uploadType === 'carTypes') {
         result = await batchManagementService.uploadCarTypesFromCSV(text, user.email);
       } else if (uploadType === 'batches') {
         result = await batchManagementService.uploadBatchesFromCSV(text, user.email);
       } else if (uploadType === 'vinPlans') {
         result = await batchManagementService.uploadVinPlansFromCSV(text, user.email);
+      } else if (uploadType === 'boxPackingList') {
+        // Use packingBoxesService for box packing lists
+        const importStats = await packingBoxesService.importPackingListForBatch(boxBatchId.trim(), text);
+        result = {
+          success: importStats.boxes,
+          errors: importStats.errors,
+          stats: {
+            totalRows: importStats.totalRows,
+            skippedRows: importStats.skippedRows
+          }
+        };
       } else {
         result = await batchManagementService.uploadPackingListFromCSV(text, user.email);
       }
-      
+
       setUploadResult(result);
-      
+
       if (result.success > 0) {
         console.log(`✅ Successfully uploaded ${result.success} ${uploadType}`);
         onRefresh?.();
@@ -228,7 +252,7 @@ T9_Blue_Low,Truck Model 9 - Blue Basic,Basic blue truck with standard features`;
             <label className="flex items-center">
               <input
                 type="radio"
-                name="uploadType" 
+                name="uploadType"
                 value="packingList"
                 checked={uploadType === 'packingList'}
                 onChange={(e) => setUploadType(e.target.value as any)}
@@ -236,8 +260,75 @@ T9_Blue_Low,Truck Model 9 - Blue Basic,Basic blue truck with standard features`;
               />
               <span className="text-sm">Packing List CSV</span>
             </label>
+            <label className="flex items-center">
+              <input
+                type="radio"
+                name="uploadType"
+                value="boxPackingList"
+                checked={uploadType === 'boxPackingList'}
+                onChange={(e) => setUploadType(e.target.value as any)}
+                className="mr-2"
+              />
+              <span className="text-sm">📦 Box Packing List</span>
+            </label>
+          </div>
+
+          {/* Header Format Info */}
+          <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded text-xs text-left">
+            <div className="font-semibold text-blue-900 mb-1">Required CSV Headers:</div>
+            {uploadType === 'carTypes' && (
+              <div className="text-blue-800">
+                <code className="bg-white px-1 rounded">carCode, name, description</code>
+                <div className="mt-1 text-gray-600">Example: TK1_Red_High, Truck Model 1 - Red High, Premium red truck</div>
+              </div>
+            )}
+            {uploadType === 'batches' && (
+              <div className="text-blue-800">
+                <code className="bg-white px-1 rounded">batchId, name, carType, vins</code>
+                <div className="mt-1 text-gray-600">VINs should be separated by pipes (|). Example: 604, Batch 604, TK1_Red_High, VIN001|VIN002</div>
+              </div>
+            )}
+            {uploadType === 'vinPlans' && (
+              <div className="text-blue-800">
+                <code className="bg-white px-1 rounded">batchId, vin, carType</code>
+                <div className="mt-1 text-gray-600">Example: 604, VIN001604, TK1_Red_High</div>
+              </div>
+            )}
+            {uploadType === 'packingList' && (
+              <div className="text-blue-800">
+                <code className="bg-white px-1 rounded">batchId, vin, receiptId, components</code>
+                <div className="mt-1 text-gray-600">Components format: SKU:QTY|SKU:QTY. Example: 604, VIN001, RCP-001, A001:5|B002:10</div>
+              </div>
+            )}
+            {uploadType === 'boxPackingList' && (
+              <div className="text-blue-800">
+                <code className="bg-white px-1 rounded">CASE NO, PART NO, QTY</code>
+                <div className="mt-1 text-gray-600">Example: Box001, A001, 5 (each row = one item in a box)</div>
+                <div className="mt-2 font-semibold text-blue-900">⚠️ Batch ID Required:</div>
+                <div className="text-gray-600">Enter the Batch ID below before uploading!</div>
+              </div>
+            )}
           </div>
         </div>
+
+        {/* Batch ID input for Box Packing List */}
+        {uploadType === 'boxPackingList' && (
+          <div className="mb-4 p-3 bg-yellow-50 border border-yellow-300 rounded">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              📦 Batch ID (Required for Box Upload):
+            </label>
+            <input
+              type="text"
+              value={boxBatchId}
+              onChange={(e) => setBoxBatchId(e.target.value)}
+              placeholder="e.g., 604, 100, TEST001"
+              className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            />
+            <p className="text-xs text-gray-600 mt-1">
+              This batch must exist before uploading boxes. Create it first if needed.
+            </p>
+          </div>
+        )}
 
         {/* Action Buttons */}
         <div className="space-y-3">
@@ -316,6 +407,21 @@ T9_Blue_Low,Truck Model 9 - Blue Basic,Basic blue truck with standard features`;
               className="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded"
             >
               📄 Packing List Template
+            </button>
+            <button
+              onClick={() => {
+                const csv = `CASE NO,PART NO,QTY\nBox001,A001,5\nBox001,A002,10\nBox002,A001,8\nBox002,B003,12\nBox003,C005,20`;
+                const blob = new Blob([csv], { type: 'text/csv' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'box-packing-list-template.csv';
+                a.click();
+                window.URL.revokeObjectURL(url);
+              }}
+              className="px-3 py-1 text-xs bg-green-100 hover:bg-green-200 text-green-700 rounded font-semibold"
+            >
+              📦 Box Packing Template
             </button>
           </div>
 

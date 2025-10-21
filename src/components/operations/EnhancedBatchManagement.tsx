@@ -1,8 +1,8 @@
-import { memo, useState, useEffect, useRef } from 'react';
+import { memo, useState, useEffect } from 'react';
 import { batchManagementService } from '../../services/batchManagement';
-import { Batch, BatchHealthStatus } from '../../types/inventory';
-import { onSnapshot, collection } from 'firebase/firestore';
-import { db } from '../../services/firebase';
+import { Batch } from '../../types/inventory';
+import { ColumnPreview, ColumnMapping, packingBoxesService, SkippedRowDetail } from '../../services/packingBoxesService';
+import { PackingListColumnMapper } from './PackingListColumnMapper';
 
 interface EnhancedBatchManagementProps {
   user: { email: string } | null;
@@ -16,6 +16,7 @@ interface UploadResult {
     totalRows: number;
     skippedRows: number;
   };
+  skippedDetails?: SkippedRowDetail[];
 }
 
 export const EnhancedBatchManagement = memo(function EnhancedBatchManagement({
@@ -28,25 +29,29 @@ export const EnhancedBatchManagement = memo(function EnhancedBatchManagement({
   const [isUploading, setIsUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
   const [uploadType, setUploadType] = useState<'vinPlans' | 'packingList'>('packingList');
-  const [batchHealthStatus, setBatchHealthStatus] = useState<BatchHealthStatus | null>(null);
-  const [batchHealthStatuses, setBatchHealthStatuses] = useState<Map<string, BatchHealthStatus>>(new Map());
-  const [isLoadingHealth, setIsLoadingHealth] = useState(false);
-  // Throttle control using refs to avoid re-renders and stale dependencies
-  const lastHealthUpdateRef = useRef<number>(0);
-  // Store timeout id as number for browser environment
-  const pendingHealthUpdateRef = useRef<number | null>(null);
+  // DISABLED: Health tracking removed for performance
+  // const [batchHealthStatus, setBatchHealthStatus] = useState<BatchHealthStatus | null>(null);
+  // const [batchHealthStatuses] = useState<Map<string, BatchHealthStatus>>(new Map());
+  // const [isLoadingHealth, setIsLoadingHealth] = useState(false);
+  const [batchBoxCounts, setBatchBoxCounts] = useState<Map<string, number>>(new Map());
+
+  // NEW: Column mapping state for flexible CSV import
+  const [showColumnMapper, setShowColumnMapper] = useState(false);
+  const [columnPreviews, setColumnPreviews] = useState<ColumnPreview[]>([]);
+  const [pendingCsvText, setPendingCsvText] = useState<string>('');
 
   // Load batches on mount
   useEffect(() => {
     loadBatches();
   }, []);
 
+  // DISABLED: Automatic loading of health status for all batches
   // Load health statuses for all batches when batches change
-  useEffect(() => {
-    if (batches.length > 0) {
-      loadAllBatchHealthStatuses();
-    }
-  }, [batches]);
+  // useEffect(() => {
+  //   if (batches.length > 0) {
+  //     loadAllBatchHealthStatuses();
+  //   }
+  // }, [batches]);
 
   const loadBatches = async () => {
     try {
@@ -55,208 +60,201 @@ export const EnhancedBatchManagement = memo(function EnhancedBatchManagement({
       if (batchData.length > 0 && !selectedBatch) {
         setSelectedBatch(batchData[0]);
       }
+
+      // Load box counts for all batches
+      await loadAllBoxCounts(batchData);
     } catch (error) {
       console.error('Failed to load batches:', error);
     }
   };
 
-  // Load health status for activated batches
-  const loadBatchHealth = async (batch: Batch) => {
-    if (batch.status !== 'in_progress') {
-      setBatchHealthStatus(null);
-      return;
-    }
+  const loadAllBoxCounts = async (batchList: Batch[]) => {
+    const { packingBoxesService } = await import('../../services/packingBoxesService');
+    const counts = new Map<string, number>();
 
-    setIsLoadingHealth(true);
-    try {
-      const healthStatus = await batchManagementService.getBatchHealthStatus(batch.batchId);
-      setBatchHealthStatus(healthStatus);
-      console.log(`🔬 Health status for batch ${batch.batchId}:`, healthStatus);
-    } catch (error) {
-      console.error('Failed to load batch health:', error);
-      setBatchHealthStatus(null);
-    } finally {
-      setIsLoadingHealth(false);
-    }
-  };
-
-  // Load health status for ALL active batches with priority allocation
-  const loadAllBatchHealthStatuses = async () => {
-    console.log('🏥 Loading global batch health with priority allocation...');
-    const activeBatches = batches.filter(batch => batch.status === 'in_progress');
-    
-    if (activeBatches.length === 0) {
-      setBatchHealthStatuses(new Map());
-      return;
-    }
-    
-    try {
-      // Use new global priority-based health system
-      const globalHealthResults = await batchManagementService.getGlobalBatchHealthStatuses();
-      setBatchHealthStatuses(globalHealthResults);
-      
-      console.log(`✅ Loaded priority-based health for ${globalHealthResults.size} active batches:`, {
-        healthy: [...globalHealthResults.values()].filter(h => h.status === 'healthy').length,
-        warning: [...globalHealthResults.values()].filter(h => h.status === 'warning').length,
-        critical: [...globalHealthResults.values()].filter(h => h.status === 'critical').length
-      });
-      
-      // Log priority order and missing components for debugging
-      const sortedBatches = batches
-        .filter(b => b.status === 'in_progress')
-        .sort((a, b) => {
-          try {
-            const aTime = a.createdAt instanceof Date ? a.createdAt.getTime() : new Date(a.createdAt).getTime();
-            const bTime = b.createdAt instanceof Date ? b.createdAt.getTime() : new Date(b.createdAt).getTime();
-            
-            if (isNaN(aTime) && isNaN(bTime)) return 0;
-            if (isNaN(aTime)) return 1;
-            if (isNaN(bTime)) return -1;
-            
-            return aTime - bTime;
-          } catch (error) {
-            console.warn('Batch sorting error:', error);
-            return 0;
-          }
-        });
-        
-      sortedBatches.forEach((batch, index) => {
-        const health = globalHealthResults.get(batch.batchId);
-        if (health) {
-          const priorityInfo = `Priority ${index + 1}`;
-          const missingInfo = health.blockedComponents.length > 0 
-            ? `Missing: ${health.blockedComponents.map(c => `${c.sku}*${c.shortfall}`).join(', ')}`
-            : 'No missing components';
-          console.log(`📊 Batch ${batch.batchId} - ${priorityInfo} - ${health.status.toUpperCase()} - ${missingInfo}`);
-        }
-      });
-      
-    } catch (error) {
-      console.error('❌ Failed to load global batch health:', error);
-      // Fallback to empty map on error
-      setBatchHealthStatuses(new Map());
-    }
-  };
-
-  // Auto-load health when selected batch changes
-  useEffect(() => {
-    if (selectedBatch) {
-      loadBatchHealth(selectedBatch);
-    } else {
-      setBatchHealthStatus(null);
-    }
-  }, [selectedBatch]);
-
-  // Event-driven health updates - listen to inventory changes for ALL batches
-  useEffect(() => {
-    const activeBatches = batches.filter(batch => batch.status === 'in_progress');
-    if (activeBatches.length === 0) {
-      return; // Nothing to listen to
-    }
-
-    console.log('🎧 Setting up inventory change listeners for', activeBatches.length, 'active batches');
-
-    let unsubscribeExpected: (() => void) | null = null;
-    let unsubscribeTransactions: (() => void) | null = null;
-    let unsubscribeBatchReq: (() => void) | null = null;
-    let cancelled = false;
-
-    (async () => {
+    for (const batch of batchList) {
       try {
-        const { tableStateService } = await import('../../services/tableState');
-
-        if (cancelled) return;
-
-        // Listen to expected_inventory changes (main inventory table)
-        unsubscribeExpected = tableStateService.onExpectedInventoryChange(() => {
-          console.log('📊 Expected inventory changed, triggering throttled health updates for all batches...');
-          throttledHealthUpdateAllBatches(activeBatches);
-        });
-
-        // Listen to transactions that might affect inventory
-        const transactionsRef = collection(db, 'transactions');
-        unsubscribeTransactions = onSnapshot(transactionsRef, (snapshot) => {
-          if (!snapshot.metadata.hasPendingWrites && !snapshot.empty) {
-            console.log('💰 Transaction recorded, triggering throttled health updates...');
-            throttledHealthUpdateAllBatches(activeBatches);
-          }
-        });
-
-        // Listen to batch requirements changes (car completion affects this)
-        const batchReqRef = collection(db, 'batchRequirements');
-        unsubscribeBatchReq = onSnapshot(batchReqRef, (snapshot) => {
-          if (!snapshot.metadata.hasPendingWrites && !snapshot.empty) {
-            console.log('🏭 Batch requirements changed, triggering throttled health updates...');
-            throttledHealthUpdateAllBatches(activeBatches);
-          }
-        });
-      } catch (err) {
-        console.error('Failed to set up listeners for batch health updates:', err);
+        const boxes = await packingBoxesService.listBoxes(batch.batchId);
+        counts.set(batch.batchId, boxes.length);
+      } catch (error) {
+        console.error(`Failed to load boxes for batch ${batch.batchId}:`, error);
+        counts.set(batch.batchId, 0);
       }
-    })();
-
-    // Cleanup listeners when component unmounts or batches change
-    return () => {
-      cancelled = true;
-      console.log('🛑 Cleaning up inventory listeners for', activeBatches.length, 'active batches');
-      if (unsubscribeExpected) unsubscribeExpected();
-      if (unsubscribeTransactions) unsubscribeTransactions();
-      if (unsubscribeBatchReq) unsubscribeBatchReq();
-
-      // Clear pending timeout
-      if (pendingHealthUpdateRef.current !== null) {
-        window.clearTimeout(pendingHealthUpdateRef.current);
-        pendingHealthUpdateRef.current = null;
-      }
-    };
-  }, [batches]);
-
-  // Throttled health update for ALL active batches - max 1 update per second, immediate if idle
-  const throttledHealthUpdateAllBatches = (activeBatches: Batch[]) => {
-    const now = Date.now();
-    const timeSinceLastUpdate = now - lastHealthUpdateRef.current;
-
-    // If it's been more than 1 second since last update, update immediately
-    if (timeSinceLastUpdate >= 1000) {
-      console.log('🚀 System idle - immediate health update for', activeBatches.length, 'batches');
-      lastHealthUpdateRef.current = now;
-      loadAllBatchHealthStatuses();
-      return;
     }
 
-    // If we recently updated, schedule next update for exactly 1 second after last one
-    if (pendingHealthUpdateRef.current === null) {
-      const timeUntilNextUpdate = 1000 - timeSinceLastUpdate;
-      console.log(`⏰ System busy - scheduling health update in ${timeUntilNextUpdate}ms for`, activeBatches.length, 'batches');
-
-      pendingHealthUpdateRef.current = window.setTimeout(() => {
-        console.log('⏱️ Throttled health update executing for all active batches');
-        lastHealthUpdateRef.current = Date.now();
-        pendingHealthUpdateRef.current = null;
-        loadAllBatchHealthStatuses();
-      }, timeUntilNextUpdate);
-    } else {
-      console.log('⏳ Health update already scheduled, ignoring this change');
-    }
+    setBatchBoxCounts(counts);
   };
+
+  // DISABLED: Load health status for activated batches
+  // const loadBatchHealth = async (batch: Batch) => {
+  //   if (batch.status !== 'in_progress') {
+  //     setBatchHealthStatus(null);
+  //     return;
+  //   }
+  //
+  //   setIsLoadingHealth(true);
+  //   try {
+  //     const healthStatus = await batchManagementService.getBatchHealthStatus(batch.batchId);
+  //     setBatchHealthStatus(healthStatus);
+  //     console.log(`🔬 Health status for batch ${batch.batchId}:`, healthStatus);
+  //   } catch (error) {
+  //     console.error('Failed to load batch health:', error);
+  //     setBatchHealthStatus(null);
+  //   } finally {
+  //     setIsLoadingHealth(false);
+  //   }
+  // };
+
+  // DISABLED: Load health status for ALL active batches with priority allocation
+  // const loadAllBatchHealthStatuses = async () => {
+  //   console.log('🏥 Loading global batch health with priority allocation...');
+  //   const activeBatches = batches.filter(batch => batch.status === 'in_progress');
+  //
+  //   if (activeBatches.length === 0) {
+  //     setBatchHealthStatuses(new Map());
+  //     return;
+  //   }
+  //
+  //   try {
+  //     // Use new global priority-based health system
+  //     const globalHealthResults = await batchManagementService.getGlobalBatchHealthStatuses();
+  //     setBatchHealthStatuses(globalHealthResults);
+  //
+  //     console.log(`✅ Loaded priority-based health for ${globalHealthResults.size} active batches:`, {
+  //       healthy: [...globalHealthResults.values()].filter(h => h.status === 'healthy').length,
+  //       warning: [...globalHealthResults.values()].filter(h => h.status === 'warning').length,
+  //       critical: [...globalHealthResults.values()].filter(h => h.status === 'critical').length
+  //     });
+  //
+  //     // Log priority order and missing components for debugging
+  //     const sortedBatches = batches
+  //       .filter(b => b.status === 'in_progress')
+  //       .sort((a, b) => {
+  //         try {
+  //           const aTime = a.createdAt instanceof Date ? a.createdAt.getTime() : new Date(a.createdAt).getTime();
+  //           const bTime = b.createdAt instanceof Date ? b.createdAt.getTime() : new Date(b.createdAt).getTime();
+  //
+  //           if (isNaN(aTime) && isNaN(bTime)) return 0;
+  //           if (isNaN(aTime)) return 1;
+  //           if (isNaN(bTime)) return -1;
+  //
+  //           return aTime - bTime;
+  //         } catch (error) {
+  //           console.warn('Batch sorting error:', error);
+  //           return 0;
+  //         }
+  //       });
+  //
+  //     sortedBatches.forEach((batch, index) => {
+  //       const health = globalHealthResults.get(batch.batchId);
+  //       if (health) {
+  //         const priorityInfo = `Priority ${index + 1}`;
+  //         const missingInfo = health.blockedComponents.length > 0
+  //           ? `Missing: ${health.blockedComponents.map(c => `${c.sku}*${c.shortfall}`).join(', ')}`
+  //           : 'No missing components';
+  //         console.log(`📊 Batch ${batch.batchId} - ${priorityInfo} - ${health.status.toUpperCase()} - ${missingInfo}`);
+  //       }
+  //     });
+  //
+  //   } catch (error) {
+  //     console.error('❌ Failed to load global batch health:', error);
+  //     // Fallback to empty map on error
+  //     setBatchHealthStatuses(new Map());
+  //   }
+  // };
+
+  // DISABLED: Auto-load health when selected batch changes (too much for now with thousands of parts)
+  // useEffect(() => {
+  //   if (selectedBatch) {
+  //     loadBatchHealth(selectedBatch);
+  //   } else {
+  //     setBatchHealthStatus(null);
+  //   }
+  // }, [selectedBatch]);
+
+  // DISABLED: Automatic health tracking is too much for now
+  // Event-driven health updates - listen to inventory changes for ALL batches
+  // useEffect(() => {
+  //   const activeBatches = batches.filter(batch => batch.status === 'in_progress');
+  //   if (activeBatches.length === 0) {
+  //     return; // Nothing to listen to
+  //   }
+
+  //   console.log('🎧 Setting up inventory change listeners for', activeBatches.length, 'active batches');
+
+  //   let unsubscribeExpected: (() => void) | null = null;
+  //   let unsubscribeTransactions: (() => void) | null = null;
+  //   let unsubscribeBatchReq: (() => void) | null = null;
+  //   let cancelled = false;
+
+  //   (async () => {
+  //     try {
+  //       const { tableStateService } = await import('../../services/tableState');
+
+  //       if (cancelled) return;
+
+  //       // Listen to expected_inventory changes (main inventory table)
+  //       unsubscribeExpected = tableStateService.onExpectedInventoryChange(() => {
+  //         console.log('📊 Expected inventory changed, triggering throttled health updates for all batches...');
+  //         throttledHealthUpdateAllBatches(activeBatches);
+  //       });
+
+  //       // Listen to transactions that might affect inventory
+  //       const transactionsRef = collection(db, 'transactions');
+  //       unsubscribeTransactions = onSnapshot(transactionsRef, (snapshot) => {
+  //         if (!snapshot.metadata.hasPendingWrites && !snapshot.empty) {
+  //           console.log('💰 Transaction recorded, triggering throttled health updates...');
+  //           throttledHealthUpdateAllBatches(activeBatches);
+  //         }
+  //       });
+
+  //       // Listen to batch requirements changes (car completion affects this)
+  //       const batchReqRef = collection(db, 'batchRequirements');
+  //       unsubscribeBatchReq = onSnapshot(batchReqRef, (snapshot) => {
+  //         if (!snapshot.metadata.hasPendingWrites && !snapshot.empty) {
+  //           console.log('🏭 Batch requirements changed, triggering throttled health updates...');
+  //           throttledHealthUpdateAllBatches(activeBatches);
+  //         }
+  //       });
+  //     } catch (err) {
+  //       console.error('Failed to set up listeners for batch health updates:', err);
+  //     }
+  //   })();
+
+  //   // Cleanup listeners when component unmounts or batches change
+  //   return () => {
+  //     cancelled = true;
+  //     console.log('🛑 Cleaning up inventory listeners for', activeBatches.length, 'active batches');
+  //     if (unsubscribeExpected) unsubscribeExpected();
+  //     if (unsubscribeTransactions) unsubscribeTransactions();
+  //     if (unsubscribeBatchReq) unsubscribeBatchReq();
+
+  //     // Clear pending timeout
+  //     if (pendingHealthUpdateRef.current !== null) {
+  //       window.clearTimeout(pendingHealthUpdateRef.current);
+  //       pendingHealthUpdateRef.current = null;
+  //     }
+  //   };
+  // }, [batches]);
 
 
   // Create new batch
   const handleCreateBatch = async () => {
     if (!newBatchId.trim() || !user?.email) return;
-    
+
+    const trimmedId = newBatchId.trim();
     setIsUploading(true);
     try {
       await batchManagementService.createBatch({
-        batchId: newBatchId.trim(),
-        name: `Batch ${newBatchId.trim()}`,
+        batchId: trimmedId,
+        name: `Batch ${trimmedId}`,
         items: [],
         carVins: [],
         carType: '',
         totalCars: 0,
         status: 'planning'
       });
-      
+
       setNewBatchId('');
       await loadBatches();
       onRefresh?.();
@@ -268,57 +266,62 @@ export const EnhancedBatchManagement = memo(function EnhancedBatchManagement({
     }
   };
 
-  // Handle CSV file upload (preserved from original)
+  // Handle CSV file upload with smart column mapping
   const handleCSVUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !user?.email) return;
 
-    setIsUploading(true);
-    setUploadResult(null);
-
     try {
       const text = await file.text();
 
-      let result: UploadResult;
       if (uploadType === 'vinPlans') {
-        // Original VIN upload path remains unchanged
-        result = await batchManagementService.uploadVinPlansFromCSV(text, user.email);
+        // VIN upload path remains unchanged (standardized format)
+        setIsUploading(true);
+        setUploadResult(null);
+        const result = await batchManagementService.uploadVinPlansFromCSV(text, user.email);
+        setUploadResult(result);
+
+        if (result.success > 0) {
+          console.log(`✅ Successfully uploaded ${result.success} VIN plans`);
+          if (selectedBatch) {
+            const updatedBatch = await batchManagementService.getBatchById(selectedBatch.batchId);
+            if (updatedBatch) {
+              setSelectedBatch(updatedBatch);
+            }
+          }
+          await loadBatches();
+          onRefresh?.();
+        }
+        setIsUploading(false);
       } else {
-        // New packing list flow: minimal CASE NO / PART NO / QTY and Replace for selected batch
+        // NEW: Packing list flow with column mapper
         if (!selectedBatch) {
           alert('Please select a batch first');
+          event.target.value = '';
           return;
         }
 
         const confirmReplace = window.confirm(
           `This will replace all boxes for batch ${selectedBatch.batchId}. Continue?`
         );
-        if (!confirmReplace) return;
-
-        const { packingBoxesService } = await import('../../services/packingBoxesService');
-        const stats = await packingBoxesService.importPackingListForBatch(selectedBatch.batchId, text);
-        result = {
-          success: stats.boxes,
-          errors: stats.errors,
-          stats: { totalRows: stats.totalRows, skippedRows: stats.skippedRows },
-        };
-      }
-      
-      setUploadResult(result);
-      
-      if (result.success > 0) {
-        console.log(`✅ Successfully uploaded ${result.success} ${uploadType}`);
-        
-        // Manually update the selected batch with the new data
-        if (selectedBatch) {
-          const updatedBatch = await batchManagementService.getBatchById(selectedBatch.batchId);
-          if (updatedBatch) {
-            setSelectedBatch(updatedBatch);
-          }
+        if (!confirmReplace) {
+          event.target.value = '';
+          return;
         }
-        
-        await loadBatches(); // Reload batches after upload
-        onRefresh?.();
+
+        // Generate column preview
+        const previews = packingBoxesService.generateColumnPreview(text);
+
+        if (previews.length === 0) {
+          alert('❌ Could not parse CSV file. Please check the file format.');
+          event.target.value = '';
+          return;
+        }
+
+        // Store CSV text and show mapper
+        setPendingCsvText(text);
+        setColumnPreviews(previews);
+        setShowColumnMapper(true);
       }
     } catch (error) {
       console.error('CSV upload failed:', error);
@@ -327,10 +330,67 @@ export const EnhancedBatchManagement = memo(function EnhancedBatchManagement({
         errors: [error instanceof Error ? error.message : 'Upload failed'],
         stats: { totalRows: 0, skippedRows: 0 }
       });
-    } finally {
       setIsUploading(false);
+    } finally {
       event.target.value = '';
     }
+  };
+
+  // Handle column mapping confirmation
+  const handleColumnMappingConfirm = async (mapping: ColumnMapping) => {
+    if (!selectedBatch || !user?.email) return;
+
+    setShowColumnMapper(false);
+    setIsUploading(true);
+    setUploadResult(null);
+
+    try {
+      const stats = await packingBoxesService.importPackingListWithMapping(
+        selectedBatch.batchId,
+        pendingCsvText,
+        mapping
+      );
+
+      const result: UploadResult = {
+        success: stats.boxes,
+        errors: stats.errors,
+        stats: { totalRows: stats.totalRows, skippedRows: stats.skippedRows },
+        skippedDetails: stats.skippedDetails
+      };
+
+      setUploadResult(result);
+
+      if (result.success > 0) {
+        console.log(`✅ Successfully uploaded ${result.success} packing boxes`);
+
+        // Update selected batch
+        const updatedBatch = await batchManagementService.getBatchById(selectedBatch.batchId);
+        if (updatedBatch) {
+          setSelectedBatch(updatedBatch);
+        }
+
+        await loadBatches();
+        onRefresh?.();
+      }
+    } catch (error) {
+      console.error('CSV import failed:', error);
+      setUploadResult({
+        success: 0,
+        errors: [error instanceof Error ? error.message : 'Import failed'],
+        stats: { totalRows: 0, skippedRows: 0 }
+      });
+    } finally {
+      setIsUploading(false);
+      setPendingCsvText('');
+      setColumnPreviews([]);
+    }
+  };
+
+  // Handle column mapping cancellation
+  const handleColumnMappingCancel = () => {
+    setShowColumnMapper(false);
+    setPendingCsvText('');
+    setColumnPreviews([]);
   };
 
   // Generate sample data (preserved from original)
@@ -406,7 +466,7 @@ Are you absolutely sure?`;
       
       // Clear selected batch and reload list
       setSelectedBatch(null);
-      setBatchHealthStatus(null);
+      // DISABLED: setBatchHealthStatus(null);
       await loadBatches();
       onRefresh?.();
       
@@ -426,12 +486,12 @@ Are you absolutely sure?`;
       return;
     }
 
-    // Check if batch is ready for activation
-    const hasItems = selectedBatch.items && selectedBatch.items.length > 0;
-    const hasVins = selectedBatch.carVins && selectedBatch.carVins.length > 0;
-    
-    if (!hasItems || !hasVins) {
-      alert('Batch must have both packing list and VIN data before activation');
+    // Check if batch has packing boxes (new system)
+    const { packingBoxesService } = await import('../../services/packingBoxesService');
+    const boxes = await packingBoxesService.listBoxes(selectedBatch.batchId);
+
+    if (boxes.length === 0) {
+      alert('Batch must have a packing list (boxes) before activation');
       return;
     }
 
@@ -443,7 +503,7 @@ Are you absolutely sure?`;
     const confirmMessage = `Activate Batch ${selectedBatch.batchId}?
 
 This will:
-✅ Calculate total material requirements
+✅ Calculate total material requirements from packing list
 ✅ Set up smart health tracking
 ✅ Enable automatic consumption tracking
 ✅ Change status to "Active"
@@ -471,9 +531,9 @@ Are you sure?`;
       await loadBatches();
       onRefresh?.();
       
-      // Load health status for the newly activated batch (using updated batch object)
-      await loadBatchHealth(updatedBatch);
-      
+      // DISABLED: Load health status for the newly activated batch (using updated batch object)
+      // await loadBatchHealth(updatedBatch);
+
       alert(`🎯 Batch ${selectedBatch.batchId} activated successfully!
 
 Smart health tracking is now enabled.
@@ -553,24 +613,15 @@ Material consumption will be tracked automatically as cars complete.`);
 
   // Get batch status display
   const getStatusDisplay = (batch: Batch) => {
-    const hasItems = batch.items && batch.items.length > 0;
+    const hasBoxes = (batchBoxCounts.get(batch.batchId) || 0) > 0;
     const hasVins = batch.carVins && batch.carVins.length > 0;
-    
+
     if (batch.status === 'in_progress') {
-      // Show health indicator for active batches
-      if (batch.batchId === selectedBatch?.batchId && batchHealthStatus) {
-        if (batchHealthStatus.status === 'healthy') {
-          return { color: 'bg-green-100 text-green-800', text: '🟢 Healthy', icon: '🟢' };
-        } else if (batchHealthStatus.status === 'warning') {
-          return { color: 'bg-yellow-100 text-yellow-800', text: '🟡 Warning', icon: '🟡' };
-        } else {
-          return { color: 'bg-red-100 text-red-800', text: '🔴 Critical', icon: '🔴' };
-        }
-      }
+      // DISABLED: Health indicator removed for performance
       return { color: 'bg-green-100 text-green-800', text: '✅ Active', icon: '🟢' };
-    } else if (hasItems && hasVins) {
+    } else if (hasBoxes && hasVins) {
       return { color: 'bg-blue-100 text-blue-800', text: '📋 Ready', icon: '🔵' };
-    } else if (hasItems || hasVins) {
+    } else if (hasBoxes || hasVins) {
       return { color: 'bg-yellow-100 text-yellow-800', text: '📦 Partial', icon: '🟡' };
     } else {
       return { color: 'bg-gray-100 text-gray-600', text: '📝 Draft', icon: '⚪' };
@@ -635,7 +686,7 @@ Material consumption will be tracked automatically as cars complete.`);
               .map((batch) => {
               const statusDisplay = getStatusDisplay(batch);
               const isSelected = selectedBatch?.batchId === batch.batchId;
-              const healthStatus = batchHealthStatuses.get(batch.batchId);
+              // DISABLED: const healthStatus = batchHealthStatuses.get(batch.batchId);
               const isActive = batch.status === 'in_progress';
               const batchTime = (() => {
                 try {
@@ -654,48 +705,21 @@ Material consumption will be tracked automatically as cars complete.`);
                   return false;
                 }
               }).length : null;
-              
-              // Health indicator for active batches
-              const getHealthIndicator = () => {
-                if (!isActive) return null;
-                if (!healthStatus) return '⏳'; // Loading
-                
-                switch (healthStatus.status) {
-                  case 'critical': return '🔴';
-                  case 'warning': return '🟡';
-                  case 'healthy': return '🟢';
-                  default: return '❓';
-                }
-              };
-              
-              // Missing components summary
-              const getMissingComponentsSummary = () => {
-                if (!isActive || !healthStatus || !healthStatus.blockedComponents.length) return null;
-                
-                const shortSummary = healthStatus.blockedComponents
-                  .slice(0, 2)
-                  .map(c => `${c.sku}*${c.shortfall}`)
-                  .join(', ');
-                
-                const moreCount = healthStatus.blockedComponents.length > 2 ? ` +${healthStatus.blockedComponents.length - 2}` : '';
-                return `Missing: ${shortSummary}${moreCount}`;
-              };
-              
+
               return (
                 <div
                   key={batch.batchId}
                   onClick={() => setSelectedBatch(batch)}
                   className={`p-3 border rounded-lg cursor-pointer transition-colors ${
-                    isSelected 
-                      ? 'border-blue-500 bg-blue-50' 
+                    isSelected
+                      ? 'border-blue-500 bg-blue-50'
                       : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                   }`}
                 >
                   <div className="flex items-center justify-between mb-1">
                     <div className="font-medium text-gray-900 flex items-center gap-2">
                       {statusDisplay.icon} {batch.batchId}
-                      {getHealthIndicator()}
-                      {priorityNumber && (
+                      {priorityNumber !== null && priorityNumber > 0 && (
                         <span className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded text-xs font-medium">
                           #{priorityNumber}
                         </span>
@@ -707,19 +731,7 @@ Material consumption will be tracked automatically as cars complete.`);
                   </div>
                   <div className="text-xs text-gray-600">
                     {batch.carType || 'No car type'} • {batch.totalCars || 0} cars
-                    {healthStatus && isActive && (
-                      <span className="ml-2 text-xs">
-                        • Can produce: {healthStatus.canProduceCars}/{healthStatus.totalCars}
-                      </span>
-                    )}
                   </div>
-                  
-                  {/* Missing Components Alert */}
-                  {getMissingComponentsSummary() && (
-                    <div className="mt-1 text-xs text-red-600 bg-red-50 px-2 py-1 rounded">
-                      {getMissingComponentsSummary()}
-                    </div>
-                  )}
                 </div>
               );
             })}
@@ -788,8 +800,8 @@ Material consumption will be tracked automatically as cars complete.`);
                   <div className="font-medium">{selectedBatch.totalCars || 0} VINs</div>
                 </div>
                 <div>
-                  <span className="text-gray-600">Components:</span>
-                  <div className="font-medium">{selectedBatch.items?.length || 0} types</div>
+                  <span className="text-gray-600">Packing Boxes:</span>
+                  <div className="font-medium">{batchBoxCounts.get(selectedBatch.batchId) || 0} boxes</div>
                 </div>
                 <div>
                   <span className="text-gray-600">Status:</span>
@@ -802,23 +814,24 @@ Material consumption will be tracked automatically as cars complete.`);
                 <div className="mt-6 pt-4 border-t">
                   <button
                     onClick={handleActivateBatch}
-                    disabled={isUploading || !selectedBatch.items?.length || !selectedBatch.carVins?.length}
+                    disabled={isUploading || (batchBoxCounts.get(selectedBatch.batchId) || 0) === 0}
                     className={`w-full px-4 py-3 rounded-lg text-sm font-medium ${
-                      (!isUploading && selectedBatch.items?.length && selectedBatch.carVins?.length)
+                      (!isUploading && (batchBoxCounts.get(selectedBatch.batchId) || 0) > 0)
                         ? 'bg-green-600 text-white hover:bg-green-700 focus:ring-2 focus:ring-green-500'
                         : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                     }`}
                   >
-                    {isUploading 
-                      ? '⏳ Activating...' 
-                      : selectedBatch.items?.length && selectedBatch.carVins?.length
+                    {isUploading
+                      ? '⏳ Activating...'
+                      : (batchBoxCounts.get(selectedBatch.batchId) || 0) > 0
                         ? '🚀 Activate Batch (Enable Smart Health Tracking)'
-                        : '📋 Need Both Packing List & VIN Data to Activate'
+                        : '📋 Need Packing List to Activate'
                     }
                   </button>
-                  {selectedBatch.items?.length && selectedBatch.carVins?.length && (
+                  {(batchBoxCounts.get(selectedBatch.batchId) || 0) > 0 && (
                     <p className="mt-2 text-xs text-green-600 text-center">
                       ✅ Batch is ready for activation with smart health tracking
+                      {!selectedBatch.carVins?.length && ' (VIN data optional)'}
                     </p>
                   )}
                   
@@ -833,91 +846,21 @@ Material consumption will be tracked automatically as cars complete.`);
                 </div>
               )}
 
-              {/* Smart Health Status for Active Batches */}
+              {/* DISABLED: Smart Health Status for Active Batches - too much for now with thousands of parts */}
               {selectedBatch.status === 'in_progress' && (
                 <div className="mt-6 pt-4 border-t">
-                  {isLoadingHealth ? (
-                    <div className="bg-gray-50 rounded-lg p-4">
-                      <div className="flex items-center justify-center">
-                        <div className="text-sm text-gray-600">⏳ Loading health status...</div>
-                      </div>
+                  <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="text-sm font-medium text-blue-800">✅ Batch Activated</h4>
+                      <div className="text-xs text-blue-600">Smart tracking enabled</div>
                     </div>
-                  ) : batchHealthStatus ? (
-                    <div className={`rounded-lg p-4 ${
-                      batchHealthStatus.status === 'healthy' ? 'bg-green-50 border border-green-200' :
-                      batchHealthStatus.status === 'warning' ? 'bg-yellow-50 border border-yellow-200' :
-                      'bg-red-50 border border-red-200'
-                    }`}>
-                      <div className="flex items-center justify-between mb-3">
-                        <h4 className={`text-sm font-medium ${
-                          batchHealthStatus.status === 'healthy' ? 'text-green-800' :
-                          batchHealthStatus.status === 'warning' ? 'text-yellow-800' :
-                          'text-red-800'
-                        }`}>
-                          {batchHealthStatus.status === 'healthy' ? '🟢 Batch Healthy' :
-                           batchHealthStatus.status === 'warning' ? '🟡 Batch Warning' :
-                           '🔴 Batch Critical'} - Real-time Health Status
-                        </h4>
-                        <div className="text-xs text-gray-600">
-                          Can produce: {batchHealthStatus.canProduceCars}/{batchHealthStatus.totalCars} cars
-                        </div>
-                      </div>
+                    <div className="text-xs text-blue-700 space-y-1">
+                      <div>✅ Material requirements calculated from packing boxes</div>
+                      <div>✅ Automatic consumption tracking ready</div>
+                      <div>📊 Health monitoring temporarily disabled for performance</div>
+                    </div>
+                  </div>
 
-                      {/* Missing Components Warning - Priority-Based */}
-                      {batchHealthStatus.blockedComponents.length > 0 && (
-                        <div className="mb-3">
-                          <h5 className="text-xs font-medium text-red-800 mb-2">
-                            ❌ Missing Components (After Priority Allocation):
-                          </h5>
-                          <div className="space-y-1">
-                            {batchHealthStatus.blockedComponents.map((component, i) => (
-                              <div key={i} className="text-xs bg-red-100 p-2 rounded flex justify-between items-center">
-                                <div>
-                                  <span className="font-medium text-red-800">{component.sku}</span>
-                                  <span className="text-red-700 ml-2">{component.name}</span>
-                                </div>
-                                <div className="text-right">
-                                  <div className="font-medium text-red-800">Short: {component.shortfall}</div>
-                                  <div className="text-red-600 text-xs">Have: {component.available} / Need: {component.needed}</div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                          <div className="mt-2 text-xs text-red-600 bg-red-50 p-2 rounded">
-                            💡 This batch is missing components after higher-priority batches are allocated inventory first.
-                          </div>
-                        </div>
-                      )}
-                      
-                      {/* Healthy Status with Priority Info */}
-                      {batchHealthStatus.blockedComponents.length === 0 && (
-                        <div className="mb-3">
-                          <div className="text-xs text-green-700 bg-green-50 p-2 rounded">
-                            ✅ All components available after priority allocation. This batch can proceed with production.
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Batch Progress */}
-                      <div className="text-xs text-gray-600">
-                        <div>Cars Remaining: {batchHealthStatus.carsRemaining}</div>
-                        <div>Last Updated: {new Date(batchHealthStatus.checkedAt).toLocaleString()}</div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="bg-gray-50 rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="text-sm font-medium text-gray-700">🔬 Smart Health Tracking Active</h4>
-                        <div className="text-xs text-gray-600">Setup required</div>
-                      </div>
-                      <div className="text-xs text-gray-600 space-y-1">
-                        <div>✅ Material requirements calculated and tracked</div>
-                        <div>✅ Automatic consumption on car completion</div>
-                        <div>⚠️ Health data not available - check Setup configuration</div>
-                      </div>
-                    </div>
-                  )}
-                  
                   {/* Delete Button for Active Batches */}
                   <button
                     onClick={handleDeleteBatch}
@@ -982,65 +925,78 @@ Material consumption will be tracked automatically as cars complete.`);
         {/* CSV Upload Section */}
         <div className="bg-white border rounded-lg p-6">
           <h3 className="text-lg font-medium text-gray-900 mb-4">📤 CSV Upload & Download</h3>
-          
-          {/* Upload Type Selection - Simplified to core operations */}
-          <div className="mb-4">
-            <div className="grid grid-cols-2 gap-2">
-              <label className="flex items-center p-3 border rounded cursor-pointer hover:bg-gray-50">
-                <input
-                  type="radio"
-                  name="uploadType" 
-                  value="packingList"
-                  checked={uploadType === 'packingList'}
-                  onChange={(e) => setUploadType(e.target.value as any)}
-                  className="mr-2"
-                />
-                <span className="text-sm">📦 Packing List</span>
-              </label>
-              <label className="flex items-center p-3 border rounded cursor-pointer hover:bg-gray-50">
-                <input
-                  type="radio"
-                  name="uploadType" 
-                  value="vinPlans"
-                  checked={uploadType === 'vinPlans'}
-                  onChange={(e) => setUploadType(e.target.value as any)}
-                  className="mr-2"
-                />
-                <span className="text-sm">🚗 VIN/CarType</span>
+
+          {/* Separate Upload Buttons */}
+          <div className="mb-4 space-y-3">
+            {/* Packing List Upload */}
+            <div>
+              <input
+                type="file"
+                accept=".csv"
+                onChange={(e) => {
+                  setUploadType('packingList');
+                  handleCSVUpload(e);
+                }}
+                disabled={isUploading}
+                className="hidden"
+                id="packing-list-upload"
+              />
+              <label
+                htmlFor="packing-list-upload"
+                className={`w-full inline-flex justify-center items-center px-4 py-3 border border-transparent text-sm font-medium rounded-md text-white ${
+                  isUploading
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : 'bg-blue-600 hover:bg-blue-700 cursor-pointer'
+                }`}
+              >
+                {isUploading && uploadType === 'packingList' ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Uploading Packing List...
+                  </>
+                ) : (
+                  '📤 Upload Packing List CSV'
+                )}
               </label>
             </div>
-          </div>
 
-          {/* Upload Button */}
-          <div className="mb-4">
-            <input
-              type="file"
-              accept=".csv"
-              onChange={handleCSVUpload}
-              disabled={isUploading}
-              className="hidden"
-              id="batch-csv-upload"
-            />
-            <label
-              htmlFor="batch-csv-upload"
-              className={`w-full inline-flex justify-center items-center px-4 py-3 border border-transparent text-sm font-medium rounded-md text-white ${
-                isUploading 
-                  ? 'bg-gray-400 cursor-not-allowed' 
-                  : 'bg-blue-600 hover:bg-blue-700 cursor-pointer'
-              }`}
-            >
-              {isUploading ? (
-                <>
-                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Uploading...
-                </>
-              ) : (
-                `📤 Upload ${uploadType === 'vinPlans' ? 'VIN/CarType' : 'Packing List'} CSV`
-              )}
-            </label>
+            {/* VIN/CarType Upload */}
+            <div>
+              <input
+                type="file"
+                accept=".csv"
+                onChange={(e) => {
+                  setUploadType('vinPlans');
+                  handleCSVUpload(e);
+                }}
+                disabled={isUploading}
+                className="hidden"
+                id="vin-cartype-upload"
+              />
+              <label
+                htmlFor="vin-cartype-upload"
+                className={`w-full inline-flex justify-center items-center px-4 py-3 border border-transparent text-sm font-medium rounded-md text-white ${
+                  isUploading
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : 'bg-green-600 hover:bg-green-700 cursor-pointer'
+                }`}
+              >
+                {isUploading && uploadType === 'vinPlans' ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Uploading VIN/CarType...
+                  </>
+                ) : (
+                  '📤 Upload VIN/CarType CSV'
+                )}
+              </label>
+            </div>
           </div>
 
           {/* Template Downloads & Current Batch Downloads */}
@@ -1105,12 +1061,70 @@ Material consumption will be tracked automatically as cars complete.`);
                 )}
                 <div className="text-gray-600 text-xs mt-1">
                   📊 Processed {uploadResult.stats.totalRows} rows, skipped {uploadResult.stats.skippedRows}
+                  {uploadResult.skippedDetails && uploadResult.skippedDetails.length > 0 && (
+                    <details className="mt-2">
+                      <summary className="cursor-pointer text-orange-600 font-medium">
+                        ⚠️ View {uploadResult.skippedDetails.length} skipped row{uploadResult.skippedDetails.length !== 1 ? 's' : ''}
+                      </summary>
+                      <div className="mt-2 max-h-60 overflow-y-auto border border-orange-200 rounded bg-orange-50 p-2">
+                        <table className="w-full text-xs">
+                          <thead className="border-b border-orange-300 bg-orange-100">
+                            <tr>
+                              <th className="text-left p-1">Row #</th>
+                              <th className="text-left p-1">CASE NO</th>
+                              <th className="text-left p-1">PART NO</th>
+                              <th className="text-left p-1">QTY</th>
+                              <th className="text-left p-1">Reason</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {uploadResult.skippedDetails.map((detail, idx) => (
+                              <tr key={idx} className="border-b border-orange-200 hover:bg-orange-100">
+                                <td className="p-1 font-mono font-bold">{detail.rowNumber}</td>
+                                <td className="p-1 font-mono text-gray-700">
+                                  {detail.extractedValues?.caseNo || '?'}
+                                </td>
+                                <td className="p-1 font-mono text-gray-700">
+                                  {detail.extractedValues?.partNo || '?'}
+                                </td>
+                                <td className="p-1 font-mono text-gray-700">
+                                  {detail.extractedValues?.qty || '?'}
+                                </td>
+                                <td className="p-1 text-orange-700">
+                                  {detail.reason}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        <details className="mt-2 text-xs">
+                          <summary className="cursor-pointer text-gray-600">Show raw row data</summary>
+                          <div className="mt-1 space-y-1 max-h-40 overflow-y-auto">
+                            {uploadResult.skippedDetails.map((detail, idx) => (
+                              <div key={idx} className="font-mono text-gray-500 text-xs border-l-2 border-gray-300 pl-2">
+                                <span className="font-bold">Row {detail.rowNumber}:</span> {detail.rowData.join(', ')}
+                              </div>
+                            ))}
+                          </div>
+                        </details>
+                      </div>
+                    </details>
+                  )}
                 </div>
               </div>
             </div>
           )}
         </div>
       </div>
+
+      {/* Column Mapper Modal */}
+      {showColumnMapper && (
+        <PackingListColumnMapper
+          previews={columnPreviews}
+          onConfirm={handleColumnMappingConfirm}
+          onCancel={handleColumnMappingCancel}
+        />
+      )}
     </div>
   );
 });

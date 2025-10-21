@@ -46,7 +46,7 @@ export class BatchCoreService {
         createdAt: new Date(),
         updatedAt: new Date()
       };
-      
+
       await setDoc(doc(db, 'batches', batch.batchId), newBatch);
       logger.info('Batch created successfully:', batch.batchId);
       return batch.batchId;
@@ -96,28 +96,29 @@ export class BatchCoreService {
       // Delete the batch document
       await deleteDoc(batchSnapshot.docs[0].ref);
       
-      // Clean up related data
-      // Delete batch requirements
-      const batchRequirementsCol = collection(db, 'batchRequirements');
-      const reqSnapshot = await getDocs(query(batchRequirementsCol, where('batchId', '==', batchId)));
-      for (const reqDoc of reqSnapshot.docs) {
-        await deleteDoc(reqDoc.ref);
-      }
-      
-      // Delete VIN plans
-      const vinPlansCol = collection(db, 'vin_plans');
-      const vinSnapshot = await getDocs(query(vinPlansCol, where('batchId', '==', batchId)));
-      for (const vinDoc of vinSnapshot.docs) {
-        await deleteDoc(vinDoc.ref);
-      }
-      
-      // Delete batch receipts
-      const receiptsCol = collection(db, 'batch_receipts');
-      const receiptSnapshot = await getDocs(query(receiptsCol, where('batchId', '==', batchId)));
-      for (const receiptDoc of receiptSnapshot.docs) {
-        await deleteDoc(receiptDoc.ref);
-      }
-      
+      // Clean up related data - OPTIMIZED: Run all queries in parallel, then delete all in parallel
+      logger.info('Fetching all related data for batch:', batchId);
+
+      const [reqSnapshot, vinSnapshot, receiptSnapshot, boxesSnapshot] = await Promise.all([
+        getDocs(query(collection(db, 'batchRequirements'), where('batchId', '==', batchId))),
+        getDocs(query(collection(db, 'vin_plans'), where('batchId', '==', batchId))),
+        getDocs(query(collection(db, 'batch_receipts'), where('batchId', '==', batchId))),
+        getDocs(query(collection(db, 'packingBoxes'), where('batchId', '==', batchId)))
+      ]);
+
+      logger.info(`Found ${reqSnapshot.size} requirements, ${vinSnapshot.size} VIN plans, ${receiptSnapshot.size} receipts, ${boxesSnapshot.size} packing boxes to delete`);
+
+      // OPTIMIZED: Delete all documents in parallel
+      const allDeletions = [
+        ...reqSnapshot.docs.map(doc => deleteDoc(doc.ref)),
+        ...vinSnapshot.docs.map(doc => deleteDoc(doc.ref)),
+        ...receiptSnapshot.docs.map(doc => deleteDoc(doc.ref)),
+        ...boxesSnapshot.docs.map(doc => deleteDoc(doc.ref))
+      ];
+
+      logger.info(`Deleting ${allDeletions.length} documents in parallel...`);
+      await Promise.all(allDeletions);
+
       logger.info(`Batch ${batchId} and all related data deleted successfully`);
     } catch (error) {
       logger.error('Failed to delete batch:', error);

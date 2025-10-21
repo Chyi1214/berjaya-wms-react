@@ -1,7 +1,7 @@
 // Manager-specific types for better type safety across components
-export type ManagerTab = 'overview' | 'checked' | 'expected' | 'compared' | 'transaction' | 'yesterday' | 'itemmaster' | 'scanner' | 'waste' | 'hr' | 'production_line' | 'production_stats' | 'car_tracking' | 'qa' | 'operations' | 'tasks' | 'feedback';
+export type ManagerTab = 'checked' | 'expected' | 'transaction' | 'itemmaster' | 'scanner' | 'waste' | 'hr' | 'production_line' | 'production_stats' | 'car_tracking' | 'qa' | 'operations' | 'tasks' | 'feedback';
 export type ManagerCategory = 'inventory' | 'production' | 'qa' | 'hr' | 'operations' | 'feedback';
-export type InventoryTab = 'overview' | 'checked' | 'expected' | 'compared' | 'transaction' | 'yesterday' | 'itemmaster' | 'scanner' | 'waste';
+export type InventoryTab = 'checked' | 'expected' | 'transaction' | 'itemmaster' | 'scanner' | 'waste';
 export type ProductionTab = 'production_line' | 'production_stats' | 'car_tracking';
 export type QATab = 'qa';
 export type OperationsTab = 'operations' | 'tasks';
@@ -10,7 +10,7 @@ export type ItemTab = 'items' | 'boms';
 
 // Type guards for better runtime safety
 export function isInventoryTab(tab: ManagerTab): tab is InventoryTab {
-  return ['overview', 'checked', 'expected', 'compared', 'transaction', 'yesterday', 'itemmaster', 'scanner', 'waste'].includes(tab);
+  return ['checked', 'expected', 'transaction', 'itemmaster', 'scanner', 'waste'].includes(tab);
 }
 
 export function isHRTab(tab: ManagerTab): tab is 'hr' {

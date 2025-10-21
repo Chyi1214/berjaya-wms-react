@@ -1,52 +1,61 @@
-// QA Section Component - Quality Assurance management
+// QA Section Component - Quality Assurance management with tabs
 import { useState } from 'react';
-import { useAuth } from '../../contexts/AuthContext';
-import { QAManagementCard } from '../operations';
+import QAInspectionManager from '../qa/inspection/QAInspectionManager';
+import QAInspectionAnalytics from '../qa/inspection/QAInspectionAnalytics';
+import ChecklistConfiguration from '../qa/config/ChecklistConfiguration';
 
 interface QASectionProps {
   onRefresh?: () => void;
 }
 
+type QATabType = 'manager' | 'analytics' | 'configuration';
+
 export function QASection({ onRefresh: _onRefresh }: QASectionProps) {
-  const { user } = useAuth();
-  const [qaStatus, setQaStatus] = useState<'idle' | 'initializing' | 'ready' | 'error'>('idle');
+  const [activeTab, setActiveTab] = useState<QATabType>('manager');
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div>
-        <h2 className="text-lg font-medium text-gray-900">🔬 Quality Assurance</h2>
-        <p className="text-sm text-gray-500">
-          Quality control, car inspections, and QA checklist management
-        </p>
+    <div>
+      {/* Sub-tabs for QA Section */}
+      <div className="border-b border-gray-200 bg-gray-50 px-6 py-3">
+        <div className="flex space-x-2">
+          <button
+            onClick={() => setActiveTab('manager')}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              activeTab === 'manager'
+                ? 'bg-blue-600 text-white'
+                : 'bg-white text-gray-700 hover:bg-gray-100'
+            }`}
+          >
+            Inspections Manager
+          </button>
+          <button
+            onClick={() => setActiveTab('analytics')}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              activeTab === 'analytics'
+                ? 'bg-blue-600 text-white'
+                : 'bg-white text-gray-700 hover:bg-gray-100'
+            }`}
+          >
+            Analytics
+          </button>
+          <button
+            onClick={() => setActiveTab('configuration')}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              activeTab === 'configuration'
+                ? 'bg-blue-600 text-white'
+                : 'bg-white text-gray-700 hover:bg-gray-100'
+            }`}
+          >
+            Configuration
+          </button>
+        </div>
       </div>
 
-      {/* QA Management */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <QAManagementCard 
-          user={user}
-          qaStatus={qaStatus}
-          setQaStatus={setQaStatus}
-        />
-        
-        {/* Add more QA-specific cards here as needed */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">📋 QA Checklists</h3>
-          <p className="text-gray-500 text-sm mb-4">Manage quality inspection checklists</p>
-          <div className="text-center py-4 text-gray-400">
-            <div className="text-3xl mb-2">🔧</div>
-            <p>Coming Soon</p>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">📊 QA Reports</h3>
-          <p className="text-gray-500 text-sm mb-4">Quality metrics and inspection reports</p>
-          <div className="text-center py-4 text-gray-400">
-            <div className="text-3xl mb-2">📈</div>
-            <p>Coming Soon</p>
-          </div>
-        </div>
+      {/* Tab Content */}
+      <div>
+        {activeTab === 'manager' && <QAInspectionManager />}
+        {activeTab === 'analytics' && <QAInspectionAnalytics />}
+        {activeTab === 'configuration' && <ChecklistConfiguration />}
       </div>
     </div>
   );

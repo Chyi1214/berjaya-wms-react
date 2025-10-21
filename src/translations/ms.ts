@@ -374,6 +374,106 @@ const malayTranslations: Translation = {
     channelDescription: 'Sehingga 2 pengguna boleh berbual dengan terjemahan automatik antara bahasa berbeza'
   },
 
+  // QA (Quality Assurance) Inspection
+  qa: {
+    title: 'Jaminan Kualiti',
+    carInspection: 'Pemeriksaan Kereta',
+    selectPositionAndScan: 'Pilih kedudukan anda, kemudian imbas VIN untuk memulakan pemeriksaan',
+    scanVIN: 'Imbas VIN',
+    enterVIN: 'Masukkan VIN',
+    enterVINNumber: 'Masukkan nombor VIN...',
+    enterVINOrUseScanner: 'Masukkan VIN atau gunakan pengimbas',
+    startInspection: 'Mula Pemeriksaan',
+    start: 'Mula',
+    completeInspection: 'Selesai Pemeriksaan',
+    completeSection: 'Selesai Bahagian',
+    backToDashboard: 'Kembali ke Papan Pemuka',
+    selectYourPosition: 'Pilih Kedudukan Anda',
+    scanVINNumber: 'Imbas Nombor VIN',
+    openCameraScanner: 'Buka Pengimbas Kamera',
+    scanVINBarcode: 'Imbas Kod Bar VIN',
+    position: 'Kedudukan',
+    step: 'Langkah',
+    instructions: 'Arahan',
+    instructionsList: {
+      step1: 'Pilih kedudukan anda (kawasan yang akan anda periksa)',
+      step2: 'Imbas VIN menggunakan pengimbas kamera atau taip secara manual',
+      step3: 'Lalui senarai semak dan tandakan setiap item',
+      step4: 'Selesai apabila semua item dalam bahagian anda telah diperiksa'
+    },
+    tip: 'Petua',
+    tipText: 'Gunakan butang pengimbas kamera di atas, atau taip VIN secara manual',
+    loading: 'Memuatkan...',
+    points: 'mata',
+
+    // Sections
+    sections: {
+      rightOutside: 'Luar Kanan',
+      leftOutside: 'Luar Kiri',
+      frontBack: 'Depan & Belakang',
+      interiorRight: 'Dalaman Kanan',
+      interiorLeft: 'Dalaman Kiri'
+    },
+
+    // Status
+    status: {
+      notStarted: 'Belum Bermula',
+      inProgress: 'Dalam Proses',
+      completed: 'Selesai'
+    },
+
+    // Inspection checklist
+    progress: 'Kemajuan',
+    itemsChecked: 'Item Diperiksa',
+    item: 'Item',
+    items: 'Item',
+    defectType: 'Jenis Kecacatan',
+    selectDefectType: 'Pilih jenis kecacatan',
+    notes: 'Nota',
+    addNotes: 'Tambah nota (pilihan)',
+    photos: 'Gambar',
+    addPhoto: 'Tambah Gambar',
+    uploadPhoto: 'Muat Naik Gambar',
+    takePhoto: 'Ambil Gambar',
+    removePhoto: 'Buang Gambar',
+
+    // Defect types (common defaults - can be customized via CSV)
+    defects: {
+      notInstalled: 'Tidak dipasang dengan betul',
+      scratches: 'Calar',
+      paintDefect: 'Kecacatan Cat',
+      dent: 'Kemek',
+      gap: 'Celah',
+      ok: 'OK',
+      missing: 'Hilang',
+      broken: 'Rosak',
+      dirty: 'Kotor',
+      crack: 'Retak'
+    },
+
+    // Messages
+    messages: {
+      pleaseSelectSection: 'Sila pilih bahagian',
+      pleaseEnterVIN: 'Sila masukkan nombor VIN',
+      inspectionCreated: 'Pemeriksaan dibuat',
+      sectionCompleted: 'Bahagian selesai',
+      inspectionCompleted: 'Pemeriksaan selesai',
+      failedToSave: 'Gagal menyimpan',
+      pleaseCheckAllItems: 'Sila periksa semua item',
+      uploadingPhoto: 'Memuat naik gambar...',
+      photoUploaded: 'Gambar dimuat naik',
+      photoUploadFailed: 'Gagal memuat naik gambar'
+    },
+
+    // Inspection info
+    vin: 'VIN',
+    carType: 'Jenis Kereta',
+    inspector: 'Pemeriksa',
+    inspectionDate: 'Tarikh Pemeriksaan',
+    inspectionTime: 'Masa Pemeriksaan',
+    totalDefects: 'Jumlah Kecacatan'
+  },
+
   // Footer
   footer: {
     copyright: '© 2025 Berjaya Autotech - Sistem Pengurusan Gudang',

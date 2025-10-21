@@ -6,6 +6,7 @@ import {
   setDoc,
   getDocs,
   query,
+  where,
   orderBy,
   Timestamp,
   updateDoc
@@ -41,14 +42,8 @@ const mapFirestoreToBatchAllocation = (data: Record<string, any>): BatchAllocati
   createdAt: data.createdAt?.toDate() || new Date()
 });
 
-// Convert Firestore document to BatchConfig
-const mapFirestoreToBatchConfig = (data: Record<string, any>): BatchConfig => ({
-  activeBatch: data.activeBatch || '',
-  availableBatches: data.availableBatches || [],
-  updatedBy: data.updatedBy || '',
-  updatedAt: data.updatedAt?.toDate() || new Date(),
-  createdAt: data.createdAt?.toDate() || new Date()
-});
+// Convert Firestore document to BatchConfig (kept for saveBatchConfig compatibility)
+// No longer used by getBatchConfig which now dynamically fetches activated batches
 
 // Convert to Firestore format
 const mapBatchAllocationToFirestore = (allocation: BatchAllocation) => ({
@@ -60,27 +55,73 @@ const mapBatchAllocationToFirestore = (allocation: BatchAllocation) => ({
   createdAt: Timestamp.fromDate(allocation.createdAt)
 });
 
-const mapBatchConfigToFirestore = (config: BatchConfig) => ({
-  activeBatch: config.activeBatch,
-  availableBatches: config.availableBatches,
-  updatedBy: config.updatedBy,
-  updatedAt: Timestamp.fromDate(config.updatedAt),
-  createdAt: Timestamp.fromDate(config.createdAt)
-});
+// mapBatchConfigToFirestore removed - no longer needed as we save minimal config data directly
 
 class BatchAllocationService {
   // ========= Batch Configuration Management =========
 
+  /**
+   * Get activated batches dynamically from the batches collection
+   * Only returns batches with status = 'in_progress'
+   * OPTIMIZED: Uses where clause to filter at database level
+   */
+  async getActivatedBatches(): Promise<string[]> {
+    try {
+      const batchesRef = collection(db, 'batches');
+      // OPTIMIZED: Filter by status at database level for better performance
+      const q = query(
+        batchesRef,
+        where('status', '==', 'in_progress'),
+        orderBy('batchId')
+      );
+      const snapshot = await getDocs(q);
+
+      const activatedBatches: string[] = [];
+      snapshot.forEach((doc) => {
+        const batch = doc.data();
+        activatedBatches.push(batch.batchId);
+      });
+
+      logger.info('Found activated batches:', { count: activatedBatches.length, batches: activatedBatches });
+      return activatedBatches;
+    } catch (error) {
+      logger.error('Error getting activated batches:', error);
+      throw new Error('Failed to get activated batches');
+    }
+  }
+
   async getBatchConfig(): Promise<BatchConfig | null> {
     try {
+      // UPDATED: Dynamically fetch activated batches
+      const activatedBatches = await this.getActivatedBatches();
+
+      if (activatedBatches.length === 0) {
+        logger.warn('No activated batches found');
+        return null;
+      }
+
+      // Check if there's a stored default batch preference
       const docRef = doc(db, BATCH_CONFIG_COLLECTION, 'default');
       const docSnap = await getDoc(docRef);
 
+      let defaultBatch = activatedBatches[0]; // Fallback to first activated batch
+
       if (docSnap.exists()) {
-        return mapFirestoreToBatchConfig(docSnap.data());
+        const storedDefault = docSnap.data().activeBatch;
+        // Only use stored default if it's still in the activated batches list
+        if (storedDefault && activatedBatches.includes(storedDefault)) {
+          defaultBatch = storedDefault;
+        }
       }
 
-      return null;
+      // Return config with activated batches and selected default
+      return {
+        activeBatch: defaultBatch,
+        availableBatches: activatedBatches,
+        updatedBy: docSnap.exists() ? docSnap.data().updatedBy : 'system',
+        updatedAt: docSnap.exists() ? docSnap.data().updatedAt?.toDate() || new Date() : new Date(),
+        createdAt: docSnap.exists() ? docSnap.data().createdAt?.toDate() || new Date() : new Date()
+      };
     } catch (error) {
       logger.error('Error getting batch configuration:', error);
       throw new Error('Failed to get batch configuration');
@@ -89,22 +130,27 @@ class BatchAllocationService {
 
   async saveBatchConfig(config: Omit<BatchConfig, 'createdAt' | 'updatedAt'>): Promise<void> {
     try {
+      // UPDATED: Only save the default batch preference, not the available batches
+      // Available batches are now dynamically fetched from activated batches
       const docRef = doc(db, BATCH_CONFIG_COLLECTION, 'default');
 
       // Check if document exists
       const existing = await getDoc(docRef);
       const now = new Date();
 
-      const fullConfig: BatchConfig = {
-        ...config,
-        updatedAt: now,
-        createdAt: existing.exists() ? existing.data().createdAt?.toDate() || now : now
+      // Only store the active batch preference and metadata
+      const configData = {
+        activeBatch: config.activeBatch, // Only the default selection
+        updatedBy: config.updatedBy,
+        updatedAt: Timestamp.fromDate(now),
+        createdAt: existing.exists()
+          ? existing.data().createdAt
+          : Timestamp.fromDate(now)
       };
 
-      const firestoreData = prepareForFirestore(mapBatchConfigToFirestore(fullConfig));
-      await setDoc(docRef, firestoreData);
+      await setDoc(docRef, prepareForFirestore(configData));
 
-      logger.info('Batch configuration saved:', { activeBatch: config.activeBatch });
+      logger.info('Default batch preference saved:', { activeBatch: config.activeBatch, updatedBy: config.updatedBy });
     } catch (error) {
       logger.error('Error saving batch configuration:', error);
       throw new Error('Failed to save batch configuration');
@@ -373,20 +419,176 @@ class BatchAllocationService {
 
   async initializeDefaultConfig(): Promise<void> {
     try {
-      const existing = await this.getBatchConfig();
-
-      if (!existing) {
-        await this.saveBatchConfig({
-          activeBatch: '001',
-          availableBatches: ['001'],
-          updatedBy: 'system'
-        });
-
-        logger.info('Initialized default batch configuration');
-      }
+      // NO LONGER NEEDED: getBatchConfig now dynamically fetches activated batches
+      // This method is kept for backwards compatibility but does nothing
+      logger.info('Batch configuration is now dynamic - no initialization needed');
     } catch (error) {
       logger.error('Error initializing batch configuration:', error);
       throw new Error('Failed to initialize batch configuration');
+    }
+  }
+
+  // ========= Clean Stock Methods =========
+
+  /**
+   * Zero all stock for a specific batch across all SKUs and locations
+   */
+  async zeroStockForBatch(batchId: string, updatedBy: string): Promise<{ skusAffected: number; totalZeroed: number }> {
+    try {
+      const allocations = await this.getAllBatchAllocations();
+      let skusAffected = 0;
+      let totalZeroed = 0;
+
+      const updatePromises = allocations.map(async (allocation) => {
+        const batchQty = allocation.allocations[batchId];
+        if (batchQty && batchQty > 0) {
+          totalZeroed += batchQty;
+          skusAffected++;
+
+          // LAYER 2: Remove this batch from batch allocations
+          const updatedAllocations = { ...allocation.allocations };
+          delete updatedAllocations[batchId];
+
+          const newTotal = Object.values(updatedAllocations).reduce((sum: number, qty) => sum + (qty as number), 0);
+
+          const docId = `${allocation.sku}_${allocation.location}`;
+          const batchDocRef = doc(db, BATCH_ALLOCATIONS_COLLECTION, docId);
+
+          await updateDoc(batchDocRef, prepareForFirestore({
+            allocations: updatedAllocations,
+            totalAllocated: newTotal,
+            lastUpdated: Timestamp.now()
+          }));
+
+          // LAYER 1: Subtract batch quantity from raw inventory
+          const expectedDocRef = doc(db, 'expected_inventory', docId);
+          const expectedSnap = await getDoc(expectedDocRef);
+
+          if (expectedSnap.exists()) {
+            const currentAmount = expectedSnap.data().amount || 0;
+            const newAmount = Math.max(0, currentAmount - batchQty);
+
+            await updateDoc(expectedDocRef, {
+              amount: newAmount,
+              timestamp: Timestamp.now()
+            });
+
+            logger.debug(`Updated raw inventory: ${allocation.sku} at ${allocation.location}: ${currentAmount} → ${newAmount}`);
+          }
+        }
+      });
+
+      await Promise.all(updatePromises);
+
+      logger.info('Zeroed stock for batch', { batchId, skusAffected, totalZeroed, updatedBy });
+      return { skusAffected, totalZeroed };
+    } catch (error) {
+      logger.error('Error zeroing stock for batch:', error);
+      throw new Error('Failed to zero stock for batch');
+    }
+  }
+
+  /**
+   * Zero all stock that is not assigned to any batch (UNASSIGNED items)
+   */
+  async zeroUnassignedStock(updatedBy: string): Promise<{ skusAffected: number; totalZeroed: number }> {
+    try {
+      const allocations = await this.getAllBatchAllocations();
+      let skusAffected = 0;
+      let totalZeroed = 0;
+
+      const updatePromises = allocations.map(async (allocation) => {
+        const unassignedQty = allocation.allocations['UNASSIGNED'];
+        if (unassignedQty && unassignedQty > 0) {
+          totalZeroed += unassignedQty;
+          skusAffected++;
+
+          // LAYER 2: Remove UNASSIGNED from batch allocations
+          const updatedAllocations = { ...allocation.allocations };
+          delete updatedAllocations['UNASSIGNED'];
+
+          const newTotal = Object.values(updatedAllocations).reduce((sum: number, qty) => sum + (qty as number), 0);
+
+          const docId = `${allocation.sku}_${allocation.location}`;
+          const batchDocRef = doc(db, BATCH_ALLOCATIONS_COLLECTION, docId);
+
+          await updateDoc(batchDocRef, prepareForFirestore({
+            allocations: updatedAllocations,
+            totalAllocated: newTotal,
+            lastUpdated: Timestamp.now()
+          }));
+
+          // LAYER 1: Subtract unassigned quantity from raw inventory
+          const expectedDocRef = doc(db, 'expected_inventory', docId);
+          const expectedSnap = await getDoc(expectedDocRef);
+
+          if (expectedSnap.exists()) {
+            const currentAmount = expectedSnap.data().amount || 0;
+            const newAmount = Math.max(0, currentAmount - unassignedQty);
+
+            await updateDoc(expectedDocRef, {
+              amount: newAmount,
+              timestamp: Timestamp.now()
+            });
+
+            logger.debug(`Updated raw inventory: ${allocation.sku} at ${allocation.location}: ${currentAmount} → ${newAmount}`);
+          }
+        }
+      });
+
+      await Promise.all(updatePromises);
+
+      logger.info('Zeroed unassigned stock', { skusAffected, totalZeroed, updatedBy });
+      return { skusAffected, totalZeroed };
+    } catch (error) {
+      logger.error('Error zeroing unassigned stock:', error);
+      throw new Error('Failed to zero unassigned stock');
+    }
+  }
+
+  /**
+   * Zero ALL stock across all batches and locations
+   */
+  async zeroAllStock(updatedBy: string): Promise<{ skusAffected: number; totalZeroed: number }> {
+    try {
+      const allocations = await this.getAllBatchAllocations();
+      let skusAffected = allocations.length;
+      let totalZeroed = 0;
+
+      const updatePromises = allocations.map(async (allocation) => {
+        totalZeroed += allocation.totalAllocated;
+
+        const docId = `${allocation.sku}_${allocation.location}`;
+
+        // LAYER 2: Set all batch allocations to zero
+        const batchDocRef = doc(db, BATCH_ALLOCATIONS_COLLECTION, docId);
+        await updateDoc(batchDocRef, prepareForFirestore({
+          allocations: {},
+          totalAllocated: 0,
+          lastUpdated: Timestamp.now()
+        }));
+
+        // LAYER 1: Set raw inventory to zero
+        const expectedDocRef = doc(db, 'expected_inventory', docId);
+        const expectedSnap = await getDoc(expectedDocRef);
+
+        if (expectedSnap.exists()) {
+          await updateDoc(expectedDocRef, {
+            amount: 0,
+            timestamp: Timestamp.now()
+          });
+
+          logger.debug(`Zeroed raw inventory: ${allocation.sku} at ${allocation.location}`);
+        }
+      });
+
+      await Promise.all(updatePromises);
+
+      logger.warn('ZEROED ALL STOCK', { skusAffected, totalZeroed, updatedBy });
+      return { skusAffected, totalZeroed };
+    } catch (error) {
+      logger.error('Error zeroing all stock:', error);
+      throw new Error('Failed to zero all stock');
     }
   }
 }

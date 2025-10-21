@@ -5,6 +5,8 @@ import { useLanguage } from '../contexts/LanguageContext';
 
 interface EnhancedInventoryTableProps {
   counts: InventoryCountEntry[];
+  showActions?: boolean;
+  onAdjustStock?: (sku: string, location: string) => void;
 }
 
 // Zone-specific inventory data

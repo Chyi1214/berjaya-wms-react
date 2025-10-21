@@ -1,33 +1,43 @@
 // Unified Logistics Monitor - Batch-focused view with current vs belonging locations
 import { useState, useEffect } from 'react';
 import { ScanLookup } from '../../types';
-import { tableStateService } from '../../services/tableState';
 import { scanLookupService } from '../../services/scanLookupService';
-import { batchAllocationService } from '../../services/batchAllocationService';
 import { packingBoxesService } from '../../services/packingBoxesService';
 
 interface UnifiedLogisticsMonitorProps {
   userEmail: string;
 }
 
-interface LocationData {
+interface ZoneItemStatus {
   sku: string;
   itemName: string;
-  location: string;
-  quantity: number;
+  total: number;
+  locationDistribution: Record<string, number>; // actual locations and quantities
+  deliveryRate: number; // percentage delivered to zone
+  isComplete: boolean; // true when inLogistics === 0
+}
+
+interface ZoneData {
+  zoneName: string;
+  zoneId: string;
+  items: ZoneItemStatus[];
+  completionRate: number; // percentage of items complete
+  blockingItem: ZoneItemStatus | null; // item with lowest delivery rate
 }
 
 export function UnifiedLogisticsMonitor({ userEmail: _userEmail }: UnifiedLogisticsMonitorProps) {
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [unboxedBoxes, setUnboxedBoxes] = useState<number>(0);
-  const [activeTab, setActiveTab] = useState<'zones' | 'boxes'>('zones');
+  const [totalBoxes, setTotalBoxes] = useState<number>(0);
+  const [activeTab, setActiveTab] = useState<'zones' | 'boxes'>('boxes');
 
   // Batch selection
   const [availableBatches, setAvailableBatches] = useState<string[]>([]);
   const [selectedBatch, setSelectedBatch] = useState<string>('');
 
   // Data for selected batch
-  const [currentLocationData, setCurrentLocationData] = useState<LocationData[]>([]);
+  const [zoneData, setZoneData] = useState<ZoneData[]>([]);
   const [boxes, setBoxes] = useState<Awaited<ReturnType<typeof packingBoxesService.listBoxes>>>([]);
   const [expandedBox, setExpandedBox] = useState<string | null>(null);
   const [boxScans, setBoxScans] = useState<Record<string, Array<{ sku: string; qty: number; userEmail: string; timestamp: Date }>>>({});
@@ -37,21 +47,36 @@ export function UnifiedLogisticsMonitor({ userEmail: _userEmail }: UnifiedLogist
     try {
       setLoading(true);
 
-      // Load unboxed boxes count
-      const unboxedCount = await tableStateService.getUnboxedBoxesCount();
-      setUnboxedBoxes(unboxedCount);
+      // Load ONLY activated batches (status = 'in_progress') from batch management
+      const { batchManagementService } = await import('../../services/batchManagement');
+      const allBatches = await batchManagementService.getAllBatches();
+      const activatedBatches = allBatches
+        .filter(batch => batch.status === 'in_progress')
+        .map(batch => batch.batchId)
+        .sort();
 
-      // Load available batches from batch configuration
-      const batchConfig = await batchAllocationService.getBatchConfig();
-      const batchIds = batchConfig?.availableBatches || [];
-      setAvailableBatches(batchIds);
+      setAvailableBatches(activatedBatches);
 
-      console.log('🎯 Loaded batch config:', batchConfig);
-      console.log('📦 Available batches:', batchIds);
+      console.log('🎯 Loaded activated batches:', activatedBatches);
 
-      // Set active batch as default if available
-      if (batchIds.length > 0 && !selectedBatch) {
-        const defaultBatch = batchConfig?.activeBatch || batchIds[0];
+      // Count unboxed boxes and total boxes from all activated batches
+      let totalUnboxedBoxes = 0;
+      let allBoxesCount = 0;
+      for (const batchId of activatedBatches) {
+        const boxes = await packingBoxesService.listBoxes(batchId);
+        allBoxesCount += boxes.length;
+        // Count boxes that are not complete
+        const unboxedCount = boxes.filter(box => box.status !== 'complete').length;
+        totalUnboxedBoxes += unboxedCount;
+      }
+      setUnboxedBoxes(totalUnboxedBoxes);
+      setTotalBoxes(allBoxesCount);
+
+      console.log(`📦 Unboxing progress: ${allBoxesCount - totalUnboxedBoxes}/${allBoxesCount} boxes complete (${totalUnboxedBoxes} remaining)`);
+
+      // Set first activated batch as default if available
+      if (activatedBatches.length > 0 && !selectedBatch) {
+        const defaultBatch = activatedBatches[0];
         setSelectedBatch(defaultBatch);
         console.log('🔄 Set default batch:', defaultBatch);
       }
@@ -63,77 +88,136 @@ export function UnifiedLogisticsMonitor({ userEmail: _userEmail }: UnifiedLogist
     }
   };
 
-  // Load batch-specific data
+  // Load batch-specific zone data with smart caching
   const loadBatchData = async (batchId: string) => {
     if (!batchId) return;
 
     try {
-      // Get batch allocations for this batch
-      const batchAllocations = await batchAllocationService.getAllBatchAllocations();
-      const filteredAllocations = batchAllocations.filter((allocation: any) =>
-        allocation.allocations && allocation.allocations[batchId]
-      );
+      console.log('📊 Loading zone data for batch', batchId);
 
-      // Get current inventory locations
-      const inventoryData = await tableStateService.getExpectedInventory();
-
-      // Get scanner lookup data for target destinations
-      const scannerData = await scanLookupService.getAllLookups();
-
-      // Group by target destination
-      const destinationGroups: Record<string, LocationData[]> = {};
-
-      filteredAllocations.forEach((allocation: any) => {
-        // Find all scanner lookups for this SKU (multiple target zones possible)
-        const scannerLookups = scannerData.filter((lookup: ScanLookup) => lookup.sku === allocation.sku);
-
-        scannerLookups.forEach((scannerLookup: ScanLookup) => {
-          const targetDestination = `Zone ${scannerLookup.targetZone}`;
-
-          if (!destinationGroups[targetDestination]) {
-            destinationGroups[targetDestination] = [];
-          }
-
-          // Find current inventory for this SKU
-          const inventoryItem = inventoryData.find(inv =>
-            inv.sku === allocation.sku && inv.location === allocation.location
-          );
-
-          if (inventoryItem && inventoryItem.amount > 0) {
-            // Get the quantity allocated to this specific batch
-            const batchQuantity = allocation.allocations[batchId] || 0;
-
-            // Only show items that have allocation for this batch
-            if (batchQuantity > 0) {
-              destinationGroups[targetDestination].push({
-                sku: allocation.sku,
-                itemName: scannerLookup.itemName || inventoryItem.itemName || allocation.sku,
-                location: `Currently at: ${inventoryItem.location}`,
-                quantity: batchQuantity  // Show batch-specific quantity (now properly updated by transactions)
-              });
-            }
-          }
+      // Step 1: Get total quantities needed from packing boxes (source of truth)
+      const boxes = await packingBoxesService.listBoxes(batchId);
+      const batchTotals = new Map<string, number>();
+      boxes.forEach(box => {
+        Object.entries(box.expectedBySku).forEach(([sku, qty]) => {
+          batchTotals.set(sku, (batchTotals.get(sku) || 0) + qty);
         });
       });
 
-      // Convert to flat list for rendering, sorted by destination
-      const flatData: LocationData[] = [];
-      Object.keys(destinationGroups)
-        .sort()
-        .forEach(destination => {
-          // Add destination header
-          flatData.push({
-            sku: `DESTINATION_${destination}`,
-            itemName: destination,
-            location: 'TARGET_DESTINATION',
-            quantity: 0
-          });
+      console.log(`📦 Batch totals calculated for ${batchTotals.size} SKUs`);
 
-          // Add items under this destination
-          flatData.push(...destinationGroups[destination]);
+      // Step 2: Get scanner lookup data (Layer 1 - which zone each SKU belongs to)
+      const scannerData = await scanLookupService.getAllLookups();
+
+      // Build SKU -> Zone mapping from scanner lookup
+      const skuToZoneMap = new Map<string, string>();
+      scannerData.forEach((lookup: ScanLookup) => {
+        if (!skuToZoneMap.has(lookup.sku)) {
+          skuToZoneMap.set(lookup.sku, lookup.targetZone);
+        }
+      });
+
+      // Step 3: Get batch allocations (Layer 2 - actual batch-specific inventory distribution)
+      const { batchAllocationService } = await import('../../services/batchAllocationService');
+      const allAllocations = await batchAllocationService.getAllBatchAllocations();
+
+      console.log(`🔍 Loaded ${allAllocations.length} batch allocation records`);
+
+      // Build zone-centric view using batch allocations
+      const zoneMap = new Map<string, ZoneItemStatus[]>();
+
+      // For each SKU in the batch
+      batchTotals.forEach((total, sku) => {
+        // Get the zone this SKU belongs to from scanner lookup
+        const targetZoneId = skuToZoneMap.get(sku);
+        if (!targetZoneId) {
+          console.warn(`⚠️ SKU ${sku} has no scanner lookup entry - skipping`);
+          return;
+        }
+
+        const zoneName = `Zone ${targetZoneId}`;
+
+        // Get batch-specific inventory distribution from allocations (Layer 2 - Internal Knowledge)
+        const locationDistribution: Record<string, number> = {};
+        let totalAllocated = 0;
+
+        // Find all allocations for this SKU that have quantity for this batch
+        allAllocations.forEach(allocation => {
+          if (allocation.sku === sku) {
+            const qtyForBatch = allocation.allocations[batchId] || 0;
+
+            if (qtyForBatch > 0) {
+              console.log(`  📍 ${sku} @ ${allocation.location}: ${qtyForBatch} units for batch ${batchId}`);
+              locationDistribution[allocation.location] = qtyForBatch;
+              totalAllocated += qtyForBatch;
+            }
+          }
         });
 
-      setCurrentLocationData(flatData);
+        console.log(`  ✅ ${sku} distribution:`, locationDistribution, `(total needed: ${total})`);
+
+        // Only add to zone map if there's actual batch allocation
+        if (totalAllocated === 0) {
+          console.log(`  ⏭️ Skipping ${sku} - no batch allocation yet`);
+          return;
+        }
+
+        // Calculate delivery rate and completion based on logistics
+        const inLogistics = locationDistribution['logistics'] || 0;
+        const inOtherLocations = totalAllocated - inLogistics;
+        const deliveryRate = total > 0 ? Math.round((inOtherLocations / total) * 100) : 0;
+        const isComplete = inLogistics === 0 && totalAllocated >= total;
+
+        // Find scanner lookup for item name
+        const scannerLookup = scannerData.find((lookup: ScanLookup) => lookup.sku === sku);
+
+        // Add to zone map
+        if (!zoneMap.has(zoneName)) {
+          zoneMap.set(zoneName, []);
+        }
+
+        zoneMap.get(zoneName)!.push({
+          sku,
+          itemName: scannerLookup?.itemName || sku,
+          total,
+          locationDistribution,
+          deliveryRate,
+          isComplete
+        });
+      });
+
+      // Step 4: Calculate zone-level metrics (completion rate, blocking items)
+      const zones: ZoneData[] = [];
+      zoneMap.forEach((items, zoneName) => {
+        const completeItems = items.filter(item => item.isComplete).length;
+        const completionRate = items.length > 0 ? Math.round((completeItems / items.length) * 100) : 0;
+
+        // Find blocking item (lowest delivery rate among incomplete items)
+        const incompleteItems = items.filter(item => !item.isComplete);
+        const blockingItem = incompleteItems.length > 0
+          ? incompleteItems.reduce((min, item) => item.deliveryRate < min.deliveryRate ? item : min)
+          : null;
+
+        // Sort items: incomplete first (by delivery rate), then complete
+        const sortedItems = [
+          ...incompleteItems.sort((a, b) => a.deliveryRate - b.deliveryRate),
+          ...items.filter(item => item.isComplete).sort((a, b) => a.sku.localeCompare(b.sku))
+        ];
+
+        zones.push({
+          zoneName,
+          zoneId: zoneName.replace('Zone ', ''),
+          items: sortedItems,
+          completionRate,
+          blockingItem
+        });
+      });
+
+      // Sort zones by completion rate (least complete first - needs attention)
+      zones.sort((a, b) => a.completionRate - b.completionRate);
+
+      setZoneData(zones);
+      console.log(`✅ Loaded ${zones.length} zones with cached calculations`);
 
     } catch (error) {
       console.error('Failed to load batch data:', error);
@@ -151,19 +235,41 @@ export function UnifiedLogisticsMonitor({ userEmail: _userEmail }: UnifiedLogist
       if (activeTab === 'zones') {
         loadBatchData(selectedBatch);
       } else {
-        // Boxes tab: load boxes for batch
-        (async () => {
-          try {
-            const b = await packingBoxesService.listBoxes(selectedBatch);
-            setBoxes(b);
-          } catch (e) {
-            console.error('Failed to load boxes:', e);
-            setBoxes([]);
-          }
-        })();
+        loadBoxesData(selectedBatch);
       }
     }
   }, [selectedBatch, activeTab]);
+
+  // Load boxes data
+  const loadBoxesData = async (batchId: string) => {
+    try {
+      const b = await packingBoxesService.listBoxes(batchId);
+      setBoxes(b);
+    } catch (e) {
+      console.error('Failed to load boxes:', e);
+      setBoxes([]);
+    }
+  };
+
+  // Refresh current view
+  const handleRefresh = async () => {
+    if (!selectedBatch) return;
+
+    setRefreshing(true);
+    try {
+      if (activeTab === 'zones') {
+        await loadBatchData(selectedBatch);
+      } else {
+        await loadBoxesData(selectedBatch);
+        // Also refresh unboxing progress
+        await loadData();
+      }
+    } catch (error) {
+      console.error('Failed to refresh:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -179,29 +285,55 @@ export function UnifiedLogisticsMonitor({ userEmail: _userEmail }: UnifiedLogist
       {/* Tabs */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-2 flex space-x-2">
         <button
-          className={`px-3 py-1 rounded ${activeTab === 'zones' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
-          onClick={() => setActiveTab('zones')}
-        >
-          Zones
-        </button>
-        <button
           className={`px-3 py-1 rounded ${activeTab === 'boxes' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
           onClick={() => setActiveTab('boxes')}
         >
           Boxes
         </button>
+        <button
+          className={`px-3 py-1 rounded ${activeTab === 'zones' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+          onClick={() => setActiveTab('zones')}
+        >
+          Zones
+        </button>
       </div>
-      {/* Top Metric Row */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="flex items-center justify-center">
-          <div className="text-center">
-            <div className="text-4xl font-bold text-blue-600">{unboxedBoxes}</div>
-            <div className="text-gray-600 font-medium">📦 Unboxed Boxes</div>
+      {/* Top Metric Row - Only show on Boxes tab */}
+      {activeTab === 'boxes' && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="flex flex-col items-center justify-center space-y-4">
+            <div className="text-center">
+              <div className="text-4xl font-bold text-blue-600">{unboxedBoxes}</div>
+              <div className="text-gray-600 font-medium">📦 Unboxed Boxes Remaining</div>
+            </div>
+
+            {/* Progress Bar */}
+            {totalBoxes > 0 && (
+              <div className="w-full max-w-md">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm text-gray-600">Unboxing Progress</span>
+                  <span className="text-sm font-medium text-gray-900">
+                    {totalBoxes - unboxedBoxes} / {totalBoxes} boxes complete
+                  </span>
+                </div>
+                <div className="w-full h-4 bg-gray-200 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-blue-500 to-green-500 transition-all duration-500 ease-out"
+                    style={{ width: `${totalBoxes > 0 ? ((totalBoxes - unboxedBoxes) / totalBoxes) * 100 : 0}%` }}
+                  />
+                </div>
+                <div className="text-center mt-2">
+                  <span className="text-2xl font-bold text-green-600">
+                    {totalBoxes > 0 ? Math.round(((totalBoxes - unboxedBoxes) / totalBoxes) * 100) : 0}%
+                  </span>
+                  <span className="text-sm text-gray-600 ml-2">Complete</span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Batch Selector */}
+      {/* Batch Selector with Refresh Button */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <div className="flex items-center space-x-4">
           <label className="text-lg font-semibold text-gray-900">🎯 Select Batch:</label>
@@ -217,55 +349,171 @@ export function UnifiedLogisticsMonitor({ userEmail: _userEmail }: UnifiedLogist
               </option>
             ))}
           </select>
+          {selectedBatch && (
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className={`px-4 py-2 rounded-md font-medium transition-colors ${
+                refreshing
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  : 'bg-blue-600 text-white hover:bg-blue-700'
+              }`}
+            >
+              {refreshing ? (
+                <span className="flex items-center space-x-2">
+                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  <span>Refreshing...</span>
+                </span>
+              ) : (
+                <span className="flex items-center space-x-2">
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  <span>Refresh</span>
+                </span>
+              )}
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Zones view */}
+      {/* Zones view - Redesigned for visual delivery tracking */}
       {selectedBatch && activeTab === 'zones' && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-          <div className="p-4 border-b border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900">🎯 Items Grouped by Target Destination</h3>
-            <p className="text-sm text-gray-600">Showing where items should go and their current locations</p>
-          </div>
-          <div className="p-4">
-            {currentLocationData.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                <div className="text-4xl mb-2">📭</div>
-                <p>No items found for this batch</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {currentLocationData.map((item, index) => {
-                  // Check if this is a destination header
-                  if (item.location === 'TARGET_DESTINATION') {
-                    return (
-                      <div key={index} className="mt-6 mb-3 first:mt-0">
-                        <div className="flex items-center space-x-2 pb-2 border-b-2 border-blue-200">
-                          <div className="text-xl">🎯</div>
-                          <h4 className="text-lg font-semibold text-blue-800">{item.itemName}</h4>
-                        </div>
+        <div className="space-y-4">
+          {zoneData.length === 0 ? (
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center text-gray-500">
+              <div className="text-4xl mb-2">📭</div>
+              <p>No zone assignments found for this batch</p>
+            </div>
+          ) : (
+            zoneData.map((zone) => (
+              <div key={zone.zoneName} className="bg-white rounded-lg shadow-sm border-2 border-gray-200 overflow-hidden">
+                {/* Zone Header with Completion Status */}
+                <div className={`p-4 ${
+                  zone.completionRate === 100 ? 'bg-green-50 border-b-2 border-green-200' :
+                  zone.completionRate >= 50 ? 'bg-yellow-50 border-b-2 border-yellow-200' :
+                  'bg-red-50 border-b-2 border-red-200'
+                }`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center space-x-3">
+                      <div className="text-2xl">
+                        {zone.completionRate === 100 ? '✅' : zone.completionRate >= 50 ? '🟡' : '🔴'}
                       </div>
-                    );
-                  }
-
-                  // Regular item under a destination
-                  return (
-                    <div key={index} className="flex items-center justify-between p-3 bg-blue-50 rounded-lg ml-6">
-                      <div className="flex-1">
-                        <div className="font-medium text-gray-900">{item.sku}</div>
-                        <div className="text-sm text-gray-600">{item.itemName}</div>
-                        <div className="text-xs text-blue-600 mt-1">{item.location}</div>
-                      </div>
-                      <div className="text-right">
-                        <div className="font-bold text-lg text-blue-600">{item.quantity}</div>
-                        <div className="text-xs text-gray-500">units</div>
+                      <div>
+                        <h3 className="text-xl font-bold text-gray-900">{zone.zoneName}</h3>
+                        <p className="text-sm text-gray-600">
+                          {zone.items.filter(i => i.isComplete).length} / {zone.items.length} items delivered
+                        </p>
                       </div>
                     </div>
-                  );
-                })}
+                    <div className="text-right">
+                      <div className={`text-3xl font-bold ${
+                        zone.completionRate === 100 ? 'text-green-600' :
+                        zone.completionRate >= 50 ? 'text-yellow-600' :
+                        'text-red-600'
+                      }`}>
+                        {zone.completionRate}%
+                      </div>
+                      <div className="text-xs text-gray-600">Complete</div>
+                    </div>
+                  </div>
+
+                  {/* Progress Bar */}
+                  <div className="w-full h-3 bg-gray-200 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full transition-all duration-500 ${
+                        zone.completionRate === 100 ? 'bg-green-500' :
+                        zone.completionRate >= 50 ? 'bg-yellow-500' :
+                        'bg-red-500'
+                      }`}
+                      style={{ width: `${zone.completionRate}%` }}
+                    />
+                  </div>
+
+                  {/* Blocking Item Alert */}
+                  {zone.blockingItem && (
+                    <div className="mt-3 p-3 bg-red-100 border border-red-300 rounded-lg">
+                      <div className="flex items-start space-x-2">
+                        <div className="text-xl">⚠️</div>
+                        <div className="flex-1">
+                          <div className="font-bold text-red-900">BLOCKING ITEM</div>
+                          <div className="text-sm text-red-800">
+                            {zone.blockingItem.sku} - {zone.blockingItem.itemName}
+                          </div>
+                          <div className="text-sm text-red-700 mt-1">
+                            Only {zone.blockingItem.deliveryRate}% delivered • {zone.blockingItem.locationDistribution['logistics'] || 0} units still in Logistics
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-2xl font-bold text-red-600">{zone.blockingItem.deliveryRate}%</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Items List */}
+                <div className="p-4 space-y-2">
+                  {zone.items.map((item) => (
+                    <div
+                      key={item.sku}
+                      className={`p-3 rounded-lg border ${
+                        item.isComplete
+                          ? 'bg-green-50 border-green-200'
+                          : item.deliveryRate >= 50
+                          ? 'bg-yellow-50 border-yellow-200'
+                          : 'bg-red-50 border-red-200'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2">
+                            <span className="font-mono font-bold text-gray-900">{item.sku}</span>
+                            {item.isComplete && <span className="text-xs bg-green-600 text-white px-2 py-0.5 rounded-full">✓ Complete</span>}
+                          </div>
+                          <div className="text-sm text-gray-700">{item.itemName}</div>
+                          <div className="flex flex-wrap items-center gap-3 mt-2 text-xs">
+                            {Object.entries(item.locationDistribution)
+                              .sort(([locA], [locB]) => {
+                                // Sort: logistics first, then alphabetically
+                                if (locA === 'logistics') return -1;
+                                if (locB === 'logistics') return 1;
+                                return locA.localeCompare(locB);
+                              })
+                              .map(([location, qty]) => (
+                                <div key={location} className="flex items-center space-x-1">
+                                  <span className="text-gray-600">@ {location}:</span>
+                                  <span className={`font-bold ${location === 'logistics' ? 'text-orange-600' : 'text-blue-600'}`}>
+                                    {qty}
+                                  </span>
+                                </div>
+                              ))}
+                            <div className="flex items-center space-x-1 ml-auto">
+                              <span className="text-gray-600">Total needed:</span>
+                              <span className="font-bold text-gray-900">{item.total}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right ml-4">
+                          <div className={`text-3xl font-bold ${
+                            item.isComplete ? 'text-green-600' :
+                            item.deliveryRate >= 50 ? 'text-yellow-600' :
+                            'text-red-600'
+                          }`}>
+                            {item.deliveryRate}%
+                          </div>
+                          <div className="text-xs text-gray-600">Delivered</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-            )}
-          </div>
+            ))
+          )}
         </div>
       )}
 

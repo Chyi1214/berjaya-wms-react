@@ -374,6 +374,125 @@ const chineseTranslations: Translation = {
     channelDescription: '最多2位用户可以聊天，并在不同语言之间自动翻译'
   },
 
+  // QA (Quality Assurance) Inspection
+  qa: {
+    title: '质量保证',
+    carInspection: '汽车检查',
+    selectPositionAndScan: '选择您的位置，然后扫描VIN开始检查',
+    scanVIN: '扫描VIN',
+    enterVIN: '输入VIN',
+    enterVINNumber: '输入VIN号码...',
+    enterVINOrUseScanner: '输入VIN或使用扫描仪',
+    startInspection: '开始检查',
+    start: '开始',
+    completeInspection: '完成检查',
+    completeSection: '完成部分',
+    backToDashboard: '返回仪表板',
+    selectYourPosition: '选择您的位置',
+    scanVINNumber: '扫描VIN号码',
+    openCameraScanner: '打开相机扫描仪',
+    scanVINBarcode: '扫描VIN条形码',
+    position: '位置',
+    step: '步骤',
+    instructions: '说明',
+    tip: '提示',
+    tipText: '使用上面的相机扫描仪按钮，或手动输入VIN',
+    loading: '加载中...',
+    points: '点',
+
+    // Instructions list
+    instructionsList: {
+      step1: '选择您的位置（您将检查的区域）',
+      step2: '使用相机扫描仪扫描VIN或手动输入',
+      step3: '逐项检查清单并标记每个项目',
+      step4: '当您部分中的所有项目都检查完毕后完成'
+    },
+
+    // Sections
+    sections: {
+      rightOutside: '右外侧',
+      leftOutside: '左外侧',
+      frontBack: '前后',
+      interiorRight: '内部右侧',
+      interiorLeft: '内部左侧'
+    },
+
+    // Status
+    status: {
+      notStarted: '未开始',
+      inProgress: '进行中',
+      completed: '已完成'
+    },
+
+    // Checklist view
+    checklist: {
+      title: '检查清单',
+      progress: '进度',
+      itemsChecked: '已检查项目',
+      defectType: '缺陷类型',
+      notes: '备注',
+      photos: '照片',
+      addPhoto: '添加照片',
+      addNotes: '添加备注',
+      markAsComplete: '标记为完成',
+      markAsDefect: '标记为缺陷',
+      saveAndNext: '保存并下一个',
+      previous: '上一个',
+      next: '下一个',
+      itemDetails: '项目详情',
+      noPhotos: '未添加照片',
+      uploadPhoto: '上传照片',
+      takePhoto: '拍照',
+      removePhoto: '删除照片',
+      enterNotes: '输入备注...',
+      selectDefectType: '选择缺陷类型...'
+    },
+
+    // Defect types
+    defects: {
+      notInstalled: '未正确安装',
+      scratches: '划痕',
+      paintDefect: '油漆缺陷',
+      dent: '凹痕',
+      gap: '间隙',
+      ok: '正常',
+      missing: '缺失',
+      broken: '损坏',
+      dirty: '脏污',
+      crack: '裂缝'
+    },
+
+    // Messages
+    messages: {
+      pleaseSelectSection: '请先选择您的检查位置',
+      inspectionCreated: '检查已创建',
+      inspectionUpdated: '检查已更新',
+      failedToSave: '保存失败。请重试。',
+      allItemsChecked: '所有项目已检查',
+      sectionComplete: '部分完成',
+      inspectionComplete: '检查完成',
+      confirmComplete: '确认所有项目都已正确检查？',
+      confirmCompleteSection: '确认完成此部分？',
+      invalidVIN: 'VIN无效',
+      vinRequired: '需要VIN号码',
+      photoRequired: '缺陷项目需要照片',
+      notesRequired: '缺陷项目需要备注'
+    },
+
+    // Inspection info
+    inspectionInfo: {
+      vin: 'VIN号码',
+      carType: '汽车类型',
+      inspector: '检查员',
+      inspectionDate: '检查日期',
+      section: '部分',
+      status: '状态',
+      totalDefects: '总缺陷数',
+      completedBy: '完成人',
+      completedDate: '完成日期'
+    }
+  },
+
   // Footer
   footer: {
     copyright: '© 2025 Berjaya Autotech - 仓库管理系统',

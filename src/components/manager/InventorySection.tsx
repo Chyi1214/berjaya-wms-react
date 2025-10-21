@@ -1,13 +1,10 @@
 // Inventory Section Component - Handles all inventory-related tabs and content
 import { InventoryCountEntry, Transaction, ItemMaster, BOM } from '../../types';
 import { InventoryTab, ItemTab } from '../../types/manager';
-import { 
-  OverviewTab,
+import {
   CheckedItemTab,
   ExpectedItemTab,
-  ComparedItemTab,
-  TransactionLogTab,
-  YesterdayResultTab
+  TransactionLogTab
 } from '../manager/inventory';
 import { ItemBOMSection } from './ItemBOMSection';
 import { ScannerSection } from './ScannerSection';
@@ -19,12 +16,10 @@ interface InventorySectionProps {
   tableData: {
     checked: InventoryCountEntry[];
     expected: InventoryCountEntry[];
-    yesterday: InventoryCountEntry[];
   };
   transactions: Transaction[];
   items: ItemMaster[];
   boms: BOM[];
-  showComparison: boolean;
   itemsLoading: boolean;
   setActiveItemTab: React.Dispatch<React.SetStateAction<ItemTab>>;
   loadItemsAndBOMs: () => Promise<void>;
@@ -32,12 +27,7 @@ interface InventorySectionProps {
   handleExportBOMs: () => void;
   handleExportAllItemData: () => void;
   handleGenerateItemMockData: () => Promise<void>;
-  handleGenerateInventoryMockData?: () => Promise<void>;
   setItemsLoading: React.Dispatch<React.SetStateAction<boolean>>;
-  // Add handlers for Overview subtab
-  onConcludeToday?: () => void;
-  onClearAllData?: () => void;
-  onResetAllQuantities?: () => void;
 }
 
 export function InventorySection({
@@ -47,7 +37,6 @@ export function InventorySection({
   transactions,
   items,
   boms,
-  showComparison,
   itemsLoading,
   setActiveItemTab,
   loadItemsAndBOMs,
@@ -55,24 +44,10 @@ export function InventorySection({
   handleExportBOMs,
   handleExportAllItemData,
   handleGenerateItemMockData,
-  handleGenerateInventoryMockData,
-  setItemsLoading,
-  onConcludeToday,
-  onClearAllData,
-  onResetAllQuantities
+  setItemsLoading
 }: InventorySectionProps) {
   return (
     <div className="p-6">
-      {activeTab === 'overview' && (
-        <OverviewTab
-          onGenerateMockData={handleGenerateInventoryMockData || handleGenerateItemMockData}
-          onConcludeToday={onConcludeToday}
-          onClearAllData={onClearAllData}
-          onResetAllQuantities={onResetAllQuantities}
-          isLoading={itemsLoading}
-        />
-      )}
-
       {activeTab === 'checked' && (
         <CheckedItemTab tableData={tableData.checked} />
       )}
@@ -81,23 +56,8 @@ export function InventorySection({
         <ExpectedItemTab tableData={tableData.expected} />
       )}
 
-      {activeTab === 'compared' && (
-        <ComparedItemTab 
-          expectedData={tableData.expected} 
-          checkedData={tableData.checked}
-          onConcludeToday={onConcludeToday}
-        />
-      )}
-
       {activeTab === 'transaction' && (
         <TransactionLogTab transactions={transactions} />
-      )}
-
-      {activeTab === 'yesterday' && (
-        <YesterdayResultTab 
-          tableData={tableData.yesterday} 
-          showComparison={showComparison} 
-        />
       )}
 
       {activeTab === 'itemmaster' && (

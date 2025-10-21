@@ -374,6 +374,106 @@ const myanmarTranslations: Translation = {
     channelDescription: 'အသုံးပြုသူ ၂ ဦး အထိ ကွဲပြားသော ဘာသာစကားများကြား အလိုအလျောက် ဘာသာပြန်ဆိုမှုဖြင့် စကားပြောနိုင်သည်'
   },
 
+  // QA (Quality Assurance) Inspection
+  qa: {
+    title: 'အရည်အသွေး စစ်ဆေးမှု',
+    carInspection: 'ကား စစ်ဆေးမှု',
+    selectPositionAndScan: 'သင့်အနေအထားကို ရွေးပြီး စစ်ဆေးမှု စတင်ရန် VIN စကင်ဖတ်ပါ',
+    scanVIN: 'VIN စကင်ဖတ်ပါ',
+    enterVIN: 'VIN ထည့်ပါ',
+    enterVINNumber: 'VIN နံပါတ် ထည့်ပါ...',
+    enterVINOrUseScanner: 'VIN ထည့်ပါ သို့မဟုတ် စကင်နာ သုံးပါ',
+    startInspection: 'စစ်ဆေးမှု စတင်ပါ',
+    start: 'စတင်ပါ',
+    completeInspection: 'စစ်ဆေးမှု ပြီးစီးပါ',
+    completeSection: 'အပိုင်း ပြီးစီးပါ',
+    backToDashboard: 'ဒတ်ရှ်ဘုတ်သို့ ပြန်သွားပါ',
+    selectYourPosition: 'သင့်အနေအထားကို ရွေးချယ်ပါ',
+    scanVINNumber: 'VIN နံပါတ် စကင်ဖတ်ပါ',
+    openCameraScanner: 'ကင်မရာ စကင်နာ ဖွင့်ပါ',
+    scanVINBarcode: 'VIN ဘားကုဒ် စကင်ဖတ်ပါ',
+    position: 'အနေအထား',
+    step: 'အဆင့်',
+    instructions: 'ညွှန်ကြားချက်များ',
+    instructionsList: {
+      step1: 'သင့်အနေအထားကို ရွေးချယ်ပါ (သင်စစ်ဆေးမည့် နေရာ)',
+      step2: 'ကင်မရာ စကင်နာ သုံးပြီး VIN စကင်ဖတ်ပါ သို့မဟုတ် လက်ဖြင့်ရိုက်ပါ',
+      step3: 'စစ်ဆေးစာရင်းကို ကြည့်ပြီး ပစ္စည်းတိုင်းကို အမှတ်အသားပြုပါ',
+      step4: 'သင့်အပိုင်းရှိ ပစ္စည်းအားလုံး စစ်ဆေးပြီးသောအခါ ပြီးစီးပါ'
+    },
+    tip: 'အကြံပြုချက်',
+    tipText: 'အထက်က ကင်မရာ စကင်နာ ခလုတ်ကို သုံးပါ၊ သို့မဟုတ် VIN ကို လက်ဖြင့်ရိုက်ပါ',
+    loading: 'တင်နေသည်...',
+    points: 'အမှတ်များ',
+
+    // Sections
+    sections: {
+      rightOutside: 'ညာဘက်အပြင်',
+      leftOutside: 'ဘယ်ဘက်အပြင်',
+      frontBack: 'ရှေ့နှင့်နောက်',
+      interiorRight: 'အတွင်းပိုင်း ညာဘက်',
+      interiorLeft: 'အတွင်းပိုင်း ဘယ်ဘက်'
+    },
+
+    // Status
+    status: {
+      notStarted: 'မစတင်ရသေးပါ',
+      inProgress: 'လုပ်ဆောင်နေသည်',
+      completed: 'ပြီးစီးပြီ'
+    },
+
+    // Inspection checklist
+    progress: 'တိုးတက်မှု',
+    itemsChecked: 'စစ်ဆေးပြီး ပစ္စည်းများ',
+    item: 'ပစ္စည်း',
+    items: 'ပစ္စည်းများ',
+    defectType: 'ချို့ယွင်းမှု အမျိုးအစား',
+    selectDefectType: 'ချို့ယွင်းမှု အမျိုးအစား ရွေးပါ',
+    notes: 'မှတ်စုများ',
+    addNotes: 'မှတ်စုများ ထည့်ပါ (ရွေးချယ်နိုင်သည်)',
+    photos: 'ဓာတ်ပုံများ',
+    addPhoto: 'ဓာတ်ပုံ ထည့်ပါ',
+    uploadPhoto: 'ဓာတ်ပုံ တင်ပါ',
+    takePhoto: 'ဓာတ်ပုံ ရိုက်ပါ',
+    removePhoto: 'ဓာတ်ပုံ ဖယ်ရှားပါ',
+
+    // Defect types (common defaults - can be customized via CSV)
+    defects: {
+      notInstalled: 'မှန်ကန်စွာ မတပ်ဆင်ထားပါ',
+      scratches: 'ကုတ်ရာများ',
+      paintDefect: 'ဆေးသုတ် ချို့ယွင်းမှု',
+      dent: 'လုံးဝဖြစ်',
+      gap: 'ကွာဟချက်',
+      ok: 'အဆင်ပြေသည်',
+      missing: 'ပျောက်ဆုံး',
+      broken: 'ပျက်စီး',
+      dirty: 'ညစ်ပတ်',
+      crack: 'အက်ကွဲ'
+    },
+
+    // Messages
+    messages: {
+      pleaseSelectSection: 'ကျေးဇူးပြု၍ အပိုင်းတစ်ခု ရွေးချယ်ပါ',
+      pleaseEnterVIN: 'ကျေးဇူးပြု၍ VIN နံပါတ် ထည့်ပါ',
+      inspectionCreated: 'စစ်ဆေးမှု ဖန်တီးပြီးပါပြီ',
+      sectionCompleted: 'အပိုင်း ပြီးစီးပြီးပါပြီ',
+      inspectionCompleted: 'စစ်ဆေးမှု ပြီးစီးပြီးပါပြီ',
+      failedToSave: 'သိမ်းဆည်းရန် မအောင်မြင်ပါ',
+      pleaseCheckAllItems: 'ကျေးဇူးပြု၍ ပစ္စည်းအားလုံးကို စစ်ဆေးပါ',
+      uploadingPhoto: 'ဓာတ်ပုံ တင်နေသည်...',
+      photoUploaded: 'ဓာတ်ပုံ တင်ပြီးပါပြီ',
+      photoUploadFailed: 'ဓာတ်ပုံ တင်ရန် မအောင်မြင်ပါ'
+    },
+
+    // Inspection info
+    vin: 'VIN',
+    carType: 'ကား အမျိုးအစား',
+    inspector: 'စစ်ဆေးသူ',
+    inspectionDate: 'စစ်ဆေးသည့် ရက်စွဲ',
+    inspectionTime: 'စစ်ဆေးသည့် အချိန်',
+    totalDefects: 'စုစုပေါင်း ချို့ယွင်းမှုများ'
+  },
+
   // Footer
   footer: {
     copyright: '© 2025 Berjaya Autotech - ကုန်လှောင်ရုံ စီမံခန့်ခွဲမှုစနစ်',
