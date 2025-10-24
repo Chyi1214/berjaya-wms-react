@@ -205,10 +205,13 @@ function AppContent() {
     }
   };
 
-  // Handle transaction creation with OTP (and optional skip OTP)
+  // Handle transaction creation with OTP (and optional skip OTP) - v7.6.0 Multi-item support
   const handleTransactionCreate = async (transactionData: TransactionFormData & { otp: string; skipOTP?: boolean }): Promise<{ transaction: Transaction, otp: string }> => {
     const { otp, skipOTP, ...txnData } = transactionData;
-    
+
+    // Check if this is a multi-item transaction
+    const isMultiItem = txnData.items && txnData.items.length > 0;
+
     const newTransaction: Transaction = {
       ...txnData,
       id: `txn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -219,18 +222,26 @@ function AppContent() {
       // Calculate previous and new amounts based on current inventory
       previousAmount: 0, // In real app, get from current inventory
       newAmount: txnData.amount, // In real app, calculate based on transaction type
-      itemName: getItemNameBySku(txnData.sku)
+      itemName: getItemNameBySku(txnData.sku),
+      // Multi-item support (v7.6.0+)
+      items: isMultiItem && txnData.items ? txnData.items.map(item => ({
+        sku: item.sku,
+        itemName: item.itemName,
+        amount: item.amount,
+        previousAmount: 0,
+        newAmount: item.amount
+      })) : undefined
     };
-    
+
     // Save to Firebase - lazy load transaction service
     const transactionService = await getTransactionService();
     await transactionService.saveTransaction(newTransaction);
-    
+
     if (!skipOTP) {
       // Only save OTP if not skipping
       await transactionService.saveOTP(newTransaction.id, otp);
     }
-    
+
     // If skip OTP, apply transfer effects now (inventory + batch allocation)
     if (skipOTP) {
       try {
@@ -239,11 +250,12 @@ function AppContent() {
         logger.warn('Failed to apply transfer effects (skip OTP path)', error);
       }
     }
-    
-    logger.info('Transaction created in Firebase', { 
-      transactionId: newTransaction.id, 
+
+    logger.info('Transaction created in Firebase', {
+      transactionId: newTransaction.id,
       otp: skipOTP ? 'SKIPPED' : otp,
-      status: newTransaction.status
+      status: newTransaction.status,
+      itemCount: isMultiItem && txnData.items ? txnData.items.length : 1
     });
     return { transaction: newTransaction, otp };
   };

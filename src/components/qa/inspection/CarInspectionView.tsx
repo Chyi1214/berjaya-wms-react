@@ -35,36 +35,74 @@ const CarInspectionView: React.FC<CarInspectionViewProps> = ({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    loadInspection();
-    const interval = setInterval(loadInspection, 5000); // Refresh every 5 seconds
-    return () => clearInterval(interval);
+    let templateUnsubscribe: (() => void) | null = null;
+
+    // Initialize and subscribe to template
+    const initializeAndSubscribe = async () => {
+      try {
+        const insp = await inspectionService.getInspectionById(inspectionId);
+        if (!insp) {
+          setError('Inspection not found');
+          setLoading(false);
+          return;
+        }
+
+        // Subscribe to real-time template updates
+        templateUnsubscribe = inspectionService.subscribeToTemplate(
+          insp.templateId,
+          (templ) => {
+            if (!templ) {
+              setError('Inspection template not found');
+              setLoading(false);
+              return;
+            }
+            setTemplate(templ);
+          },
+          (err) => {
+            logger.error('Template subscription error:', err);
+            setError('Failed to load template updates');
+            setLoading(false);
+          }
+        );
+      } catch (err) {
+        logger.error('Failed to load template:', err);
+        setError('Failed to load inspection template');
+        setLoading(false);
+      }
+    };
+
+    initializeAndSubscribe();
+
+    // Subscribe to real-time inspection updates
+    const inspectionUnsubscribe = inspectionService.subscribeToInspection(
+      inspectionId,
+      (insp) => {
+        if (!insp) {
+          setError('Inspection not found');
+          setLoading(false);
+          return;
+        }
+
+        setInspection(insp);
+        setSummary(inspectionService.getInspectionSummary(insp));
+        setError(null);
+        setLoading(false);
+      },
+      (err) => {
+        logger.error('Inspection subscription error:', err);
+        setError('Failed to load inspection updates');
+        setLoading(false);
+      }
+    );
+
+    // Clean up subscriptions on unmount
+    return () => {
+      inspectionUnsubscribe();
+      if (templateUnsubscribe) {
+        templateUnsubscribe();
+      }
+    };
   }, [inspectionId]);
-
-  const loadInspection = async () => {
-    try {
-      const insp = await inspectionService.getInspectionById(inspectionId);
-      if (!insp) {
-        setError('Inspection not found');
-        return;
-      }
-
-      const templ = await inspectionService.getTemplate(insp.templateId);
-      if (!templ) {
-        setError('Inspection template not found');
-        return;
-      }
-
-      setInspection(insp);
-      setTemplate(templ);
-      setSummary(inspectionService.getInspectionSummary(insp));
-      setError(null);
-    } catch (err) {
-      logger.error('Failed to load inspection:', err);
-      setError('Failed to load inspection');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const getSectionIcon = (section: InspectionSection) => {
     switch (section) {

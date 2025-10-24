@@ -154,6 +154,7 @@ export const inspectionReportService = {
             result.defectType,
             result.notes || '-',
             result.checkedBy || '-',
+            result.status || '',  // Empty by default for someone to fill in later
           ]);
 
         // Only show sections with defects
@@ -171,7 +172,7 @@ export const inspectionReportService = {
 
           autoTable(doc, {
             startY: yPosition,
-            head: [['Item', 'Defect', 'Notes', 'Inspector']],
+            head: [['Item', 'Defect', 'Notes', 'Inspector', 'Status']],
             body: sectionDefects,
             theme: 'striped',
             headStyles: { fillColor: [108, 117, 125], fontSize: 8 },
@@ -179,10 +180,11 @@ export const inspectionReportService = {
             margin: { left: 20, right: 20 },
             styles: { cellPadding: 2 },
             columnStyles: {
-              0: { cellWidth: 45 },
-              1: { cellWidth: 30 },
-              2: { cellWidth: 55 },
-              3: { cellWidth: 40 },
+              0: { cellWidth: 40 },
+              1: { cellWidth: 28 },
+              2: { cellWidth: 45 },
+              3: { cellWidth: 35 },
+              4: { cellWidth: 22 },  // New Status column
             },
           });
           yPosition = (doc as any).lastAutoTable.finalY + 4;

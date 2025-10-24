@@ -11,6 +11,8 @@ import {
   orderBy,
   Timestamp,
   runTransaction,
+  onSnapshot,
+  type Unsubscribe,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { createModuleLogger } from './logger';
@@ -30,8 +32,36 @@ const TEMPLATES_COL = 'inspectionTemplates';
 const INSPECTIONS_COL = 'carInspections';
 
 // Sanitize field names for Firestore (replace invalid characters)
+// Firestore field names cannot contain: / $ # [ ] * ~ .
 function sanitizeFieldName(name: string): string {
-  return name.replace(/[~/\*\[\]]/g, '_');
+  let sanitized = name.replace(/[~/\*\[\]\$\#\.]/g, '_');
+  // Ensure the field name doesn't start with an underscore (from leading period)
+  // This maintains readability while staying Firestore-compliant
+  return sanitized;
+}
+
+// Remove undefined values from an object (Firestore doesn't allow undefined)
+function removeUndefined<T>(obj: T): T {
+  if (obj === null || obj === undefined) {
+    return null as T;
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map(item => removeUndefined(item)).filter(item => item !== undefined) as T;
+  }
+
+  if (typeof obj === 'object') {
+    const cleaned: Record<string, unknown> = {};
+    for (const key in obj) {
+      const value = obj[key];
+      if (value !== undefined) {
+        cleaned[key] = removeUndefined(value);
+      }
+    }
+    return cleaned as T;
+  }
+
+  return obj;
 }
 
 // Convert Firestore Timestamp to Date
@@ -57,7 +87,7 @@ function convertTimestamps<T>(data: any): T {
   }
 
   // Handle objects - recursively convert nested objects
-  const converted: any = {};
+  const converted: Record<string, unknown> = {};
   Object.keys(data).forEach((key) => {
     converted[key] = convertTimestamps(data[key]);
   });
@@ -83,6 +113,34 @@ export const inspectionService = {
     }
   },
 
+  // Subscribe to real-time updates for a template
+  subscribeToTemplate(
+    templateId: string,
+    onUpdate: (template: InspectionTemplate | null) => void,
+    onError?: (error: Error) => void
+  ): Unsubscribe {
+    const docRef = doc(db, TEMPLATES_COL, templateId);
+
+    return onSnapshot(
+      docRef,
+      (docSnap) => {
+        if (!docSnap.exists()) {
+          onUpdate(null);
+          return;
+        }
+
+        const template = convertTimestamps<InspectionTemplate>(docSnap.data());
+        onUpdate(template);
+      },
+      (error) => {
+        logger.error('Template subscription error:', error);
+        if (onError) {
+          onError(error as Error);
+        }
+      }
+    );
+  },
+
   async getAllTemplates(): Promise<InspectionTemplate[]> {
     try {
       const q = query(collection(db, TEMPLATES_COL), orderBy('createdAt', 'desc'));
@@ -98,17 +156,23 @@ export const inspectionService = {
     try {
       logger.info('Creating inspection template:', template.templateId);
 
+      // Remove undefined values (Firestore doesn't allow them)
+      const cleanedTemplate = removeUndefined(template);
+
       const newTemplate: InspectionTemplate = {
-        ...template,
+        ...cleanedTemplate,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
 
-      await setDoc(doc(db, TEMPLATES_COL, template.templateId), {
+      // Also clean the final object before sending to Firestore
+      const firestoreData = removeUndefined({
         ...newTemplate,
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
       });
+
+      await setDoc(doc(db, TEMPLATES_COL, template.templateId), firestoreData);
 
       logger.info('Template created successfully:', template.templateId);
       return template.templateId;
@@ -236,6 +300,34 @@ export const inspectionService = {
     }
   },
 
+  // Subscribe to real-time updates for an inspection
+  subscribeToInspection(
+    inspectionId: string,
+    onUpdate: (inspection: CarInspection | null) => void,
+    onError?: (error: Error) => void
+  ): Unsubscribe {
+    const docRef = doc(db, INSPECTIONS_COL, inspectionId);
+
+    return onSnapshot(
+      docRef,
+      (docSnap) => {
+        if (!docSnap.exists()) {
+          onUpdate(null);
+          return;
+        }
+
+        const inspection = convertTimestamps<CarInspection>(docSnap.data());
+        onUpdate(inspection);
+      },
+      (error) => {
+        logger.error('Inspection subscription error:', error);
+        if (onError) {
+          onError(error as Error);
+        }
+      }
+    );
+  },
+
   async getInspectionByVIN(vin: string): Promise<CarInspection | null> {
     try {
       const q = query(collection(db, INSPECTIONS_COL), where('vin', '==', vin));
@@ -298,13 +390,16 @@ export const inspectionService = {
           throw new Error(`Inspection not found: ${inspectionId}`);
         }
 
-        const inspection = docSnap.data() as any;
+        const inspectionData = docSnap.data();
+        if (!inspectionData) {
+          throw new Error(`Inspection data is null: ${inspectionId}`);
+        }
 
         // Check if this is the first section being started
-        const isFirstSection = inspection.status === 'not_started';
+        const isFirstSection = inspectionData.status === 'not_started';
 
         // Update only the specific fields (no spreading)
-        const updates: any = {
+        const updates: Record<string, unknown> = {
           [`sections.${section}.status`]: 'in_progress',
           [`sections.${section}.inspector`]: userEmail,
           [`sections.${section}.inspectorName`]: userName,
@@ -408,14 +503,8 @@ export const inspectionService = {
       s => s.status === 'completed'
     ).length;
 
-    const defectsByType: Record<DefectType, number> = {
-      'Not installed properly': 0,
-      'Scratches': 0,
-      'Paint Defect': 0,
-      'Dent': 0,
-      'Gap': 0,
-      'Ok': 0,
-    };
+    // Dynamically discover defect types from actual data
+    const defectsByType: Record<DefectType, number> = {};
 
     const inspectorsSet = new Set<string>();
     let totalDefects = 0;
@@ -426,7 +515,12 @@ export const inspectionService = {
       }
 
       Object.values(section.results).forEach(result => {
+        // Initialize counter if this defect type hasn't been seen yet
+        if (!defectsByType[result.defectType]) {
+          defectsByType[result.defectType] = 0;
+        }
         defectsByType[result.defectType]++;
+
         if (result.defectType !== 'Ok') {
           totalDefects++;
         }

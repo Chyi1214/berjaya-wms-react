@@ -186,28 +186,72 @@ export function TransactionOTPDisplay({ transaction, otp, onClose, allTransactio
       {/* Transaction Summary */}
       <div className="bg-gray-50 rounded-lg p-4 mb-6">
         <h4 className="font-medium text-gray-900 mb-3">📋 Transaction Details:</h4>
-        <div className="space-y-2 text-sm">
-          <div className="flex justify-between">
-            <span className="text-gray-600">Item:</span>
-            <span className="font-medium">{transaction.sku} - {transaction.itemName}</span>
+
+        {/* Multi-item transaction display (v7.6.0+) */}
+        {transaction.items && transaction.items.length > 0 ? (
+          <div className="space-y-3">
+            <div className="text-sm">
+              <div className="flex justify-between mb-3">
+                <span className="text-gray-600">Items:</span>
+                <span className="font-medium text-blue-600">{transaction.items.length} item(s)</span>
+              </div>
+
+              {/* Items list */}
+              <div className="bg-white rounded-lg p-3 mb-3 max-h-48 overflow-y-auto">
+                <div className="space-y-2">
+                  {transaction.items.map((item, index) => (
+                    <div key={index} className="flex justify-between items-center border-b border-gray-200 last:border-b-0 pb-2 last:pb-0">
+                      <div className="flex-1">
+                        <div className="font-medium text-gray-900">{item.sku}</div>
+                        <div className="text-xs text-gray-600">{item.itemName}</div>
+                      </div>
+                      <div className="font-medium text-gray-900 ml-3">
+                        {item.amount} units
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex justify-between">
+                <span className="text-gray-600">To Zone:</span>
+                <span className="font-medium">{transaction.toLocation?.replace('production_zone_', 'Zone ')}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Time:</span>
+                <span className="font-medium">{formatTimestamp(transaction.timestamp)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">ID:</span>
+                <span className="font-medium font-mono text-xs">{transaction.id.slice(-8)}</span>
+              </div>
+            </div>
           </div>
-          <div className="flex justify-between">
-            <span className="text-gray-600">Amount:</span>
-            <span className="font-medium">{transaction.amount}</span>
+        ) : (
+          /* Single-item transaction display (legacy) */
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-gray-600">Item:</span>
+              <span className="font-medium">{transaction.sku} - {transaction.itemName}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600">Amount:</span>
+              <span className="font-medium">{transaction.amount}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600">To Zone:</span>
+              <span className="font-medium">{transaction.toLocation?.replace('production_zone_', 'Zone ')}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600">Time:</span>
+              <span className="font-medium">{formatTimestamp(transaction.timestamp)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600">ID:</span>
+              <span className="font-medium font-mono text-xs">{transaction.id.slice(-8)}</span>
+            </div>
           </div>
-          <div className="flex justify-between">
-            <span className="text-gray-600">To Zone:</span>
-            <span className="font-medium">{transaction.toLocation?.replace('production_zone_', 'Zone ')}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-600">Time:</span>
-            <span className="font-medium">{formatTimestamp(transaction.timestamp)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-600">ID:</span>
-            <span className="font-medium font-mono text-xs">{transaction.id.slice(-8)}</span>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* BOM Content Display */}

@@ -1,4 +1,5 @@
 // Transaction Send Form - For logistics to send items to production zones
+// v7.6.0 - Multi-item support with cart system
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { TransactionType, TransactionFormData, InventoryCountEntry, BOM } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -11,13 +12,19 @@ import { batchAllocationService } from '../services/batchAllocationService';
 interface TransactionSendFormProps {
   onSubmit: (transaction: TransactionFormData & { otp: string; skipOTP?: boolean }) => void;
   onCancel: () => void;
-  senderEmail: string;
   inventoryCounts: InventoryCountEntry[];
 }
 
-// Create available inventory items grouped by SKU with totals
+// Cart item interface
+interface CartItem {
+  sku: string;
+  itemName: string;
+  amount: number;
+  isBOM: boolean;
+  bomData?: BOM;
+}
 
-export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventoryCounts }: TransactionSendFormProps) {
+export function TransactionSendForm({ onSubmit, onCancel, inventoryCounts }: TransactionSendFormProps) {
   const { t } = useLanguage();
 
   // Production zones 1-25 (includes CP7 and CP8)
@@ -39,20 +46,20 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
       value: `production_zone_${zoneId}`
     };
   }), [t]);
-  const [formData, setFormData] = useState<TransactionFormData>({
-    sku: '',
-    amount: 1,
-    transactionType: TransactionType.TRANSFER_OUT,
-    location: 'logistics',
-    toLocation: '',
-    notes: '',
-    reference: ''
-  });
+
+  // Multi-item cart state
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [destinationZone, setDestinationZone] = useState<string>('');
+
+  // Current item being added
+  const [currentSku, setCurrentSku] = useState<string>('');
+  const [currentAmount, setCurrentAmount] = useState<number>(1);
+  const [currentBomData, setCurrentBomData] = useState<BOM | null>(null);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [bomData, setBomData] = useState<BOM | null>(null);
   const [skipOTP, setSkipOTP] = useState(false);
   const [allocationError, setAllocationError] = useState<string | null>(null);
-  
+
   // QR Scanner state
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isScanning, setIsScanning] = useState(false);
@@ -64,26 +71,26 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
   const [selectedBatch, setSelectedBatch] = useState<string>('');
   const [batchConfigLoading, setBatchConfigLoading] = useState(false);
 
-  // Check if selected item is a BOM
-  const isBOM = formData.sku.startsWith('BOM');
+  // Check if current item is a BOM
+  const isBOM = currentSku.startsWith('BOM');
 
   // Fetch BOM data when BOM is selected
   useEffect(() => {
-    if (isBOM && formData.sku) {
+    if (isBOM && currentSku) {
       const fetchBomData = async () => {
         try {
-          const bom = await bomService.getBOMByCode(formData.sku);
-          setBomData(bom);
+          const bom = await bomService.getBOMByCode(currentSku);
+          setCurrentBomData(bom);
         } catch (error) {
           console.error('Failed to fetch BOM data:', error);
-          setBomData(null);
+          setCurrentBomData(null);
         }
       };
       fetchBomData();
     } else {
-      setBomData(null);
+      setCurrentBomData(null);
     }
-  }, [formData.sku, isBOM]);
+  }, [currentSku, isBOM]);
 
   // Load batch configuration on mount
   useEffect(() => {
@@ -113,11 +120,10 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
     }
   };
 
-  // Process inventory counts to get available items with quantities - FIXED: Only from logistics location
+  // Process inventory counts to get available items with quantities
   const availableItems = useMemo(() => {
     const itemMap = new Map<string, { sku: string; name: string; totalQuantity: number; }>();
-    
-    // FIXED: Only count items from logistics location (sender's location)
+
     inventoryCounts.forEach(count => {
       if (count.sku && count.location === 'logistics' && count.amount > 0) {
         const existing = itemMap.get(count.sku);
@@ -132,19 +138,21 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
         }
       }
     });
-    
+
     return Array.from(itemMap.values()).sort((a, b) => a.sku.localeCompare(b.sku));
   }, [inventoryCounts]);
 
-  // Get selected item details - with enhanced debugging
-  const selectedItem = availableItems.find(item => item.sku === formData.sku);
-  const maxAvailableQuantity = selectedItem?.totalQuantity || 0;
-  
-  // Basic debug for selected item
-  if (formData.sku && !selectedItem) {
-    console.log('⚠️ Item not found in expected_inventory:', formData.sku);
-  }
-  
+  // Get current item details
+  const currentItem = availableItems.find(item => item.sku === currentSku);
+  const maxAvailableQuantity = currentItem?.totalQuantity || 0;
+
+  // Calculate how much is already in cart for this SKU
+  const amountInCart = cart
+    .filter(item => item.sku === currentSku)
+    .reduce((sum, item) => sum + item.amount, 0);
+
+  // Remaining available after considering cart
+  const remainingAvailable = maxAvailableQuantity - amountInCart;
 
   // Generate 4-digit OTP (or use fixed OTP if skipped)
   const generateOTP = (): string => {
@@ -154,11 +162,89 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
     return Math.floor(1000 + Math.random() * 9000).toString();
   };
 
+  // Add current item to cart
+  const handleAddToCart = async () => {
+    if (!currentSku || currentAmount <= 0) {
+      alert('Please select an item and enter a valid quantity');
+      return;
+    }
+
+    if (!selectedBatch) {
+      alert('Please select a batch for this transaction');
+      return;
+    }
+
+    setAllocationError(null);
+
+    try {
+      // Check batch allocation for regular items only
+      if (!isBOM) {
+        const allocation = await batchAllocationService.getBatchAllocation(currentSku, 'logistics');
+        const availableInBatch = (allocation?.allocations && allocation.allocations[selectedBatch]) || 0;
+        const totalNeeded = amountInCart + currentAmount;
+
+        if (totalNeeded > availableInBatch) {
+          setAllocationError(
+            `Insufficient allocation in Batch ${selectedBatch}. Available: ${availableInBatch}, needed: ${totalNeeded} (including ${amountInCart} already in cart).`
+          );
+          return;
+        }
+      }
+
+      // Add to cart
+      const newCartItem: CartItem = {
+        sku: currentSku,
+        itemName: currentItem?.name || currentSku,
+        amount: currentAmount,
+        isBOM: isBOM,
+        bomData: currentBomData || undefined
+      };
+
+      setCart(prev => [...prev, newCartItem]);
+
+      // Reset current item fields
+      setCurrentSku('');
+      setCurrentAmount(1);
+      setSelectedSearchResult(null);
+      setCurrentBomData(null);
+      setAllocationError(null);
+      setScanError(null);
+
+      console.log('✅ Added to cart:', newCartItem);
+    } catch (error) {
+      console.error('Failed to add item to cart:', error);
+      setAllocationError('Failed to verify batch allocation. Please try again.');
+    }
+  };
+
+  // Remove item from cart
+  const handleRemoveFromCart = (index: number) => {
+    setCart(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Update quantity in cart
+  const handleUpdateCartQuantity = (index: number, newAmount: number) => {
+    if (newAmount <= 0) {
+      handleRemoveFromCart(index);
+      return;
+    }
+
+    setCart(prev => prev.map((item, i) =>
+      i === index ? { ...item, amount: newAmount } : item
+    ));
+  };
+
+  // Submit all items in cart
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.sku || !formData.toLocation || formData.amount <= 0) {
-      alert(t('transactions.pleaseFillAllFields'));
+    if (cart.length === 0) {
+      alert('Cart is empty. Please add items before sending.');
+      return;
+    }
+
+    if (!destinationZone) {
+      alert('Please select a destination zone');
       return;
     }
 
@@ -171,35 +257,32 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
     setAllocationError(null);
 
     try {
-      // Block send if batch allocation at logistics is insufficient (regular items only)
-      if (!formData.sku.startsWith('BOM')) {
-        try {
-          const allocation = await batchAllocationService.getBatchAllocation(formData.sku, 'logistics');
-          const availableInBatch = (allocation?.allocations && allocation.allocations[selectedBatch]) || 0;
-          if (formData.amount > availableInBatch) {
-            setAllocationError(
-              `Insufficient allocation in Batch ${selectedBatch} at logistics. Available: ${availableInBatch}, requested: ${formData.amount}.`
-            );
-            return;
-          }
-        } catch (err) {
-          // If we fail to fetch allocation, be safe and block
-          setAllocationError('Failed to verify batch allocation. Please try again.');
-          return;
-        }
-      }
-
-      // Update the transaction notes to include batch information
-      const enhancedFormData = {
-        ...formData,
-        notes: formData.notes ? `${formData.notes} (From Batch: ${selectedBatch})` : `From Batch: ${selectedBatch}`
-      };
-
       const otp = generateOTP();
 
-      // Note: The actual batch allocation update will happen in the parent component
-      // when the transaction is processed
-      await onSubmit({ ...enhancedFormData, otp, skipOTP, batchId: selectedBatch } as any);
+      // Create multi-item transaction data
+      const transactionData: TransactionFormData & { otp: string; skipOTP?: boolean } = {
+        sku: cart[0].sku, // Legacy field - use first item
+        amount: cart[0].amount, // Legacy field - use first item
+        items: cart.map(item => ({
+          sku: item.sku,
+          itemName: item.itemName,
+          amount: item.amount
+        })),
+        transactionType: TransactionType.TRANSFER_OUT,
+        location: 'logistics',
+        toLocation: destinationZone,
+        notes: `Multi-item send from Batch ${selectedBatch}. Total items: ${cart.length}`,
+        reference: '',
+        batchId: selectedBatch,
+        otp,
+        skipOTP
+      };
+
+      await onSubmit(transactionData);
+
+      // Clear cart after successful submission
+      setCart([]);
+      setDestinationZone('');
     } catch (error) {
       console.error('Failed to create transaction:', error);
       alert(t('transactions.failedToCreateTransaction'));
@@ -210,7 +293,7 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
 
   // Handle item selection from SearchAutocomplete
   const handleItemSelect = (result: any) => {
-    setFormData(prev => ({ ...prev, sku: result.code }));
+    setCurrentSku(result.code);
     setSelectedSearchResult(result);
     setScanError(null);
   };
@@ -218,7 +301,7 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
   // QR Scanner Functions
   const startScanning = async () => {
     setScanError(null);
-    
+
     try {
       const hasPermission = await scannerService.requestCameraPermission();
       if (!hasPermission) {
@@ -226,10 +309,8 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
         return;
       }
 
-      // Set scanning state first to render video element
       setIsScanning(true);
-      
-      // Wait a moment for video element to be rendered
+
       setTimeout(async () => {
         if (!videoRef.current) {
           setScanError('Failed to initialize camera');
@@ -238,7 +319,6 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
         }
 
         try {
-          // Start scanning with proper callback signatures
           await scannerService.startScanning(
             videoRef.current,
             (result: string) => handleScanResult(result),
@@ -254,7 +334,7 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
           setIsScanning(false);
         }
       }, 100);
-      
+
     } catch (error) {
       console.error('Failed to request camera permission:', error);
       setScanError('Failed to request camera permission');
@@ -268,46 +348,39 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
 
   const handleScanResult = async (scannedCode: string) => {
     console.log('📱 Scanned code for Send Items:', scannedCode);
-    
+
     // Stop scanning immediately after successful scan
     stopScanning();
-    
+
     try {
-      // Use QR extraction process (same as Inbound Scanner)
       const extractionResult = await qrExtractionService.extractSKUFromQRCode(scannedCode);
-      
+
       if (extractionResult.success && extractionResult.extractedSKU && extractionResult.lookupData) {
         const extractedSKU = extractionResult.extractedSKU;
-        
+
         console.log('✅ Successfully extracted SKU:', extractedSKU);
-        console.log('📍 Found in zones:', extractionResult.lookupData.map(l => l.targetZone).join(', '));
-        
-        // First check if this SKU exists in current inventory
+
         const inventoryItem = availableItems.find(item => item.sku === extractedSKU);
-        
+
         if (inventoryItem) {
-          // Item exists in inventory - create SearchResult from inventory data
           const searchResult = {
             code: inventoryItem.sku,
             name: inventoryItem.name,
             type: 'item' as const
           };
-          
-          setFormData(prev => ({ ...prev, sku: extractedSKU }));
+
+          setCurrentSku(extractedSKU);
           setSelectedSearchResult(searchResult);
           setScanError(null);
-          
+
           console.log('📦 Found in inventory via scan:', inventoryItem);
         } else {
-          // Item only exists in scanner lookup - show not found
           setScanError(`${extractedSKU} found in scanner data but not in current inventory`);
           setSelectedSearchResult(null);
-          console.log('⚠️ Item found in scanner lookup but not in inventory');
         }
-        
+
       } else {
-        console.log('⚠️ SKU extraction failed');
-        const attemptsList = extractionResult.attemptedLookups.slice(0, 3).join(', '); // Show first 3 attempts only
+        const attemptsList = extractionResult.attemptedLookups.slice(0, 3).join(', ');
         setScanError(`No valid SKU found. Tried: ${attemptsList}${extractionResult.attemptedLookups.length > 3 ? '...' : ''}`);
         setSelectedSearchResult(null);
       }
@@ -329,7 +402,7 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
     <div className="bg-white rounded-lg p-6">
       <div className="flex justify-between items-center mb-6">
         <h3 className="text-lg font-semibold text-gray-900">
-          📤 {t('transactions.sendItemsToProduction')}
+          📤 {t('transactions.sendItemsToProduction')} (Multi-Item)
         </h3>
         <button
           onClick={onCancel}
@@ -382,245 +455,211 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
         </div>
         {!batchConfigLoading && (
           <p className="text-xs text-gray-500 text-center mt-2">
-            Items will be deducted from this batch allocation
+            All items will be deducted from this batch allocation
           </p>
         )}
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        
-        {/* SKU Selection */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            📦 {t('transactions.itemSKU')} *
-          </label>
-          <SearchAutocomplete
-            placeholder={t('inventory.searchSKU')}
-            onSelect={handleItemSelect}
-            value={selectedSearchResult}
-            onClear={() => {
-              setFormData(prev => ({ ...prev, sku: '' }));
-              setSelectedSearchResult(null);
-              setScanError(null);
-            }}
-          />
-          
-          {/* QR Scanner Button - Below the search box */}
-          <div className="mt-3">
-            <button
-              type="button"
-              onClick={isScanning ? stopScanning : startScanning}
-              className={`w-full px-4 py-2 rounded-lg border font-medium ${
-                isScanning 
-                  ? 'bg-red-500 text-white border-red-500 hover:bg-red-600' 
-                  : 'bg-blue-500 text-white border-blue-500 hover:bg-blue-600'
-              }`}
-            >
-              {isScanning ? '⏹️ Stop Scanner' : '📱 Scan QR Code / Barcode'}
-            </button>
-          </div>
+      {/* Destination Zone - Select Once for All Items */}
+      <div className="mb-6">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          🏭 {t('transactions.sendToProductionZone')} * (for all items)
+        </label>
+        <select
+          value={destinationZone}
+          onChange={(e) => setDestinationZone(e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+          required
+        >
+          <option value="">{t('transactions.selectDestinationZone')}</option>
+          {PRODUCTION_ZONES.map((zone) => (
+            <option key={zone.id} value={zone.value}>
+              {zone.name}
+            </option>
+          ))}
+        </select>
+      </div>
 
-          {/* QR Scanner Video */}
-          {isScanning && (
-            <div className="mt-3 bg-black rounded-lg overflow-hidden">
-              <video
-                ref={videoRef}
-                className="w-full h-48 object-cover"
-                autoPlay
-                muted
-                playsInline
-              />
-              <div className="p-2 text-center bg-gray-800 text-white text-sm">
-                📷 Point camera at QR code or barcode
-              </div>
-            </div>
-          )}
-
-          {/* Scanner Error */}
-          {scanError && (
-            <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-600">
-              ⚠️ {scanError}
-            </div>
-          )}
-          
-          {/* Show selected item details */}
-          {selectedItem && (
-            <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <div className="flex justify-between items-center">
-                <div>
-                  <p className="font-medium text-blue-900">{selectedItem.sku} - {selectedItem.name}</p>
-                  <p className="text-sm text-blue-700">
-                    {t('transactions.available')}: {selectedItem.totalQuantity} {t('transactions.units')}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                    selectedItem.totalQuantity > 0 
-                      ? 'bg-green-100 text-green-800' 
-                      : 'bg-red-100 text-red-800'
-                  }`}>
-                    {selectedItem.totalQuantity > 0 ? t('transactions.inStock') : t('transactions.outOfStock')}
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
-          
-          {/* Show message if no items available */}
-          {availableItems.length === 0 && (
-            <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <p className="text-sm text-yellow-800">
-                💡 {t('transactions.noItemsAvailable')}
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* Amount */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            🔢 {t('transactions.amount')} * {!isBOM && selectedItem && `(${t('transactions.maxAmount', { max: maxAvailableQuantity })})`}
-          </label>
-          <input
-            type="number"
-            min="1"
-            max={isBOM ? undefined : (maxAvailableQuantity || undefined)}
-            value={formData.amount}
-            onChange={(e) => {
-              const value = e.target.value;
-              const parsedValue = value === '' ? 0 : parseInt(value);
-              if (!isNaN(parsedValue) && parsedValue >= 0 && (isBOM || parsedValue <= maxAvailableQuantity)) {
-                setFormData(prev => ({ ...prev, amount: parsedValue }));
-              }
-            }}
-            className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 ${
-              (!isBOM && formData.amount > maxAvailableQuantity) ? 'border-red-300 bg-red-50' : 'border-gray-300'
-            }`}
-            placeholder={t('inventory.enterAmount')}
-            disabled={isBOM ? false : (!selectedItem || maxAvailableQuantity === 0)}
-            required
-          />
-
-          {/* Allocation shortage error */}
-          {allocationError && (
-            <p className="mt-2 text-sm text-red-600">{allocationError}</p>
-          )}
-          
-          {/* Show validation error */}
-          {!isBOM && formData.amount > maxAvailableQuantity && selectedItem && (
-            <p className="mt-1 text-sm text-red-600">
-              {t('transactions.cannotSendMoreThan', { max: maxAvailableQuantity })}
-            </p>
-          )}
-          
-          {/* Show helper text */}
-          {!isBOM && selectedItem && maxAvailableQuantity > 0 && (
-            <p className="mt-1 text-sm text-gray-500">
-              {t('transactions.youCanSendUpTo', { max: maxAvailableQuantity, sku: selectedItem.sku })}
-            </p>
-          )}
-          
-          {/* Show BOM helper text */}
-          {isBOM && formData.sku && (
-            <p className="mt-1 text-sm text-blue-600">
-              📦 BOM will be expanded into individual components when sent
-            </p>
-          )}
-          
-          {/* BOM Preview */}
-          {isBOM && bomData && (
-            <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <h4 className="font-medium text-blue-900 mb-2">📦 BOM Preview: {bomData.bomCode}</h4>
-              <p className="text-sm text-blue-700 mb-3">{bomData.name}</p>
-              
-              <div className="space-y-2">
-                <div className="text-xs font-medium text-blue-800 uppercase tracking-wide">
-                  Components per BOM:
-                </div>
-                {bomData.components.map((component, index) => (
-                  <div key={index} className="flex justify-between items-center py-1 border-b border-blue-200 last:border-b-0">
-                    <div className="flex-1">
-                      <span className="text-sm font-medium text-blue-900">{component.sku}</span>
-                      {component.name && (
-                        <span className="text-xs text-blue-600 ml-2">- {component.name}</span>
-                      )}
+      {/* Cart Display */}
+      {cart.length > 0 && (
+        <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4">
+          <h4 className="font-medium text-green-900 mb-3">
+            🛒 Cart ({cart.length} {cart.length === 1 ? 'item' : 'items'})
+          </h4>
+          <div className="space-y-2">
+            {cart.map((item, index) => (
+              <div key={index} className="flex items-center justify-between bg-white p-3 rounded border border-green-200">
+                <div className="flex-1">
+                  <div className="font-medium text-gray-900">
+                    {item.sku} - {item.itemName}
+                    {item.isBOM && <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">BOM</span>}
+                  </div>
+                  {item.bomData && (
+                    <div className="text-xs text-gray-500 mt-1">
+                      Components: {item.bomData.components.map(c => `${c.sku} (${c.quantity}x)`).join(', ')}
                     </div>
-                    <div className="text-sm font-medium text-blue-800">
-                      {component.quantity}x
-                    </div>
-                  </div>
-                ))}
-              </div>
-              
-              {formData.amount > 1 && (
-                <div className="mt-3 pt-2 border-t border-blue-200">
-                  <div className="text-xs font-medium text-blue-800 uppercase tracking-wide mb-1">
-                    Total components for {formData.amount} BOMs:
-                  </div>
-                  <div className="text-sm text-blue-700">
-                    {bomData.components.map((component, index) => (
-                      <span key={index} className="mr-3">
-                        {component.sku}: {component.quantity * formData.amount}x
-                      </span>
-                    ))}
-                  </div>
+                  )}
                 </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Destination Zone */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            🏭 {t('transactions.sendToProductionZone')} *
-          </label>
-          <select
-            value={formData.toLocation}
-            onChange={(e) => setFormData(prev => ({ ...prev, toLocation: e.target.value }))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-            required
-          >
-            <option value="">{t('transactions.selectDestinationZone')}</option>
-            {PRODUCTION_ZONES.map((zone) => (
-              <option key={zone.id} value={zone.value}>
-                {zone.name}
-              </option>
+                <div className="flex items-center space-x-3">
+                  <input
+                    type="number"
+                    min="1"
+                    value={item.amount}
+                    onChange={(e) => handleUpdateCartQuantity(index, parseInt(e.target.value) || 0)}
+                    className="w-20 px-2 py-1 border border-gray-300 rounded text-center"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveFromCart(index)}
+                    className="text-red-600 hover:text-red-800"
+                    title="Remove from cart"
+                  >
+                    🗑️
+                  </button>
+                </div>
+              </div>
             ))}
-          </select>
+          </div>
         </div>
+      )}
 
+      <form onSubmit={handleSubmit} className="space-y-6">
 
-        {/* Summary for regular items */}
-        {formData.sku && formData.toLocation && formData.amount > 0 && selectedItem && !isBOM && (
-          <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-            <h4 className="font-medium text-purple-900 mb-2">📋 {t('transactions.transactionSummary')}:</h4>
-            <ul className="text-purple-700 text-sm space-y-1">
-              <li><strong>{t('transactions.item')}:</strong> {selectedItem.sku} - {selectedItem.name}</li>
-              <li><strong>{t('transactions.amount')}:</strong> {formData.amount} {t('transactions.units')}</li>
-              <li><strong>{t('transactions.available')}:</strong> {selectedItem.totalQuantity} {t('transactions.units')}</li>
-              <li><strong>{t('transactions.remainingAfterSend')}:</strong> {selectedItem.totalQuantity - formData.amount} {t('transactions.units')}</li>
-              <li><strong>{t('transactions.fromLocation')}:</strong> {t('roles.logistics')}</li>
-              <li><strong>{t('transactions.toLocation')}:</strong> {PRODUCTION_ZONES.find(z => z.value === formData.toLocation)?.name}</li>
-              <li><strong>{t('transactions.performedBy')}:</strong> {senderEmail}</li>
-            </ul>
+        {/* Add Item Section */}
+        <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+          <h4 className="font-medium text-gray-700 mb-4">➕ Add Item to Cart</h4>
+
+          {/* SKU Selection */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              📦 {t('transactions.itemSKU')}
+            </label>
+            <SearchAutocomplete
+              placeholder={t('inventory.searchSKU')}
+              onSelect={handleItemSelect}
+              value={selectedSearchResult}
+              onClear={() => {
+                setCurrentSku('');
+                setSelectedSearchResult(null);
+                setScanError(null);
+              }}
+            />
+
+            {/* QR Scanner Button */}
+            <div className="mt-3">
+              <button
+                type="button"
+                onClick={isScanning ? stopScanning : startScanning}
+                className={`w-full px-4 py-2 rounded-lg border font-medium ${
+                  isScanning
+                    ? 'bg-red-500 text-white border-red-500 hover:bg-red-600'
+                    : 'bg-blue-500 text-white border-blue-500 hover:bg-blue-600'
+                }`}
+              >
+                {isScanning ? '⏹️ Stop Scanner' : '📱 Scan QR Code / Barcode'}
+              </button>
+            </div>
+
+            {/* QR Scanner Video */}
+            {isScanning && (
+              <div className="mt-3 bg-black rounded-lg overflow-hidden">
+                <video
+                  ref={videoRef}
+                  className="w-full h-48 object-cover"
+                  autoPlay
+                  muted
+                  playsInline
+                />
+                <div className="p-2 text-center bg-gray-800 text-white text-sm">
+                  📷 Point camera at QR code or barcode
+                </div>
+              </div>
+            )}
+
+            {/* Scanner Error */}
+            {scanError && (
+              <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-600">
+                ⚠️ {scanError}
+              </div>
+            )}
+
+            {/* Show selected item details */}
+            {currentItem && (
+              <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="font-medium text-blue-900">{currentItem.sku} - {currentItem.name}</p>
+                    <p className="text-sm text-blue-700">
+                      Available: {remainingAvailable} units (Total: {maxAvailableQuantity}, In cart: {amountInCart})
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      remainingAvailable > 0
+                        ? 'bg-green-100 text-green-800'
+                        : 'bg-red-100 text-red-800'
+                    }`}>
+                      {remainingAvailable > 0 ? 'In Stock' : 'Out of Stock'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* BOM Preview */}
+            {isBOM && currentBomData && (
+              <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <h4 className="font-medium text-blue-900 mb-2">📦 BOM Preview: {currentBomData.bomCode}</h4>
+                <p className="text-sm text-blue-700 mb-3">{currentBomData.name}</p>
+
+                <div className="space-y-1">
+                  {currentBomData.components.map((component, index) => (
+                    <div key={index} className="flex justify-between text-sm">
+                      <span className="text-blue-900">{component.sku} - {component.name}</span>
+                      <span className="font-medium text-blue-800">{component.quantity}x</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
-        )}
 
-        {/* Summary for BOMs */}
-        {formData.sku && formData.toLocation && formData.amount > 0 && isBOM && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h4 className="font-medium text-blue-900 mb-2">📦 BOM {t('transactions.transactionSummary')}:</h4>
-            <ul className="text-blue-700 text-sm space-y-1">
-              <li><strong>BOM:</strong> {formData.sku}</li>
-              <li><strong>{t('transactions.quantity')}:</strong> {formData.amount} BOM(s)</li>
-              <li><strong>{t('transactions.fromLocation')}:</strong> {t('roles.logistics')}</li>
-              <li><strong>{t('transactions.toLocation')}:</strong> {PRODUCTION_ZONES.find(z => z.value === formData.toLocation)?.name}</li>
-              <li><strong>{t('transactions.performedBy')}:</strong> {senderEmail}</li>
-              <li><strong>Note:</strong> BOM will be expanded into individual components</li>
-            </ul>
+          {/* Amount */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              🔢 Quantity {!isBOM && currentItem && `(Max: ${remainingAvailable})`}
+            </label>
+            <input
+              type="number"
+              min="1"
+              max={isBOM ? undefined : (remainingAvailable || undefined)}
+              value={currentAmount}
+              onChange={(e) => {
+                const value = parseInt(e.target.value) || 0;
+                if (value >= 0 && (isBOM || value <= remainingAvailable)) {
+                  setCurrentAmount(value);
+                }
+              }}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Enter quantity"
+            />
+
+            {/* Allocation error */}
+            {allocationError && (
+              <p className="mt-2 text-sm text-red-600">{allocationError}</p>
+            )}
           </div>
-        )}
+
+          {/* Add to Cart Button */}
+          <button
+            type="button"
+            onClick={handleAddToCart}
+            disabled={!currentSku || currentAmount <= 0 || (!isBOM && remainingAvailable <= 0)}
+            className="w-full bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            ➕ Add to Cart
+          </button>
+        </div>
 
         {/* OTP Options */}
         <div className="border-t pt-4">
@@ -638,7 +677,7 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
           </div>
           {skipOTP && (
             <p className="mt-2 text-xs text-orange-600 bg-orange-50 border border-orange-200 rounded p-2">
-              ⚠️ Testing mode: Transaction will be completed immediately when you click send. No OTP verification required.
+              ⚠️ Testing mode: Transaction will be completed immediately. No OTP verification required.
             </p>
           )}
         </div>
@@ -652,16 +691,14 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
           >
             {t('common.cancel')}
           </button>
-          
+
           <button
             type="submit"
             disabled={
               isSubmitting ||
-              !formData.sku ||
-              !formData.toLocation ||
-              formData.amount <= 0 ||
-              !selectedBatch ||
-              (!isBOM && (formData.amount > maxAvailableQuantity || !selectedItem || maxAvailableQuantity === 0))
+              cart.length === 0 ||
+              !destinationZone ||
+              !selectedBatch
             }
             className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed flex-1"
           >
@@ -672,7 +709,7 @@ export function TransactionSendForm({ onSubmit, onCancel, senderEmail, inventory
               </>
             ) : (
               <>
-                📤 {skipOTP ? `Send from Batch ${selectedBatch} (No OTP)` : `Send from Batch ${selectedBatch} & Generate OTP`}
+                📤 {skipOTP ? `Send ${cart.length} Item(s) (No OTP)` : `Send ${cart.length} Item(s) & Generate OTP`}
               </>
             )}
           </button>

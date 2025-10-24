@@ -1,10 +1,10 @@
 // Checklist CSV Service - Parse and validate CSV files for inspection templates
-import type { InspectionTemplate, InspectionSectionTemplate, InspectionItem, MultilingualText } from '../types/inspection';
+import type { InspectionTemplate, InspectionSectionTemplate, InspectionItem, MultilingualText, LanguageCode } from '../types/inspection';
 import { createModuleLogger } from './logger';
 
 const logger = createModuleLogger('ChecklistCSVService');
 
-export type LanguageCode = 'en' | 'ms' | 'zh' | 'my' | 'bn';
+export type { LanguageCode } from '../types/inspection';
 
 export const LANGUAGE_NAMES: Record<LanguageCode, string> = {
   en: 'English',
@@ -335,13 +335,254 @@ class ChecklistCSVService {
         if (item.defectTypes && item.defectTypes.length > 0) {
           for (const defectType of item.defectTypes) {
             const defectName = getText(defectType);
-            rows.push(`,,,,,"${defectName}"`);
+            rows.push(`,,,,"${defectName}",`);
+          }
+        } else if (template.defectTypes && template.defectTypes.length > 0) {
+          // Use default defect types if item has none
+          for (const defectType of template.defectTypes) {
+            const defectName = getText(defectType);
+            rows.push(`,,,,"${defectName}",`);
           }
         }
       }
     }
 
     return rows.join('\n');
+  }
+
+  /**
+   * Validate a translation CSV against the English master template
+   * Returns errors if structure doesn't match
+   */
+  validateTranslationPatch(
+    masterTemplate: InspectionTemplate,
+    translationData: ParsedChecklistData,
+    language: LanguageCode
+  ): { valid: boolean; errors: string[] } {
+    const errors: string[] = [];
+
+    // Extract English structure from master template
+    const masterSections = Object.keys(masterTemplate.sections).sort();
+    const translationSections = Array.from(translationData.sections.keys()).sort();
+
+    // Check: Same number of sections
+    if (masterSections.length !== translationSections.length) {
+      errors.push(
+        `Section count mismatch: English has ${masterSections.length} sections, ${language} has ${translationSections.length}`
+      );
+    }
+
+    // Check: Same section IDs
+    for (const sectionId of masterSections) {
+      if (!translationData.sections.has(sectionId)) {
+        errors.push(`Missing section: "${sectionId}" not found in ${language} translation`);
+      }
+    }
+
+    for (const sectionId of translationSections) {
+      if (!masterTemplate.sections[sectionId]) {
+        errors.push(`Extra section: "${sectionId}" found in ${language} but not in English`);
+      }
+    }
+
+    // Check each section's items
+    for (const sectionId of masterSections) {
+      const masterSection = masterTemplate.sections[sectionId];
+      const translationSection = translationData.sections.get(sectionId);
+
+      if (!translationSection) continue;
+
+      const masterItems = masterSection.items;
+      const translationItems = Array.from(translationSection.items.values());
+
+      // Check: Same number of items
+      if (masterItems.length !== translationItems.length) {
+        errors.push(
+          `Section "${sectionId}": Item count mismatch (English: ${masterItems.length}, ${language}: ${translationItems.length})`
+        );
+        continue;
+      }
+
+      // Check: Same item numbers and order
+      for (let i = 0; i < masterItems.length; i++) {
+        const masterItem = masterItems[i];
+        const translationItem = translationItems[i];
+
+        if (masterItem.itemNumber !== translationItem.itemNumber) {
+          errors.push(
+            `Section "${sectionId}": Item number mismatch at position ${i + 1} (English: ${masterItem.itemNumber}, ${language}: ${translationItem.itemNumber})`
+          );
+        }
+      }
+    }
+
+    return {
+      valid: errors.length === 0,
+      errors
+    };
+  }
+
+  /**
+   * Apply a single-language translation patch to an existing template
+   * Updates only the specified language, keeps English intact
+   */
+  applyTranslationPatch(
+    template: InspectionTemplate,
+    translationData: ParsedChecklistData,
+    language: LanguageCode,
+    uploadedBy?: string
+  ): InspectionTemplate {
+    logger.info(`Applying ${language} translation patch to template ${template.templateId}`);
+
+    // Create updated sections with translation
+    const updatedSections: Record<string, InspectionSectionTemplate> = {};
+
+    for (const [sectionId, section] of Object.entries(template.sections)) {
+      const translationSection = translationData.sections.get(sectionId);
+
+      if (!translationSection) {
+        // Keep existing section if no translation
+        updatedSections[sectionId] = section;
+        continue;
+      }
+
+      // Update section name
+      const sectionName = typeof section.sectionName === 'string'
+        ? { en: section.sectionName, ms: '', zh: '', my: '', bn: '' }
+        : { ...section.sectionName };
+
+      if (language !== 'en') {
+        sectionName[language] = translationSection.sectionName;
+      }
+
+      // Update items
+      const updatedItems = section.items.map((item) => {
+        const translationItem = translationSection.items.get(item.itemNumber);
+
+        if (!translationItem) return item;
+
+        // Update item name
+        const itemName = typeof item.itemName === 'string'
+          ? { en: item.itemName, ms: '', zh: '', my: '', bn: '' }
+          : { ...item.itemName };
+
+        if (language !== 'en') {
+          itemName[language] = translationItem.itemName;
+        }
+
+        // Update defect types if item has custom ones
+        let defectTypes = item.defectTypes;
+        if (defectTypes && translationItem.defectTypes.length > 0) {
+          defectTypes = defectTypes.map((defect, idx) => {
+            const translationDefect = translationItem.defectTypes[idx];
+            if (!translationDefect) return defect;
+
+            const defectText = typeof defect === 'string'
+              ? { en: defect, ms: '', zh: '', my: '', bn: '' }
+              : { ...defect };
+
+            if (language !== 'en') {
+              defectText[language] = translationDefect;
+            }
+
+            return defectText;
+          });
+        }
+
+        return {
+          ...item,
+          itemName,
+          defectTypes
+        };
+      });
+
+      updatedSections[sectionId] = {
+        ...section,
+        sectionName,
+        items: updatedItems
+      };
+    }
+
+    // Update global defect types
+    let defectTypes = template.defectTypes;
+    if (defectTypes && defectTypes.length > 0) {
+      // For global defect types, we'd need to extract them from the translation data
+      // For now, keep them as-is since they're handled at item level
+      defectTypes = defectTypes;
+    }
+
+    // Update translation metadata
+    const translations: Partial<Record<LanguageCode, import('../types/inspection').TranslationMetadata>> = {
+      ...(template.translations || {})
+    };
+    translations[language] = {
+      language,
+      syncedWithVersion: template.version,
+      lastUpdated: new Date(),
+      status: 'synced',
+      uploadedBy
+    };
+
+    return {
+      ...template,
+      sections: updatedSections,
+      defectTypes,
+      translations,
+      isMultilingual: true,
+      updatedAt: new Date()
+    };
+  }
+
+  /**
+   * Convert ParsedChecklistData to InspectionTemplate format
+   * Used when uploading a new English template via CSV
+   */
+  convertToTemplate(
+    parsedData: ParsedChecklistData,
+    templateId: string
+  ): InspectionTemplate {
+    logger.info(`Converting parsed data to template: ${templateId}`);
+
+    // Build sections from parsed data
+    const sections: Record<string, InspectionSectionTemplate> = {};
+
+    for (const [sectionId, sectionData] of parsedData.sections) {
+      const items: InspectionItem[] = Array.from(sectionData.items.values())
+        .sort((a, b) => a.itemNumber - b.itemNumber)
+        .map(itemData => ({
+          itemNumber: itemData.itemNumber,
+          itemName: itemData.itemName,
+          defectTypes: itemData.defectTypes.length > 0 ? itemData.defectTypes : undefined
+        }));
+
+      sections[sectionId] = {
+        sectionId: sectionData.sectionId,
+        sectionName: sectionData.sectionName,
+        items
+      };
+    }
+
+    // Extract default defect types (collect all unique defect types)
+    const allDefectTypes = new Set<string>();
+    for (const section of parsedData.sections.values()) {
+      for (const item of section.items.values()) {
+        item.defectTypes.forEach(dt => allDefectTypes.add(dt));
+      }
+    }
+
+    const now = new Date();
+
+    return {
+      templateId,
+      templateName: parsedData.templateName,
+      version: '1.0',
+      sections,
+      defectTypes: Array.from(allDefectTypes),
+      createdAt: now,
+      updatedAt: now,
+      isMultilingual: true,
+      translations: {}
+    };
   }
 }
 

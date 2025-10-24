@@ -8,6 +8,7 @@ import type { Transaction } from '../types';
 const log = createModuleLogger('TransferEffects');
 
 // Apply a forward transfer: move inventory and batch allocation from source to destination
+// v7.6.0: Added support for multi-item transactions
 export async function applyTransferEffects(transaction: Transaction) {
   // Guard: destination required
   const destination = transaction.toLocation;
@@ -15,6 +16,62 @@ export async function applyTransferEffects(transaction: Transaction) {
     throw new Error('Destination location is required for transfer');
   }
 
+  const actor = (transaction.approvedBy || transaction.performedBy || 'system') as string;
+  const source = transaction.fromLocation || transaction.location || 'logistics';
+
+  // Multi-item transaction support (v7.6.0+)
+  if (transaction.items && transaction.items.length > 0) {
+    log.info('Processing multi-item transaction', { transactionId: transaction.id, itemCount: transaction.items.length });
+
+    for (const item of transaction.items) {
+      // Skip BOMs
+      if (item.sku.startsWith('BOM')) {
+        log.warn('BOM transfer ignored in multi-item transaction', { sku: item.sku, id: transaction.id });
+        continue;
+      }
+
+      const amount = Math.abs(item.amount);
+
+      // Resolve correct item name via Item Master (fallback to SKU)
+      let itemName = item.itemName || item.sku;
+      try {
+        const itemMaster = await itemMasterService.getItemBySKU(item.sku);
+        if (itemMaster) itemName = itemMaster.name;
+      } catch (e) {
+        log.warn('Item Master lookup failed; using provided name', { sku: item.sku, error: e });
+      }
+
+      // Inventory: +dest, -source
+      await tableStateService.addToInventoryCountOptimized(item.sku, itemName, amount, destination, actor);
+      await tableStateService.addToInventoryCountOptimized(item.sku, itemName, -amount, source, actor);
+
+      log.info('Inventory transfer applied (multi-item)', { sku: item.sku, amount, from: source, to: destination });
+
+      // Batch allocation move (if batchId present)
+      if (transaction.batchId) {
+        try {
+          const existing = await batchAllocationService.getBatchAllocation(item.sku, source);
+          const available = existing?.allocations?.[transaction.batchId] || 0;
+          const moveQty = Math.min(amount, available);
+
+          if (moveQty > 0) {
+            await batchAllocationService.removeToBatchAllocation(item.sku, source, transaction.batchId, moveQty);
+            await batchAllocationService.addToBatchAllocation(item.sku, destination, transaction.batchId, moveQty);
+            log.info('Batch allocation moved (multi-item)', { sku: item.sku, batchId: transaction.batchId, qty: moveQty, from: source, to: destination });
+          } else {
+            log.warn('No batch allocation available to move (multi-item)', { sku: item.sku, batchId: transaction.batchId, requested: amount, available });
+          }
+        } catch (e) {
+          log.warn('Batch allocation move failed (multi-item)', e);
+        }
+      }
+    }
+
+    log.info('Multi-item transaction processing complete', { transactionId: transaction.id, itemCount: transaction.items.length });
+    return;
+  }
+
+  // Single-item transaction (legacy support)
   // Guard: ignore BOM (expansion not implemented here)
   if (transaction.sku.startsWith('BOM')) {
     log.warn('BOM transfer ignored in applyTransferEffects', { sku: transaction.sku, id: transaction.id });
@@ -22,8 +79,6 @@ export async function applyTransferEffects(transaction: Transaction) {
   }
 
   const amount = Math.abs(transaction.amount);
-  const actor = (transaction.approvedBy || transaction.performedBy || 'system') as string;
-  const source = transaction.fromLocation || transaction.location || 'logistics';
 
   // Resolve correct item name via Item Master (fallback to SKU)
   let itemName = transaction.sku;

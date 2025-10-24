@@ -114,7 +114,9 @@ const englishTranslations: Translation = {
     scanDescription: 'Scan barcodes to find target zones',
     checkInventory: 'Check Inventory',
     sendItems: 'Send Items',
-    scanIn: 'Scan In'
+    scanIn: 'Scan In',
+    monitorInventory: 'Monitor Inventory',
+    wasteLostDefect: 'Waste/Lost/Defect'
   },
 
   // Scanner

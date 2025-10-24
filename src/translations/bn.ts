@@ -114,7 +114,9 @@ const bengaliTranslations: Translation = {
     scanDescription: 'লক্ষ্য অঞ্চল খুঁজে পেতে বারকোড স্ক্যান করুন',
     checkInventory: 'ইনভেন্টরি পরীক্ষা করুন',
     sendItems: 'আইটেম পাঠান',
-    scanIn: 'স্ক্যান ইন'
+    scanIn: 'স্ক্যান ইন',
+    monitorInventory: 'ইনভেন্টরি মনিটর করুন',
+    wasteLostDefect: 'অপচয়/হারানো/ত্রুটি'
   },
 
   // Scanner

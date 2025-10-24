@@ -85,15 +85,8 @@ const QAInspectionAnalytics: React.FC = () => {
       (i) => i.status === 'completed'
     ).length;
 
-    // Defect type counts
-    const defectsByType: Record<DefectType, number> = {
-      'Not installed properly': 0,
-      'Scratches': 0,
-      'Paint Defect': 0,
-      'Dent': 0,
-      'Gap': 0,
-      'Ok': 0,
-    };
+    // Dynamically discover defect types from actual data
+    const defectsByType: Record<DefectType, number> = {};
 
     // Section defect counts
     const defectsBySection: Record<string, number> = {};
@@ -128,6 +121,10 @@ const QAInspectionAnalytics: React.FC = () => {
 
         // Count defects
         Object.entries(section.results).forEach(([itemName, result]) => {
+          // Initialize counter if this defect type hasn't been seen yet
+          if (!defectsByType[result.defectType]) {
+            defectsByType[result.defectType] = 0;
+          }
           defectsByType[result.defectType]++;
 
           if (result.defectType !== 'Ok') {

@@ -38,6 +38,7 @@ export interface InspectionItemResult {
   photoUrls?: string[];
   checkedAt?: Date;
   checkedBy?: string;
+  status?: string;  // Track defect resolution status (e.g., "Pending", "Fixed", "Acknowledged")
 }
 
 // Section configuration in template
@@ -45,6 +46,20 @@ export interface InspectionSectionTemplate {
   sectionId: string;
   sectionName: string | MultilingualText;  // Support both legacy and new format
   items: InspectionItem[];
+}
+
+// Translation status for a specific language
+export type TranslationStatus = 'synced' | 'outdated' | 'missing';
+
+export type LanguageCode = 'en' | 'ms' | 'zh' | 'my' | 'bn';
+
+// Translation metadata for tracking sync status
+export interface TranslationMetadata {
+  language: LanguageCode;
+  syncedWithVersion: string;  // Which English version this translation matches
+  lastUpdated: Date;
+  status: TranslationStatus;
+  uploadedBy?: string;
 }
 
 // Inspection template (master checklist)
@@ -57,6 +72,7 @@ export interface InspectionTemplate {
   createdAt: Date;
   updatedAt: Date;
   isMultilingual?: boolean;  // Flag to indicate new multilingual format
+  translations?: Partial<Record<LanguageCode, TranslationMetadata>>;  // Track translation sync status (not all languages required)
 }
 
 // Section results within a car inspection

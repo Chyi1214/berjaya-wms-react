@@ -1,7 +1,7 @@
 // Multilingual Helper - Utilities for handling multilingual text
-import type { MultilingualText } from '../types/inspection';
+import type { MultilingualText, InspectionTemplate, LanguageCode } from '../types/inspection';
 
-export type LanguageCode = 'en' | 'ms' | 'zh' | 'my' | 'bn';
+export type { LanguageCode } from '../types/inspection';
 
 /**
  * Get text in the specified language from MultilingualText or string
@@ -19,6 +19,40 @@ export function getLocalizedText(
   }
 
   // If it's multilingual text, get the requested language or fall back to English
+  return text[language] || text.en || '';
+}
+
+/**
+ * Get text with translation status check
+ * Falls back to English if translation is outdated or missing
+ */
+export function getLocalizedTextSafe(
+  text: string | MultilingualText | undefined,
+  language: LanguageCode,
+  template?: InspectionTemplate
+): string {
+  if (!text) return '';
+
+  // If it's a plain string, return it as is (legacy support)
+  if (typeof text === 'string') {
+    return text;
+  }
+
+  // Always show English
+  if (language === 'en') {
+    return text.en || '';
+  }
+
+  // Check if translation is synced
+  const translationStatus = template?.translations?.[language]?.status;
+  const isTranslationValid = translationStatus === 'synced';
+
+  // If translation is not synced or outdated, fall back to English
+  if (!isTranslationValid) {
+    return text.en || '';
+  }
+
+  // Return translated text or fall back to English
   return text[language] || text.en || '';
 }
 

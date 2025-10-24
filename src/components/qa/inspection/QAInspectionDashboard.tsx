@@ -50,17 +50,51 @@ const QAInspectionDashboard: React.FC<QAInspectionDashboardProps> = ({
     setError(null);
   };
 
+  // Validate VIN format
+  const validateVIN = (vin: string): { valid: boolean; error?: string } => {
+    // VIN must be exactly 17 characters
+    if (vin.length !== 17) {
+      return { valid: false, error: `Invalid VIN length: ${vin.length}/17 characters` };
+    }
+
+    // VIN can only contain A-Z and 0-9, excluding I, O, Q
+    const vinPattern = /^[A-HJ-NPR-Z0-9]{17}$/;
+    if (!vinPattern.test(vin)) {
+      return { valid: false, error: 'Invalid VIN characters (must be A-Z, 0-9, excluding I, O, Q)' };
+    }
+
+    return { valid: true };
+  };
+
   const handleBarcodeScan = async (code: string) => {
     setShowScanner(false);
-    setVinInput(code.toUpperCase());
-    await handleScanVIN(code.toUpperCase());
+
+    // Clean and validate the scanned code
+    const cleanVin = code.trim().toUpperCase();
+
+    // Validate VIN format
+    const validation = validateVIN(cleanVin);
+    if (!validation.valid) {
+      setError(validation.error || 'Invalid VIN format');
+      return;
+    }
+
+    setVinInput(cleanVin);
+    await handleScanVIN(cleanVin);
   };
 
   const handleScanVIN = async (vin?: string) => {
-    const vinToScan = vin || vinInput.trim();
+    const vinToScan = vin || vinInput.trim().toUpperCase();
 
     if (!vinToScan) {
       setError('Please enter a VIN number');
+      return;
+    }
+
+    // Validate VIN format
+    const validation = validateVIN(vinToScan);
+    if (!validation.valid) {
+      setError(validation.error || 'Invalid VIN format');
       return;
     }
 

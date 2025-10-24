@@ -105,13 +105,25 @@ export enum TransactionStatus {
   CANCELLED = 'cancelled'
 }
 
+// Multi-item transaction support - v7.6.0
+export interface TransactionItem {
+  sku: string;
+  itemName: string;
+  amount: number;
+  previousAmount: number;
+  newAmount: number;
+}
+
 export interface Transaction {
   id: string;
+  // Legacy single-item fields (kept for backward compatibility)
   sku: string;
   itemName: string;
   amount: number;
   previousAmount: number; // For audit trail
   newAmount: number; // After transaction
+  // Multi-item support (v7.6.0+)
+  items?: TransactionItem[]; // Multiple items in one transaction
   location: string; // 'logistics' or 'production_zone_N'
   fromLocation?: string; // For transfers
   toLocation?: string; // For transfers
@@ -144,8 +156,11 @@ export interface TransactionFilter {
 
 // Transaction form data
 export interface TransactionFormData {
+  // Legacy single-item fields (kept for backward compatibility)
   sku: string;
   amount: number;
+  // Multi-item support (v7.6.0+)
+  items?: Array<{ sku: string; itemName: string; amount: number }>;
   transactionType: TransactionType;
   location: string;
   fromLocation?: string;

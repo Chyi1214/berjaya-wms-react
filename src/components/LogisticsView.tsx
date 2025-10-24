@@ -101,8 +101,8 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onTransacti
                 {selectedAction === 'check' ? t('inventory.inventoryCount') :
                  selectedAction === 'transaction' ? t('logistics.sendItems') :
                  selectedAction === 'scanner' ? t('logistics.inboundScanner') :
-                 selectedAction === 'monitor' ? 'Monitor Inventory' :
-                 selectedAction === 'waste' ? 'Waste/Lost/Defect' : t('roles.logistics')}
+                 selectedAction === 'monitor' ? t('logistics.monitorInventory') :
+                 selectedAction === 'waste' ? t('logistics.wasteLostDefect') : t('roles.logistics')}
               </h1>
             </div>
 
@@ -177,7 +177,7 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onTransacti
                   className="h-24 bg-orange-500 hover:bg-orange-600 rounded-2xl shadow-lg transition-all duration-200 flex flex-col items-center justify-center text-white group active:scale-95"
                 >
                   <div className="text-3xl mb-1">📊</div>
-                  <span className="text-sm font-medium">Monitor Inventory</span>
+                  <span className="text-sm font-medium">{t('logistics.monitorInventory')}</span>
                 </button>
 
                 {/* Waste/Lost/Defect Button */}
@@ -186,7 +186,7 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onTransacti
                   className="h-24 bg-red-500 hover:bg-red-600 rounded-2xl shadow-lg transition-all duration-200 flex flex-col items-center justify-center text-white group active:scale-95"
                 >
                   <div className="text-3xl mb-1">🗂️</div>
-                  <span className="text-sm font-medium">Waste/Lost/Defect</span>
+                  <span className="text-sm font-medium">{t('logistics.wasteLostDefect')}</span>
                 </button>
               </div>
 
@@ -241,7 +241,6 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onTransacti
                   <TransactionSendForm
                     onSubmit={handleTransactionSubmit}
                     onCancel={handleBackToMenu}
-                    senderEmail={user.email}
                     inventoryCounts={counts}
                   />
                 </>

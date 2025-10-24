@@ -114,7 +114,9 @@ const malayTranslations: Translation = {
     scanDescription: 'Imbas kod bar untuk mencari zon sasaran',
     checkInventory: 'Periksa Inventori',
     sendItems: 'Hantar Item',
-    scanIn: 'Imbas Masuk'
+    scanIn: 'Imbas Masuk',
+    monitorInventory: 'Pantau Inventori',
+    wasteLostDefect: 'Sisa/Hilang/Kecacatan'
   },
 
   // Scanner

@@ -114,7 +114,9 @@ const chineseTranslations: Translation = {
     scanDescription: '扫描条形码以查找目标区域',
     checkInventory: '检查库存',
     sendItems: '发送物料',
-    scanIn: '扫描入库'
+    scanIn: '扫描入库',
+    monitorInventory: '监控库存',
+    wasteLostDefect: '浪费/丢失/缺陷'
   },
 
   // Scanner

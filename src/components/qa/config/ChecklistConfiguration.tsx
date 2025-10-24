@@ -4,12 +4,17 @@ import { checklistCSVService, LANGUAGE_NAMES, type LanguageCode } from '../../..
 import { inspectionService } from '../../../services/inspectionService';
 import type { InspectionTemplate } from '../../../types/inspection';
 import { createModuleLogger } from '../../../services/logger';
+import VisualTemplateEditor from './VisualTemplateEditor';
+import TranslationManagement from './TranslationManagement';
 
 const logger = createModuleLogger('ChecklistConfiguration');
 
 const LANGUAGES: LanguageCode[] = ['en', 'ms', 'zh', 'my', 'bn'];
 
+type ConfigTab = 'visual' | 'translation' | 'csv';
+
 export default function ChecklistConfiguration() {
+  const [activeTab, setActiveTab] = useState<ConfigTab>('visual');
   const [uploadedFiles, setUploadedFiles] = useState<Map<LanguageCode, File>>(new Map());
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<string>('');
@@ -124,10 +129,51 @@ export default function ChecklistConfiguration() {
       <div className="mb-6">
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Checklist Configuration</h2>
         <p className="text-gray-600">
-          Upload CSV files to configure the inspection checklist in multiple languages.
-          English is required, other languages are optional (will fall back to English if missing).
+          Configure the inspection checklist using the visual editor or upload CSV files.
         </p>
       </div>
+
+      {/* Tabs */}
+      <div className="flex gap-2 mb-6 border-b border-gray-200">
+        <button
+          onClick={() => setActiveTab('visual')}
+          className={`px-6 py-3 font-medium transition-colors ${
+            activeTab === 'visual'
+              ? 'border-b-2 border-blue-600 text-blue-600'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          🎨 Visual Editor
+        </button>
+        <button
+          onClick={() => setActiveTab('translation')}
+          className={`px-6 py-3 font-medium transition-colors ${
+            activeTab === 'translation'
+              ? 'border-b-2 border-blue-600 text-blue-600'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          🌐 Translations
+        </button>
+        <button
+          onClick={() => setActiveTab('csv')}
+          className={`px-6 py-3 font-medium transition-colors ${
+            activeTab === 'csv'
+              ? 'border-b-2 border-blue-600 text-blue-600'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          📄 CSV Upload (Legacy)
+        </button>
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === 'visual' ? (
+        <VisualTemplateEditor />
+      ) : activeTab === 'translation' ? (
+        <TranslationManagement />
+      ) : (
+        <div>
 
       {/* Current Template Section */}
       <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
@@ -277,6 +323,9 @@ right_outside,Right Outside,,,,
           <li>Missing translations will fall back to English automatically</li>
         </ol>
       </div>
+
+        </div>
+      )}
     </div>
   );
 }

@@ -56,7 +56,7 @@ const QAInspectionManager: React.FC = () => {
 
   const exportToCSV = (inspection: CarInspection) => {
     const rows: string[] = [
-      'VIN,Section,Item,Defect Type,Notes,Inspector,Checked At',
+      'VIN,Section,Item,Defect Type,Notes,Inspector,Checked At,Status',
     ];
 
     Object.entries(inspection.sections).forEach(([sectionId, section]) => {
@@ -72,6 +72,7 @@ const QAInspectionManager: React.FC = () => {
             result.checkedAt
               ? new Date(result.checkedAt).toLocaleString()
               : '',
+            result.status || '',  // Empty by default
           ].join(',')
         );
       });

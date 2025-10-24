@@ -10,20 +10,21 @@ import type {
 } from '../../../types/inspection';
 import { createModuleLogger } from '../../../services/logger';
 import { useLanguage } from '../../../contexts/LanguageContext';
-import { getLocalizedText } from '../../../utils/multilingualHelper';
+import { getLocalizedText, getLocalizedTextSafe } from '../../../utils/multilingualHelper';
 
 const logger = createModuleLogger('InspectionChecklistView');
 
 // Sanitize field names for Firestore (replace invalid characters)
+// Firestore field names cannot contain: / $ # [ ] * ~ .
 function sanitizeFieldName(name: string | any): string {
   if (typeof name === 'object' && name && 'en' in name) {
     // If multilingual, sanitize the English version as the key
-    return (name as any).en.replace(/[~/\*\[\]]/g, '_');
+    return (name as any).en.replace(/[~/\*\[\]\$\#\.]/g, '_');
   }
   if (typeof name === 'string') {
-    return name.replace(/[~/\*\[\]]/g, '_');
+    return name.replace(/[~/\*\[\]\$\#\.]/g, '_');
   }
-  return String(name).replace(/[~/\*\[\]]/g, '_');
+  return String(name).replace(/[~/\*\[\]\$\#\.]/g, '_');
 }
 
 interface InspectionChecklistViewProps {
@@ -56,40 +57,78 @@ const InspectionChecklistView: React.FC<InspectionChecklistViewProps> = ({
   const langCode = currentLanguage as 'en' | 'ms' | 'zh' | 'my' | 'bn';
 
   useEffect(() => {
-    loadData();
-  }, [inspectionId]);
+    let templateUnsubscribe: (() => void) | null = null;
 
-  const loadData = async () => {
-    try {
-      const insp = await inspectionService.getInspectionById(inspectionId);
-      if (!insp) {
-        setError('Inspection not found');
-        return;
+    // First, get the inspection to find out which template to use
+    const initializeAndSubscribe = async () => {
+      try {
+        const insp = await inspectionService.getInspectionById(inspectionId);
+        if (!insp) {
+          setError('Inspection not found');
+          setLoading(false);
+          return;
+        }
+
+        // Start section if needed
+        if (insp.sections[section].status === 'not_started') {
+          await inspectionService.startSection(inspectionId, section, userEmail, userName);
+        }
+
+        // Subscribe to real-time template updates
+        templateUnsubscribe = inspectionService.subscribeToTemplate(
+          insp.templateId,
+          (templ) => {
+            if (!templ) {
+              setError('Template not found');
+              setLoading(false);
+              return;
+            }
+            setTemplate(templ);
+            setLoading(false);
+          },
+          (err) => {
+            logger.error('Template subscription error:', err);
+            setError('Failed to load template updates');
+            setLoading(false);
+          }
+        );
+      } catch (err) {
+        logger.error('Failed to initialize:', err);
+        setError('Failed to load inspection');
+        setLoading(false);
       }
+    };
 
-      const templ = await inspectionService.getTemplate(insp.templateId);
-      if (!templ) {
-        setError('Template not found');
-        return;
+    // Subscribe to real-time inspection updates
+    const inspectionUnsubscribe = inspectionService.subscribeToInspection(
+      inspectionId,
+      (insp) => {
+        if (!insp) {
+          setError('Inspection not found');
+          setLoading(false);
+          return;
+        }
+        setInspection(insp);
+        setError(null);
+      },
+      (err) => {
+        logger.error('Inspection subscription error:', err);
+        setError('Failed to load inspection updates');
+        setLoading(false);
       }
+    );
 
-      setInspection(insp);
-      setTemplate(templ);
+    // Initialize
+    initializeAndSubscribe();
 
-      if (insp.sections[section].status === 'not_started') {
-        await inspectionService.startSection(inspectionId, section, userEmail, userName);
-        const updated = await inspectionService.getInspectionById(inspectionId);
-        setInspection(updated);
+    // Cleanup subscriptions
+    return () => {
+      inspectionUnsubscribe();
+      if (templateUnsubscribe) {
+        templateUnsubscribe();
       }
-
-      setError(null);
-    } catch (err) {
-      logger.error('Failed to load inspection:', err);
-      setError('Failed to load inspection');
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
+  }, [inspectionId, section, userEmail, userName]);
 
   const handleDefectSelect = async (itemName: string, defectType: DefectType) => {
     if (!inspection) return;
@@ -103,7 +142,11 @@ const InspectionChecklistView: React.FC<InspectionChecklistViewProps> = ({
       });
 
       const updated = await inspectionService.getInspectionById(inspectionId);
-      setInspection(updated);
+      if (updated) {
+        setInspection(updated);
+      } else {
+        setError('Failed to reload inspection after save');
+      }
 
       logger.info('Defect recorded:', { itemName, defectType });
     } catch (err) {
@@ -234,7 +277,7 @@ const InspectionChecklistView: React.FC<InspectionChecklistViewProps> = ({
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-xl font-bold text-gray-900">
-                {getLocalizedText(sectionTemplate.sectionName, langCode)}
+                {getLocalizedTextSafe(sectionTemplate.sectionName, langCode, template)}
               </h1>
               <p className="text-sm text-gray-600">{t('qa.vin')}: {inspection.vin}</p>
             </div>
@@ -265,7 +308,7 @@ const InspectionChecklistView: React.FC<InspectionChecklistViewProps> = ({
         {/* Checklist Items */}
         <div className="space-y-3">
           {items.map((item: InspectionItem) => {
-            const itemName = getLocalizedText(item.itemName, langCode);
+            const itemName = getLocalizedTextSafe(item.itemName, langCode, template);
             const itemKey = getLocalizedText(item.itemName, 'en'); // Use English as key
             const sanitizedItemName = sanitizeFieldName(itemKey);
             const result = sectionResult.results[sanitizedItemName];
@@ -339,7 +382,7 @@ const InspectionChecklistView: React.FC<InspectionChecklistViewProps> = ({
                       <div className="grid grid-cols-2 gap-2">
                         {itemDefectTypes.map((defectType) => {
                           const defectKey = getLocalizedText(defectType, 'en');
-                          const defectLabel = getLocalizedText(defectType, langCode);
+                          const defectLabel = getLocalizedTextSafe(defectType, langCode, template);
                           const isSelected = result?.defectType === defectKey;
                           return (
                             <button

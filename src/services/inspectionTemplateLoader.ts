@@ -168,7 +168,15 @@ export async function loadDefaultTemplate(): Promise<void> {
     // Check if template already exists
     const existing = await inspectionService.getTemplate(DEFAULT_TEMPLATE_ID);
     if (existing) {
-      logger.info('Default template already exists');
+      // Check if defectTypes exists in the template
+      if (!existing.defectTypes || existing.defectTypes.length === 0) {
+        logger.info('Template exists but missing defect types. Updating...');
+        const template = buildDefaultTemplate();
+        await inspectionService.createTemplate(template); // setDoc will overwrite
+        logger.info('Template updated with defect types');
+      } else {
+        logger.info('Default template already exists with defect types');
+      }
       return;
     }
 

@@ -114,7 +114,9 @@ const myanmarTranslations: Translation = {
     scanDescription: 'ပစ်မှတ်ဇုန်များ ရှာဖွေရန် ဘားကုဒ်များကို စကင်ဖတ်ပါ',
     checkInventory: 'ကုန်ပစ္စည်းစာရင်း စစ်ဆေးပါ',
     sendItems: 'ပစ္စည်းများကို ပို့ပါ',
-    scanIn: 'အဝင် စကင်ဖတ်ပါ'
+    scanIn: 'အဝင် စကင်ဖတ်ပါ',
+    monitorInventory: 'ကုန်ပစ္စည်းစာရင်း စောင့်ကြည့်ပါ',
+    wasteLostDefect: 'အပေါ့တန်/ပျောက်ဆုံး/ချို့ယွင်း'
   },
 
   // Scanner
