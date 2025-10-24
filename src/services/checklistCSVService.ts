@@ -363,8 +363,22 @@ class ChecklistCSVService {
     // POSITION-BASED VALIDATION (not ID-based)
     // We only care about structure matching, not text content
 
-    // Get sections in order they appear
-    const masterSections = Object.values(masterTemplate.sections);
+    // Sort sections to match the typical CSV order (interior_right, interior_left, right_outside, front_back, left_outside)
+    // This ensures validation matches regardless of how Firestore returns the object
+    const sectionOrder = ['interior_right', 'interior_left', 'right_outside', 'front_back', 'left_outside'];
+
+    const masterSections = Object.entries(masterTemplate.sections)
+      .sort(([idA], [idB]) => {
+        const indexA = sectionOrder.indexOf(idA);
+        const indexB = sectionOrder.indexOf(idB);
+        if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+        if (indexA !== -1) return -1;
+        if (indexB !== -1) return 1;
+        return idA.localeCompare(idB);
+      })
+      .map(([_, section]) => section);
+
+    // Translation sections are already in CSV upload order (Map preserves insertion order)
     const translationSections = Array.from(translationData.sections.values());
 
     // Check: Same number of sections
@@ -435,8 +449,20 @@ class ChecklistCSVService {
     // POSITION-BASED MATCHING (not ID-based)
     // Match sections and items by their position in the structure
 
+    // Sort sections to match the typical CSV order
+    const sectionOrder = ['interior_right', 'interior_left', 'right_outside', 'front_back', 'left_outside'];
+
     const updatedSections: Record<string, InspectionSectionTemplate> = {};
-    const masterSections = Object.entries(template.sections);
+    const masterSections = Object.entries(template.sections)
+      .sort(([idA], [idB]) => {
+        const indexA = sectionOrder.indexOf(idA);
+        const indexB = sectionOrder.indexOf(idB);
+        if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+        if (indexA !== -1) return -1;
+        if (indexB !== -1) return 1;
+        return idA.localeCompare(idB);
+      });
+
     const translationSections = Array.from(translationData.sections.values());
 
     for (let i = 0; i < masterSections.length; i++) {
