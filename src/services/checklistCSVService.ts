@@ -360,36 +360,25 @@ class ChecklistCSVService {
   ): { valid: boolean; errors: string[] } {
     const errors: string[] = [];
 
-    // Extract English structure from master template
-    const masterSections = Object.keys(masterTemplate.sections).sort();
-    const translationSections = Array.from(translationData.sections.keys()).sort();
+    // POSITION-BASED VALIDATION (not ID-based)
+    // We only care about structure matching, not text content
+
+    // Get sections in order they appear
+    const masterSections = Object.values(masterTemplate.sections);
+    const translationSections = Array.from(translationData.sections.values());
 
     // Check: Same number of sections
     if (masterSections.length !== translationSections.length) {
       errors.push(
         `Section count mismatch: English has ${masterSections.length} sections, ${language} has ${translationSections.length}`
       );
+      return { valid: false, errors };
     }
 
-    // Check: Same section IDs
-    for (const sectionId of masterSections) {
-      if (!translationData.sections.has(sectionId)) {
-        errors.push(`Missing section: "${sectionId}" not found in ${language} translation`);
-      }
-    }
-
-    for (const sectionId of translationSections) {
-      if (!masterTemplate.sections[sectionId]) {
-        errors.push(`Extra section: "${sectionId}" found in ${language} but not in English`);
-      }
-    }
-
-    // Check each section's items
-    for (const sectionId of masterSections) {
-      const masterSection = masterTemplate.sections[sectionId];
-      const translationSection = translationData.sections.get(sectionId);
-
-      if (!translationSection) continue;
+    // Check each section by position
+    for (let sectionIdx = 0; sectionIdx < masterSections.length; sectionIdx++) {
+      const masterSection = masterSections[sectionIdx];
+      const translationSection = translationSections[sectionIdx];
 
       const masterItems = masterSection.items;
       const translationItems = Array.from(translationSection.items.values());
@@ -397,19 +386,29 @@ class ChecklistCSVService {
       // Check: Same number of items
       if (masterItems.length !== translationItems.length) {
         errors.push(
-          `Section "${sectionId}": Item count mismatch (English: ${masterItems.length}, ${language}: ${translationItems.length})`
+          `Section #${sectionIdx + 1}: Item count mismatch (English: ${masterItems.length}, ${language}: ${translationItems.length})`
         );
         continue;
       }
 
-      // Check: Same item numbers and order
+      // Check: Same item numbers in same order
       for (let i = 0; i < masterItems.length; i++) {
         const masterItem = masterItems[i];
         const translationItem = translationItems[i];
 
         if (masterItem.itemNumber !== translationItem.itemNumber) {
           errors.push(
-            `Section "${sectionId}": Item number mismatch at position ${i + 1} (English: ${masterItem.itemNumber}, ${language}: ${translationItem.itemNumber})`
+            `Section #${sectionIdx + 1}, Item position ${i + 1}: Item number mismatch (English: ${masterItem.itemNumber}, ${language}: ${translationItem.itemNumber})`
+          );
+        }
+
+        // Check: Same number of defect types
+        const masterDefectCount = masterItem.defectTypes?.length || masterTemplate.defectTypes?.length || 0;
+        const translationDefectCount = translationItem.defectTypes?.length || 0;
+
+        if (masterDefectCount !== translationDefectCount) {
+          errors.push(
+            `Section #${sectionIdx + 1}, Item #${masterItem.itemNumber}: Defect type count mismatch (English: ${masterDefectCount}, ${language}: ${translationDefectCount})`
           );
         }
       }
@@ -433,19 +432,24 @@ class ChecklistCSVService {
   ): InspectionTemplate {
     logger.info(`Applying ${language} translation patch to template ${template.templateId}`);
 
-    // Create updated sections with translation
-    const updatedSections: Record<string, InspectionSectionTemplate> = {};
+    // POSITION-BASED MATCHING (not ID-based)
+    // Match sections and items by their position in the structure
 
-    for (const [sectionId, section] of Object.entries(template.sections)) {
-      const translationSection = translationData.sections.get(sectionId);
+    const updatedSections: Record<string, InspectionSectionTemplate> = {};
+    const masterSections = Object.entries(template.sections);
+    const translationSections = Array.from(translationData.sections.values());
+
+    for (let i = 0; i < masterSections.length; i++) {
+      const [sectionId, section] = masterSections[i];
+      const translationSection = translationSections[i];
 
       if (!translationSection) {
-        // Keep existing section if no translation
+        // Keep existing section if no translation at this position
         updatedSections[sectionId] = section;
         continue;
       }
 
-      // Update section name
+      // Update section name with translation
       const sectionName = typeof section.sectionName === 'string'
         ? { en: section.sectionName, ms: '', zh: '', my: '', bn: '' }
         : { ...section.sectionName };
@@ -454,9 +458,10 @@ class ChecklistCSVService {
         sectionName[language] = translationSection.sectionName;
       }
 
-      // Update items
-      const updatedItems = section.items.map((item) => {
-        const translationItem = translationSection.items.get(item.itemNumber);
+      // Update items by position
+      const translationItemsArray = Array.from(translationSection.items.values());
+      const updatedItems = section.items.map((item, itemIdx) => {
+        const translationItem = translationItemsArray[itemIdx];
 
         if (!translationItem) return item;
 
@@ -469,7 +474,7 @@ class ChecklistCSVService {
           itemName[language] = translationItem.itemName;
         }
 
-        // Update defect types if item has custom ones
+        // Update defect types if present
         let defectTypes = item.defectTypes;
         if (defectTypes && translationItem.defectTypes.length > 0) {
           defectTypes = defectTypes.map((defect, idx) => {
