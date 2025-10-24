@@ -48,16 +48,13 @@ class ChecklistCSVService {
       throw new Error('CSV file is empty or invalid');
     }
 
-    // Parse header
+    // Parse header - just check we have 6 columns, ignore header text (can be translated)
     const header = lines[0].split(',').map(h => h.trim());
-    const requiredColumns = ['SectionID', 'SectionName', 'ItemNumber', 'ItemName', 'DefectType', 'Required'];
-
-    for (const col of requiredColumns) {
-      if (!header.includes(col)) {
-        throw new Error(`Missing required column: ${col}`);
-      }
+    if (header.length !== 6) {
+      throw new Error(`CSV must have exactly 6 columns, found ${header.length}`);
     }
 
+    // Use fixed column positions: 0=SectionID, 1=SectionName, 2=ItemNumber, 3=ItemName, 4=DefectType, 5=Required
     const sections = new Map<string, {
       sectionId: string;
       sectionName: string;
@@ -77,13 +74,15 @@ class ChecklistCSVService {
       if (!line) continue;
 
       const values = this.parseCSVLine(line);
+
+      // Use column positions instead of header names
       const row: CSVRow = {
-        SectionID: values[header.indexOf('SectionID')] || '',
-        SectionName: values[header.indexOf('SectionName')] || '',
-        ItemNumber: values[header.indexOf('ItemNumber')] || '',
-        ItemName: values[header.indexOf('ItemName')] || '',
-        DefectType: values[header.indexOf('DefectType')] || '',
-        Required: values[header.indexOf('Required')] || ''
+        SectionID: values[0] || '',
+        SectionName: values[1] || '',
+        ItemNumber: values[2] || '',
+        ItemName: values[3] || '',
+        DefectType: values[4] || '',
+        Required: values[5] || ''
       };
 
       // New section
