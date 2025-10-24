@@ -82,6 +82,30 @@ export default function TranslationManagement() {
     }
   };
 
+  const handleDownloadCurrent = (language: LanguageCode) => {
+    if (!template) {
+      setMessage({ type: 'error', text: 'No template loaded' });
+      return;
+    }
+
+    try {
+      const csv = checklistCSVService.exportToCSV(template, language);
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `inspection_template_${language}_current.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+
+      setMessage({ type: 'success', text: `✅ Downloaded ${LANGUAGE_NAMES[language]} current template` });
+      setTimeout(() => setMessage(null), 3000);
+    } catch (error) {
+      logger.error('Failed to download current template:', error);
+      setMessage({ type: 'error', text: 'Failed to download current template' });
+    }
+  };
+
   const handleDownloadSample = (language: LanguageCode) => {
     if (!template) {
       setMessage({ type: 'error', text: 'No template loaded' });
@@ -264,22 +288,49 @@ export default function TranslationManagement() {
 
   return (
     <div className="space-y-6">
-      {/* English Template Status */}
+      {/* Download Current Templates */}
       <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-xl font-bold text-gray-900 mb-4">English Template (Master)</h3>
-        <div className="mb-4">
+        <h3 className="text-xl font-bold text-gray-900 mb-4">Download Current Templates</h3>
+        <p className="text-sm text-gray-600 mb-4">
+          Download the actual template data currently in use. These files contain real data from your system.
+        </p>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+          <button
+            onClick={() => handleDownloadCurrent('en')}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+          >
+            📄 English
+          </button>
+          <button
+            onClick={() => handleDownloadCurrent('ms')}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+          >
+            📄 Malay
+          </button>
+          <button
+            onClick={() => handleDownloadCurrent('zh')}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+          >
+            📄 Chinese
+          </button>
+          <button
+            onClick={() => handleDownloadCurrent('my')}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+          >
+            📄 Myanmar
+          </button>
+          <button
+            onClick={() => handleDownloadCurrent('bn')}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+          >
+            📄 Bengali
+          </button>
+        </div>
+        <div className="mt-4 pt-4 border-t border-gray-200">
           <div className="text-sm text-gray-600">Last Updated</div>
           <div className="text-lg font-semibold text-gray-900">
             {new Date(template.updatedAt).toLocaleString()}
           </div>
-        </div>
-        <div className="flex gap-3">
-          <button
-            onClick={() => handleDownloadSample('en')}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            📄 Download English Sample
-          </button>
         </div>
       </div>
 
@@ -364,15 +415,6 @@ export default function TranslationManagement() {
                     )}
                   </div>
                 )}
-
-                <div className="mt-3">
-                  <button
-                    onClick={() => handleDownloadSample(lang)}
-                    className="px-3 py-1.5 bg-white border border-gray-300 rounded text-sm hover:bg-gray-50"
-                  >
-                    📄 Download Sample
-                  </button>
-                </div>
               </div>
             );
           })}
@@ -463,6 +505,46 @@ export default function TranslationManagement() {
               </ul>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Download Sample Templates (For Reference) */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h3 className="text-xl font-bold text-gray-900 mb-4">Download Sample Templates</h3>
+        <p className="text-sm text-gray-600 mb-4">
+          Download sample CSV files to see the structure and format. Use these as reference when creating translations.
+        </p>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+          <button
+            onClick={() => handleDownloadSample('en')}
+            className="px-4 py-2 bg-gray-100 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-200 text-sm font-medium"
+          >
+            📋 English Sample
+          </button>
+          <button
+            onClick={() => handleDownloadSample('ms')}
+            className="px-4 py-2 bg-gray-100 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-200 text-sm font-medium"
+          >
+            📋 Malay Sample
+          </button>
+          <button
+            onClick={() => handleDownloadSample('zh')}
+            className="px-4 py-2 bg-gray-100 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-200 text-sm font-medium"
+          >
+            📋 Chinese Sample
+          </button>
+          <button
+            onClick={() => handleDownloadSample('my')}
+            className="px-4 py-2 bg-gray-100 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-200 text-sm font-medium"
+          >
+            📋 Myanmar Sample
+          </button>
+          <button
+            onClick={() => handleDownloadSample('bn')}
+            className="px-4 py-2 bg-gray-100 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-200 text-sm font-medium"
+          >
+            📋 Bengali Sample
+          </button>
         </div>
       </div>
 
