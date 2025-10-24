@@ -57,6 +57,11 @@ const QAInspectionDashboard: React.FC<QAInspectionDashboardProps> = ({
       return { valid: false, error: `Invalid VIN length: ${vin.length}/17 characters` };
     }
 
+    // VIN must start with "PRU"
+    if (!vin.startsWith('PRU')) {
+      return { valid: false, error: 'Invalid VIN: must start with "PRU"' };
+    }
+
     // VIN can only contain A-Z and 0-9, excluding I, O, Q
     const vinPattern = /^[A-HJ-NPR-Z0-9]{17}$/;
     if (!vinPattern.test(vin)) {
