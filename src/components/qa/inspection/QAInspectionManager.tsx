@@ -98,6 +98,41 @@ const QAInspectionManager: React.FC = () => {
     }
   };
 
+  const handleDeleteInspection = async (inspection: CarInspection) => {
+    const confirmMessage =
+      `⚠️ DELETE INSPECTION\n\n` +
+      `VIN: ${inspection.vin}\n` +
+      `Status: ${inspection.status}\n` +
+      `Created: ${new Date(inspection.createdAt).toLocaleDateString()}\n\n` +
+      `This will permanently delete:\n` +
+      `• All inspection data\n` +
+      `• All section results\n` +
+      `• All photos (if any)\n\n` +
+      `Are you sure you want to DELETE this inspection?`;
+
+    if (!window.confirm(confirmMessage)) {
+      return;
+    }
+
+    try {
+      await inspectionService.deleteInspection(inspection.inspectionId);
+      logger.info('Inspection deleted:', inspection.vin);
+
+      // Reload inspections list
+      await loadInspections();
+
+      // Close detail view if this inspection was selected
+      if (selectedInspection?.inspectionId === inspection.inspectionId) {
+        setSelectedInspection(null);
+      }
+
+      alert(`✅ Inspection for VIN ${inspection.vin} deleted successfully`);
+    } catch (err) {
+      logger.error('Failed to delete inspection:', err);
+      alert('❌ Failed to delete inspection. Please try again.');
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'not_started':
@@ -286,6 +321,16 @@ const QAInspectionManager: React.FC = () => {
                           className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
                         >
                           CSV
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteInspection(inspection);
+                          }}
+                          className="px-3 py-1 bg-orange-600 text-white rounded hover:bg-orange-700 text-sm flex items-center gap-1"
+                          title="Delete this inspection permanently"
+                        >
+                          🗑️ Delete
                         </button>
                         <div className="text-gray-400">
                           {isExpanded ? '▼' : '▶'}

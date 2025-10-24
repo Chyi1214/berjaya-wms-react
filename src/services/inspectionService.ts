@@ -535,4 +535,59 @@ export const inspectionService = {
       inspectors: Array.from(inspectorsSet),
     };
   },
+
+  async deleteInspection(inspectionId: string): Promise<void> {
+    try {
+      logger.info('Deleting inspection:', inspectionId);
+
+      // Get inspection first to check for photos
+      const inspection = await this.getInspectionById(inspectionId);
+      if (!inspection) {
+        logger.warn('Inspection not found:', inspectionId);
+        return;
+      }
+
+      // Clean up any photo storage if photoUrls exist
+      const photoUrls: string[] = [];
+      Object.values(inspection.sections).forEach((section) => {
+        Object.values(section.results).forEach((result) => {
+          if (result.photoUrls && result.photoUrls.length > 0) {
+            photoUrls.push(...result.photoUrls);
+          }
+        });
+      });
+
+      // If there are photos, delete them from Firebase Storage
+      if (photoUrls.length > 0) {
+        try {
+          const { getStorage, ref, deleteObject } = await import('firebase/storage');
+          const storage = getStorage();
+
+          logger.info(`Deleting ${photoUrls.length} photos from storage`);
+          await Promise.all(
+            photoUrls.map(async (url) => {
+              try {
+                const photoRef = ref(storage, url);
+                await deleteObject(photoRef);
+              } catch (photoError) {
+                logger.warn(`Failed to delete photo ${url}:`, photoError);
+                // Continue deletion even if photo deletion fails
+              }
+            })
+          );
+        } catch (storageError) {
+          logger.warn('Storage deletion failed, continuing with document deletion:', storageError);
+        }
+      }
+
+      // Delete the inspection document from Firestore
+      const { deleteDoc } = await import('firebase/firestore');
+      await deleteDoc(doc(db, INSPECTIONS_COL, inspectionId));
+
+      logger.info('Inspection deleted successfully:', inspectionId);
+    } catch (error) {
+      logger.error('Failed to delete inspection:', error);
+      throw error;
+    }
+  },
 };
