@@ -21,6 +21,37 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
+// Auto-create DEFAULT batch if it doesn't exist
+const ensureDefaultBatchExists = async () => {
+  try {
+    const { batchCoreService } = await import('../services/batch/batchCore');
+
+    // Check if DEFAULT batch already exists
+    const existingBatch = await batchCoreService.getBatchById('DEFAULT');
+
+    if (!existingBatch) {
+      console.log('🔧 Creating DEFAULT batch for unassigned inventory...');
+
+      // Create the DEFAULT batch
+      await batchCoreService.createBatch({
+        batchId: 'DEFAULT',
+        name: 'Default Unassigned Batch',
+        items: [],
+        carVins: [],
+        carType: '',
+        totalCars: 0,
+        status: 'in_progress'  // Important: Must be 'in_progress' to be active
+      });
+
+      console.log('✅ DEFAULT batch created successfully');
+    } else {
+      console.log('✅ DEFAULT batch already exists');
+    }
+  } catch (error) {
+    console.error('❌ Failed to ensure DEFAULT batch exists:', error);
+  }
+};
+
 // Auth Provider Component
 export function AuthProvider({ children }: AuthProviderProps) {
   // Auth state
@@ -135,6 +166,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // Initialize auth state and listen for changes
   useEffect(() => {
     let mounted = true;
+
+    // Ensure DEFAULT batch exists on app startup
+    ensureDefaultBatchExists();
 
     // Check for redirect result on app startup
     const checkRedirectResult = async () => {

@@ -83,8 +83,13 @@ export class BatchCoreService {
 
   async deleteBatch(batchId: string): Promise<void> {
     try {
+      // Prevent deletion of DEFAULT batch
+      if (batchId === 'DEFAULT') {
+        throw new Error('Cannot delete DEFAULT batch - it is a system batch');
+      }
+
       logger.info('Deleting batch:', batchId);
-      
+
       // Delete batch document
       const batchQuery = query(collection(db, 'batches'), where('batchId', '==', batchId));
       const batchSnapshot = await getDocs(batchQuery);

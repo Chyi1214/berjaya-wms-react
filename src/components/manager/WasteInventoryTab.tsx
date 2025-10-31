@@ -8,6 +8,8 @@ export function WasteInventoryTab() {
   const [selectedReport, setSelectedReport] = useState<WasteReport | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<'ALL' | 'WASTE' | 'LOST' | 'DEFECT'>('ALL');
+  const [selectedBatchFilter, setSelectedBatchFilter] = useState<string>('ALL'); // v7.18.0: Batch filter
+  const [availableBatches, setAvailableBatches] = useState<string[]>([]); // v7.18.0: List of batches
   const [summary, setSummary] = useState({
     totalItems: 0,
     totalQuantity: 0,
@@ -22,26 +24,39 @@ export function WasteInventoryTab() {
   }, []);
 
   useEffect(() => {
-    applyTypeFilter(wasteReports, selectedTypeFilter);
-  }, [selectedTypeFilter, wasteReports]);
+    applyFilters(wasteReports, selectedTypeFilter, selectedBatchFilter);
+  }, [selectedTypeFilter, selectedBatchFilter, wasteReports]);
 
-  const applyTypeFilter = (reports: WasteReport[], filter: string) => {
+  // v7.18.0: Combined filter function for type and batch
+  const applyFilters = (reports: WasteReport[], typeFilter: string, batchFilter: string) => {
     let filtered = reports;
 
-    switch (filter) {
+    // Apply type filter
+    switch (typeFilter) {
       case 'WASTE':
-        filtered = reports.filter(report => report.type === 'WASTE');
+        filtered = filtered.filter(report => report.type === 'WASTE');
         break;
       case 'LOST':
-        filtered = reports.filter(report => report.type === 'LOST');
+        filtered = filtered.filter(report => report.type === 'LOST');
         break;
       case 'DEFECT':
-        filtered = reports.filter(report => report.type === 'DEFECT');
+        filtered = filtered.filter(report => report.type === 'DEFECT');
         break;
       case 'ALL':
       default:
-        filtered = reports;
+        // No type filtering
         break;
+    }
+
+    // Apply batch filter (v7.18.0)
+    if (batchFilter !== 'ALL') {
+      if (batchFilter === 'NO_BATCH') {
+        // Show reports without batch
+        filtered = filtered.filter(report => !report.batchId);
+      } else {
+        // Show reports from specific batch
+        filtered = filtered.filter(report => report.batchId === batchFilter);
+      }
     }
 
     setFilteredReports(filtered);
@@ -65,8 +80,23 @@ export function WasteInventoryTab() {
         defectCount: summary.defectCount
       });
 
-      // Apply initial filter
-      applyTypeFilter(reports, selectedTypeFilter);
+      // v7.18.0: Extract unique batch IDs from reports
+      const batches = Array.from(new Set(
+        reports
+          .map(r => r.batchId)
+          .filter(batchId => batchId !== undefined && batchId !== null)
+      )).sort((a, b) => {
+        // Sort: Put DEFAULT last, otherwise sort numerically
+        if (a === 'DEFAULT') return 1;
+        if (b === 'DEFAULT') return -1;
+        const aNum = parseInt(a) || 0;
+        const bNum = parseInt(b) || 0;
+        return aNum - bNum;
+      }) as string[];
+      setAvailableBatches(batches);
+
+      // Apply initial filters
+      applyFilters(reports, selectedTypeFilter, selectedBatchFilter);
 
     } catch (error) {
       console.error('Failed to load waste reports:', error);
@@ -173,27 +203,50 @@ export function WasteInventoryTab() {
         </div>
       </div>
 
-      {/* Type Filter Buttons */}
+      {/* Filters: Type and Batch (v7.18.0) */}
       <div className="bg-white rounded-lg border border-gray-200 p-4">
-        <div className="flex flex-wrap gap-2">
-          {(['ALL', 'WASTE', 'LOST', 'DEFECT'] as const).map((filter) => (
-            <button
-              key={filter}
-              onClick={() => setSelectedTypeFilter(filter)}
-              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                selectedTypeFilter === filter
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              {filter === 'ALL' && '📋 All Reports'}
-              {filter === 'WASTE' && '🔥 Waste'}
-              {filter === 'LOST' && '❓ Lost'}
-              {filter === 'DEFECT' && '⚠️ Defect'}
-            </button>
-          ))}
+        {/* Type Filter Buttons */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700 mb-2">Filter by Type</label>
+          <div className="flex flex-wrap gap-2">
+            {(['ALL', 'WASTE', 'LOST', 'DEFECT'] as const).map((filter) => (
+              <button
+                key={filter}
+                onClick={() => setSelectedTypeFilter(filter)}
+                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  selectedTypeFilter === filter
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                {filter === 'ALL' && '📋 All Reports'}
+                {filter === 'WASTE' && '🔥 Waste'}
+                {filter === 'LOST' && '❓ Lost'}
+                {filter === 'DEFECT' && '⚠️ Defect'}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="mt-2 text-sm text-gray-600">
+
+        {/* Batch Filter Dropdown (v7.18.0) */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">📦 Filter by Batch</label>
+          <select
+            value={selectedBatchFilter}
+            onChange={(e) => setSelectedBatchFilter(e.target.value)}
+            className="w-full max-w-xs p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          >
+            <option value="ALL">All Batches</option>
+            <option value="NO_BATCH">No Batch Assigned</option>
+            {availableBatches.map((batchId) => (
+              <option key={batchId} value={batchId}>
+                {batchId === 'DEFAULT' ? '🚫 DEFAULT Batch' : `Batch ${batchId}`}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="mt-3 text-sm text-gray-600">
           Showing {filteredReports.length} of {summary.totalItems} reports
         </div>
       </div>
@@ -225,6 +278,9 @@ export function WasteInventoryTab() {
                     Type
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    📦 Batch
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Item
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -254,6 +310,15 @@ export function WasteInventoryTab() {
                         <span className="mr-1">{getTypeEmoji(report.type)}</span>
                         {report.type}
                       </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {report.batchId ? (
+                        <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-800">
+                          📦 {report.batchId === 'DEFAULT' ? '🚫 DEFAULT' : report.batchId}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-400">No batch</span>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900">
                       <div className="font-medium">{report.sku}</div>
@@ -364,6 +429,23 @@ export function WasteInventoryTab() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Location</label>
                   <p className="text-sm text-gray-900">{selectedReport.locationDisplay}</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">📦 Batch</label>
+                  <p className="text-sm text-gray-900">
+                    {selectedReport.batchId ? (
+                      <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-800">
+                        {selectedReport.batchId === 'DEFAULT' ? '🚫 DEFAULT' : selectedReport.batchId}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400">No batch assigned</span>
+                    )}
+                    {selectedReport.batchAllocation && (
+                      <span className="ml-2 text-xs text-gray-500">
+                        (Batch had {selectedReport.batchAllocation} units at time of report)
+                      </span>
+                    )}
+                  </p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Reported By</label>

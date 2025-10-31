@@ -152,6 +152,7 @@ export interface TransactionFilter {
   searchTerm?: string;
   batchId?: string; // Filter by batch
   includeRectifications?: boolean; // Show/hide rectification transactions
+  showCrossBatchOnly?: boolean; // Show only cross-batch transfer transactions
 }
 
 // Transaction form data
@@ -334,7 +335,7 @@ export interface BatchHealthStatus {
 export interface BatchAllocation {
   sku: string;
   location: string;
-  allocations: Record<string, number>; // { "807": 50, "808": 30, "UNASSIGNED": 100 }
+  allocations: Record<string, number>; // { "807": 50, "808": 30, "DEFAULT": 100 }
   totalAllocated: number;
   lastUpdated: Date;
   createdAt: Date;

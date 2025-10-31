@@ -1,9 +1,11 @@
 // Enhanced Waste/Lost/Defect View - Universal component for production and logistics
 import { useState, useEffect } from 'react';
-import { User } from '../../types';
+import { User, Transaction, TransactionType, TransactionStatus } from '../../types';
 import { tableStateService } from '../../services/tableState';
 import { combinedSearchService } from '../../services/combinedSearch';
 import { wasteReportService, type WasteReport } from '../../services/wasteReportService';
+import { batchAllocationService } from '../../services/batchAllocationService'; // v7.9.0: For batch allocation fix
+import { transactionService } from '../../services/transactions'; // v7.18.0: For transaction records
 
 interface WasteLostDefectViewProps {
   user: User;
@@ -18,6 +20,10 @@ interface WasteLostDefectEntry {
   quantity: number;
   type: 'WASTE' | 'LOST' | 'DEFECT';
   reason?: string;
+
+  // Batch tracking (v7.18.0)
+  batchId?: string;
+  batchAllocation?: number;
 
   // Additional fields for DEFECT (claim report)
   totalLotQuantity?: number;
@@ -59,6 +65,11 @@ export function WasteLostDefectView({ user, location, locationDisplay, onBack }:
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedRejectionReasons, setSelectedRejectionReasons] = useState<string[]>([]);
+  const [currentStock, setCurrentStock] = useState<number | null>(null); // v7.9.0: Show current stock
+
+  // v7.18.0: Batch selection
+  const [availableBatches, setAvailableBatches] = useState<Array<{ batchId: string; allocated: number }>>([]);
+  const [selectedBatch, setSelectedBatch] = useState<string>('');
 
   // Search for items
   useEffect(() => {
@@ -84,7 +95,7 @@ export function WasteLostDefectView({ user, location, locationDisplay, onBack }:
     return () => clearTimeout(debounceTimer);
   }, [searchTerm]);
 
-  const selectItem = (item: any) => {
+  const selectItem = async (item: any) => {
     setCurrentEntry({
       ...currentEntry,
       sku: item.code,
@@ -92,6 +103,46 @@ export function WasteLostDefectView({ user, location, locationDisplay, onBack }:
     });
     setSearchTerm(`${item.code} - ${item.name}`);
     setShowSearch(false);
+
+    // v7.9.0: Fetch and display current stock for selected item
+    try {
+      const expected = await tableStateService.getExpectedInventory();
+      const stock = expected.find(e => e.sku === item.code && e.location === location);
+      setCurrentStock(stock?.amount || 0);
+    } catch (error) {
+      console.warn('Failed to fetch current stock:', error);
+      setCurrentStock(null);
+    }
+
+    // v7.18.0: Fetch available batches for this item at this location
+    try {
+      const batchAlloc = await batchAllocationService.getBatchAllocation(item.code, location);
+      if (batchAlloc && batchAlloc.allocations) {
+        const batches = Object.entries(batchAlloc.allocations)
+          .filter(([, allocated]) => (allocated as number) > 0)
+          .map(([batchId, allocated]) => ({
+            batchId,
+            allocated: allocated as number
+          }))
+          .sort((a, b) => {
+            // Sort: Put DEFAULT last, otherwise sort by batch ID numerically
+            if (a.batchId === 'DEFAULT') return 1;
+            if (b.batchId === 'DEFAULT') return -1;
+            const aNum = parseInt(a.batchId) || 0;
+            const bNum = parseInt(b.batchId) || 0;
+            return aNum - bNum;
+          });
+        setAvailableBatches(batches);
+        setSelectedBatch(''); // Reset batch selection
+      } else {
+        setAvailableBatches([]);
+        setSelectedBatch('');
+      }
+    } catch (error) {
+      console.warn('Failed to fetch batch allocations:', error);
+      setAvailableBatches([]);
+      setSelectedBatch('');
+    }
   };
 
   const handleTypeChange = (type: 'WASTE' | 'LOST' | 'DEFECT') => {
@@ -131,6 +182,21 @@ export function WasteLostDefectView({ user, location, locationDisplay, onBack }:
     }
     if (!currentEntry.reason?.trim()) {
       missingFields.push('Reason');
+    }
+
+    // v7.18.0: Batch selection validation
+    if (availableBatches.length > 0) {
+      if (!selectedBatch || !currentEntry.batchId) {
+        missingFields.push('Batch selection');
+      } else {
+        // Validate quantity doesn't exceed batch allocation
+        const batch = availableBatches.find(b => b.batchId === selectedBatch);
+        const available = batch?.allocated || 0;
+        if (currentEntry.quantity > available) {
+          setError(`Insufficient stock in ${selectedBatch}. Available: ${available}, Trying to report: ${currentEntry.quantity}`);
+          return;
+        }
+      }
     }
 
     // Additional validation for DEFECT type
@@ -217,6 +283,24 @@ Checked / Verified By: ________________________ Signature: _____________________
     setError(null);
 
     try {
+      // VALIDATION: Check stock availability BEFORE submitting (v7.9.0 fix)
+      const expected = await tableStateService.getExpectedInventory();
+      for (const entry of entries) {
+        const currentStock = expected.find(e => e.sku === entry.sku && e.location === location);
+        const availableAmount = currentStock?.amount || 0;
+
+        if (availableAmount < entry.quantity) {
+          setError(
+            `Insufficient stock for ${entry.sku} - ${entry.itemName}.\n` +
+            `Available: ${availableAmount} units, Trying to report: ${entry.quantity} units.\n` +
+            `Please adjust the quantity or verify the stock level.`
+          );
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
+      // Process each entry
       for (const entry of entries) {
         // Create comprehensive reason with type tag
         const reasonWithType = `[${entry.type}] ${entry.reason || ''} ${
@@ -224,16 +308,88 @@ Checked / Verified By: ________________________ Signature: _____________________
           `| Rejection: ${entry.rejectionReason.join(', ')}` : ''
         }`.trim();
 
-        // 1. REDUCE the actual inventory (Expected table shows the loss)
-        await tableStateService.addToInventoryCountOptimized(
-          entry.sku,
-          entry.itemName,
-          -entry.quantity, // Negative quantity reduces inventory
-          location, // Actual location (logistics or production_zone_X)
-          user.email
-        );
+        // TWO-LAYER SYNC PATTERN (v7.18.0):
+        // 1. Update Layer 2 (batch_allocations) first - from SELECTED batch only
+        // 2. Create Transaction record
+        // 3. Then sync Layer 1 (expected_inventory) from Layer 2
 
-        // 2. CREATE individual waste report (NEW SYSTEM)
+        // 1. HANDLE BATCH ALLOCATIONS: Remove from SELECTED batch only (v7.18.0)
+        try {
+          if (entry.batchId) {
+            // User selected a specific batch - remove from that batch only
+            await batchAllocationService.removeToBatchAllocation(
+              entry.sku,
+              location,
+              entry.batchId,
+              entry.quantity
+            );
+            console.log(`✅ Removed ${entry.quantity} units from batch ${entry.batchId} due to ${entry.type}`);
+          } else {
+            // Fallback: No batch selected (should not happen with validation, but handle legacy cases)
+            const batchAlloc = await batchAllocationService.getBatchAllocation(entry.sku, location);
+            if (batchAlloc && batchAlloc.totalAllocated > 0) {
+              // Remove from batch allocations proportionally (largest batches first)
+              let remainingToRemove = entry.quantity;
+
+              const sortedBatches = Object.entries(batchAlloc.allocations)
+                .sort(([, a], [, b]) => (b as number) - (a as number));
+
+              for (const [batchId, allocated] of sortedBatches) {
+                if (remainingToRemove <= 0) break;
+
+                const removeQty = Math.min(remainingToRemove, allocated as number);
+                await batchAllocationService.removeToBatchAllocation(
+                  entry.sku,
+                  location,
+                  batchId,
+                  removeQty
+                );
+
+                remainingToRemove -= removeQty;
+                console.log(`✅ Removed ${removeQty} units from batch ${batchId} due to ${entry.type}`);
+              }
+            }
+          }
+        } catch (batchError) {
+          console.error('Failed to update batch allocations:', batchError);
+          // Continue - we'll still create transaction and sync Layer 1
+        }
+
+        // 2. CREATE Transaction record (v7.18.0)
+        try {
+          // Fetch current stock for accurate transaction record
+          const expectedNow = await tableStateService.getExpectedInventory();
+          const currentStock = expectedNow.find(e => e.sku === entry.sku && e.location === location);
+          const previousAmount = currentStock?.amount || 0;
+          const newAmount = previousAmount - entry.quantity;
+
+          const transaction: Transaction = {
+            id: `txn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            sku: entry.sku,
+            itemName: entry.itemName,
+            amount: -entry.quantity,
+            previousAmount,
+            newAmount,
+            location,
+            transactionType: TransactionType.ADJUSTMENT,
+            status: TransactionStatus.COMPLETED,
+            performedBy: user.email,
+            timestamp: new Date(),
+            notes: reasonWithType,
+            batchId: entry.batchId
+          };
+
+          await transactionService.saveTransaction(transaction);
+          console.log(`✅ Transaction record created for ${entry.type}:`, transaction.id);
+        } catch (txnError) {
+          console.error('Failed to create transaction record:', txnError);
+          // Continue - waste report will still be created
+        }
+
+        // 3. Sync Layer 1 (expected_inventory) from Layer 2 (batch_allocations)
+        await tableStateService.syncExpectedFromBatchAllocations(entry.sku, location);
+
+        // 4. CREATE individual waste report (NEW SYSTEM) (v7.18.0: with batch tracking)
         const wasteReport: Omit<WasteReport, 'id' | 'reportedAt'> = {
           sku: entry.sku,
           itemName: entry.itemName,
@@ -243,6 +399,11 @@ Checked / Verified By: ________________________ Signature: _____________________
           type: entry.type,
           reason: entry.reason || '',
           detailedReason: reasonWithType,
+
+          // v7.18.0: Batch tracking
+          batchId: entry.batchId,
+          batchAllocation: entry.batchAllocation,
+
           reportedBy: user.email
         };
 
@@ -425,6 +586,20 @@ Checked / Verified By: ________________________ Signature: _____________________
                     })}
                     className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
+                  {/* v7.9.0: Current stock display */}
+                  {currentStock !== null && currentEntry.sku && (
+                    <div className="mt-2 text-sm">
+                      <span className="text-gray-600">
+                        <strong>Current Stock:</strong> {currentStock} units
+                      </span>
+                      {currentEntry.quantity > currentStock && (
+                        <div className="text-red-600 font-semibold mt-1 flex items-center">
+                          <span className="mr-1">⚠️</span>
+                          <span>Quantity exceeds available stock!</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Basic Reason</label>
@@ -440,6 +615,59 @@ Checked / Verified By: ________________________ Signature: _____________________
                   />
                 </div>
               </div>
+
+              {/* Batch Selection (v7.18.0) */}
+              {currentEntry.sku && availableBatches.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    📦 Select Batch <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={selectedBatch}
+                    onChange={(e) => {
+                      setSelectedBatch(e.target.value);
+                      const batch = availableBatches.find(b => b.batchId === e.target.value);
+                      setCurrentEntry({
+                        ...currentEntry,
+                        batchId: e.target.value,
+                        batchAllocation: batch?.allocated || 0
+                      });
+                      setError(null);
+                    }}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">-- Select a batch --</option>
+                    {availableBatches.map((batch) => (
+                      <option key={batch.batchId} value={batch.batchId}>
+                        {batch.batchId === 'DEFAULT' ? '🚫 DEFAULT' : `Batch ${batch.batchId}`} - {batch.allocated} units available
+                      </option>
+                    ))}
+                  </select>
+                  {selectedBatch && currentEntry.quantity > 0 && (
+                    <div className="mt-2 text-sm">
+                      {(() => {
+                        const batch = availableBatches.find(b => b.batchId === selectedBatch);
+                        const available = batch?.allocated || 0;
+                        if (currentEntry.quantity > available) {
+                          return (
+                            <div className="text-red-600 font-semibold flex items-center">
+                              <span className="mr-1">⚠️</span>
+                              <span>Quantity ({currentEntry.quantity}) exceeds batch allocation ({available})!</span>
+                            </div>
+                          );
+                        } else {
+                          return (
+                            <div className="text-green-600 flex items-center">
+                              <span className="mr-1">✓</span>
+                              <span>Valid - Batch has {available} units</span>
+                            </div>
+                          );
+                        }
+                      })()}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* DEFECT-specific fields */}
               {currentEntry.type === 'DEFECT' && (

@@ -6,10 +6,10 @@ import { scannerService } from '../../services/scannerService';
 import { scanLookupService } from '../../services/scanLookupService';
 import { transactionService } from '../../services/transactions';
 import { tableStateService } from '../../services/tableState';
-import { inventoryService } from '../../services/inventory';
 import { itemMasterService } from '../../services/itemMaster';
 import { batchAllocationService } from '../../services/batchAllocationService';
 import { packingBoxesService } from '../../services/packingBoxesService';
+import { supplierBoxScanService } from '../../services/supplierBoxScanService';
 import { SearchAutocomplete } from '../common/SearchAutocomplete';
 
 interface UnifiedScannerViewProps {
@@ -39,6 +39,7 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [cameraPermission, setCameraPermission] = useState<'unknown' | 'granted' | 'denied'>('unknown');
   const [selectedSearchResult, setSelectedSearchResult] = useState<any>(null);
+  const [rawQRCode, setRawQRCode] = useState<string>(''); // Track raw QR code for supplier box tracking
 
   // Batch allocation states
   const [availableBatches, setAvailableBatches] = useState<string[]>([]);
@@ -161,6 +162,9 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
     stopScanning();
 
     try {
+      // Store raw QR code for supplier box tracking
+      setRawQRCode(scannedCode);
+
       // Process the scanned code for unified result
       const result = await processUnifiedScan(scannedCode);
 
@@ -327,6 +331,9 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
     setError(null);
     setSuccess(null);
 
+    // Store raw QR code for supplier box tracking
+    setRawQRCode(selectedSearchResult.code);
+
     const result = await processUnifiedScan(selectedSearchResult.code);
 
     if (result.success && result.unifiedResult) {
@@ -360,7 +367,9 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
       return;
     }
 
-    if (!selectedBox) {
+    // Box requirement: DEFAULT batch doesn't need box, others do
+    const isDefaultBatch = selectedBatch === 'DEFAULT';
+    if (!isDefaultBatch && !selectedBox) {
       setError('Please select or enter a box (CASE NO)');
       return;
     }
@@ -369,33 +378,44 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
     setError(null);
 
     try {
-      // Pre-check that SKU belongs to selected box and not exceeding expected
-      try {
-        const box = await packingBoxesService.getBox(selectedBatch, selectedBox);
-        if (!box) throw new Error('Box not found for current batch');
-        const expected = box.expectedBySku[scanResult.sku] || 0;
-        if (expected <= 0) throw new Error(`${scanResult.sku} does not belong to box ${selectedBox}`);
-        const scannedSoFar = box.scannedBySku[scanResult.sku] || 0;
-        if (scannedSoFar + qty > expected) {
-          throw new Error(`Exceeds expected for ${scanResult.sku} in ${selectedBox}. Available: ${expected - scannedSoFar}`);
+      // SUPPLIER BOX QR TRACKING: Check for duplicate scans (only if QR code exists)
+      if (rawQRCode && rawQRCode.trim().length > 0) {
+        try {
+          const duplicate = await supplierBoxScanService.checkDuplicate(rawQRCode, selectedBatch);
+
+          if (duplicate) {
+            // Show warning dialog with previous scan details
+            const proceed = window.confirm(
+              `⚠️ This supplier box was already scanned!\n\n` +
+              `📅 Date: ${duplicate.scannedAt.toLocaleDateString()} ${duplicate.scannedAt.toLocaleTimeString()}\n` +
+              `👤 By: ${duplicate.scannedBy}\n` +
+              `📦 SKU: ${duplicate.sku}\n` +
+              `🔢 Quantity: ${duplicate.quantity} units\n` +
+              `📍 Box: ${duplicate.caseNo || 'DEFAULT'}\n\n` +
+              `⚡ Click OK to scan again anyway, or Cancel to stop.`
+            );
+
+            if (!proceed) {
+              setIsProcessing(false);
+              setError('Scan cancelled - duplicate supplier box detected');
+              return;
+            }
+          }
+        } catch (dupCheckError: any) {
+          // Silently handle permission errors - QR tracking is optional
+          if (dupCheckError?.code !== 'permission-denied') {
+            console.error('Failed to check for duplicate QR code:', dupCheckError);
+          }
+          // Continue with scan even if duplicate check fails
         }
-      } catch (preErr: any) {
-        setError(preErr?.message || 'Box validation failed');
-        setIsProcessing(false);
-        return;
       }
+
+      // NO MORE STRICT VALIDATION
+      // We track what actually happens, not enforce what should happen
+      // Workers can put any item in any box
 
       // Use the optimized method to add to inventory
       const { previousAmount, newAmount } = await tableStateService.addToInventoryCountOptimized(
-        scanResult.sku,
-        scanResult.item.name,
-        qty,
-        'logistics',
-        user.email
-      );
-
-      // Keep legacy inventory_counts in sync
-      await inventoryService.addToInventoryCount(
         scanResult.sku,
         scanResult.item.name,
         qty,
@@ -430,13 +450,38 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
 
       await transactionService.saveTransaction(transaction);
 
-      // Update packing box progress and remember this box
-      try {
-        await packingBoxesService.applyScan(selectedBatch, selectedBox, scanResult.sku, qty, user.email);
-        try { localStorage.setItem(`wms-active-box:${selectedBatch}`, selectedBox); } catch {}
-      } catch (e: any) {
-        console.error('Box progress update failed:', e);
-        setError(`Saved inventory, but box update failed: ${e?.message || e}`);
+      // SUPPLIER BOX QR TRACKING: Record this scan for audit trail (only if QR code exists)
+      if (rawQRCode && rawQRCode.trim().length > 0) {
+        try {
+          await supplierBoxScanService.recordScan({
+            supplierBoxQR: rawQRCode,
+            batchId: selectedBatch,
+            scannedBy: user.email,
+            sku: scanResult.sku,
+            quantity: qty,
+            caseNo: isDefaultBatch ? null : (selectedBox || null),
+            transactionId: transaction.id
+          });
+          console.log('✅ Supplier box QR scan recorded:', rawQRCode);
+        } catch (recordError: any) {
+          // Silently handle permission errors - QR tracking is optional
+          if (recordError?.code !== 'permission-denied') {
+            console.error('Failed to record supplier box scan:', recordError);
+          }
+          // Don't fail the whole transaction if scan recording fails
+        }
+      }
+
+      // Update packing box progress (optional, only for non-DEFAULT batches with box)
+      if (!isDefaultBatch && selectedBox) {
+        try {
+          // Track box contents without validation (flexible mode)
+          await packingBoxesService.applyScan(selectedBatch, selectedBox, scanResult.sku, qty, user.email);
+          try { localStorage.setItem(`wms-active-box:${selectedBatch}`, selectedBox); } catch {}
+        } catch (e: any) {
+          console.error('Box tracking failed:', e);
+          // Don't show error to user - box tracking is now optional
+        }
       }
 
       // Success!
@@ -460,6 +505,7 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
     setQuantity('');
     setError(null);
     setSuccess(null);
+    setRawQRCode(''); // Clear raw QR code as well
   };
 
   // Remove unused function
@@ -494,19 +540,19 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
         {/* Batch Display Section */}
-        <div className="mb-6 bg-white border-2 border-orange-300 rounded-lg p-6 shadow-sm">
+        <div className="mb-4 bg-white border-2 border-orange-300 rounded-lg p-4 shadow-sm">
           <div className="text-center">
             <div className="text-3xl mb-2">📦</div>
-            <div className="flex items-center justify-center space-x-4">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4">
               <div className="text-center">
-                <p className="text-sm text-gray-500 mb-1">Current Batch</p>
-                <div className="text-2xl font-bold text-orange-600">
+                <p className="text-xs sm:text-sm text-gray-500 mb-1">Current Batch</p>
+                <div className="text-xl sm:text-2xl font-bold text-orange-600">
                   {batchConfigLoading ? '⏳ Loading...' : selectedBatch || 'Not Set'}
                 </div>
               </div>
 
               {!batchConfigLoading && availableBatches.length > 1 && (
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center gap-2">
                   <button
                     onClick={() => {
                       const dropdown = document.getElementById('batch-selector');
@@ -514,7 +560,7 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
                         (dropdown as HTMLSelectElement).focus();
                       }
                     }}
-                    className="text-sm text-orange-600 hover:text-orange-700 underline"
+                    className="text-xs sm:text-sm text-orange-600 hover:text-orange-700 underline"
                   >
                     Change
                   </button>
@@ -522,7 +568,7 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
                     id="batch-selector"
                     value={selectedBatch}
                     onChange={(e) => setSelectedBatch(e.target.value)}
-                    className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    className="text-xs sm:text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-orange-500"
                   >
                     {availableBatches.map(batchId => (
                       <option key={batchId} value={batchId}>
@@ -533,6 +579,7 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
                 </div>
               )}
             </div>
+
             {!batchConfigLoading && (
               <p className="text-xs text-gray-500 mt-2">
                 All scanned items will be assigned to this batch
@@ -541,42 +588,48 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
           </div>
         </div>
 
-        {/* Box Selection */}
-        <div className="mb-6 bg-white border rounded-lg p-4">
-          <div className="flex items-start sm:items-center sm:justify-between gap-3">
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-2">📦 Box (CASE NO)</label>
-              <input
-                type="text"
-                value={selectedBox}
-                onChange={(e) => setSelectedBox(e.target.value.trim())}
-                placeholder={availableBoxes.length ? `e.g., ${availableBoxes[0]}` : 'Enter CASE NO (e.g., C10C1)'}
-                className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
-              />
-              <p className="text-xs text-gray-500 mt-1">We remember your last box for this batch on this device.</p>
-            </div>
-            {availableBoxes.length > 0 && (
-              <div className="w-full sm:w-64 mt-2 sm:mt-0">
-                <div className="text-xs text-gray-600 mb-1">Suggestions</div>
-                <div className="max-h-28 overflow-y-auto border rounded bg-white">
-                  {availableBoxes
-                    .filter((b) => !selectedBox || b.toLowerCase().includes(selectedBox.toLowerCase()))
-                    .slice(0, 10)
-                    .map((b) => (
-                      <button
-                        key={b}
-                        type="button"
-                        className="w-full text-left px-3 py-1 hover:bg-gray-100 text-sm"
-                        onClick={() => setSelectedBox(b)}
-                      >
-                        {b}
-                      </button>
-                    ))}
-                </div>
+        {/* Box Selection - Only show for non-DEFAULT batches */}
+        {selectedBatch !== 'DEFAULT' && (
+          <div className="mb-6 bg-white border rounded-lg p-4">
+            {/* Mobile-friendly layout: Stack vertically */}
+            <div className="space-y-4">
+              {/* Box Input */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">📦 Box (CASE NO)</label>
+                <input
+                  type="text"
+                  value={selectedBox}
+                  onChange={(e) => setSelectedBox(e.target.value.trim())}
+                  placeholder={availableBoxes.length ? `e.g., ${availableBoxes[0]}` : 'Enter CASE NO (e.g., C10C1)'}
+                  className="w-full px-4 py-3 text-lg border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                />
+                <p className="text-xs text-gray-500 mt-2">💡 We remember your last box for this batch</p>
               </div>
-            )}
+
+              {/* Box Suggestions - Full width on mobile */}
+              {availableBoxes.length > 0 && (
+                <div>
+                  <div className="text-xs font-medium text-gray-600 mb-2">Quick Select:</div>
+                  <div className="flex flex-wrap gap-2">
+                    {availableBoxes
+                      .filter((b) => !selectedBox || b.toLowerCase().includes(selectedBox.toLowerCase()))
+                      .slice(0, 8)
+                      .map((b) => (
+                        <button
+                          key={b}
+                          type="button"
+                          className="px-4 py-2 bg-gray-100 hover:bg-green-100 border border-gray-300 hover:border-green-500 rounded-lg text-sm font-medium transition-colors"
+                          onClick={() => setSelectedBox(b)}
+                        >
+                          {b}
+                        </button>
+                      ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Success Message */}
         {success && (
@@ -650,10 +703,11 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
             {/* Quantity Input - Only show if item is found in Item Master */}
             {scanResult.item && (
               <div className="space-y-4 border-t border-gray-200 pt-4">
-                <h4 className="font-medium text-gray-900">📥 Add to Inventory (Optional):</h4>
+                <h4 className="font-medium text-gray-900 mb-4">📥 Add to Inventory</h4>
+
                 <div>
                   <label htmlFor="quantity-input" className="block text-sm font-medium text-gray-700 mb-2">
-                    Enter Quantity:
+                    Enter Quantity to Add:
                   </label>
                   <input
                     id="quantity-input"
@@ -661,17 +715,18 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
                     value={quantity}
                     onChange={(e) => setQuantity(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && handleAddToInventory()}
-                    className="w-full px-4 py-3 text-lg border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-4 py-3 text-lg border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
                     placeholder="Enter quantity..."
                     min="0.01"
                     step="any"
+                    autoFocus
                   />
                 </div>
 
                 {/* Batch Information */}
-                <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
-                  <div className="text-sm text-gray-700">
-                    Will be added to: <span className="font-semibold text-orange-700">Batch {selectedBatch}</span>
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                  <div className="text-sm text-green-700">
+                    ✅ Will be added to: <span className="font-semibold text-green-800">Batch {selectedBatch}</span>
                   </div>
                 </div>
 
@@ -681,7 +736,7 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
                     disabled={!quantity || isProcessing || !selectedBatch}
                     className="flex-1 bg-green-500 hover:bg-green-600 disabled:bg-gray-300 text-white font-medium py-3 px-4 rounded-lg transition-colors"
                   >
-                    {isProcessing ? '⏳ Adding...' : `✅ Add to Batch ${selectedBatch}`}
+                    {isProcessing ? '⏳ Adding...' : `✅ Add to Batch {selectedBatch}`}
                   </button>
                   <button
                     onClick={clearResult}

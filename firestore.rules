@@ -381,6 +381,16 @@ service cloud.firestore {
       }
     }
 
+    // Supplier Box Scans - QR tracking to prevent double-counting (Version 7.8.0)
+    match /supplierBoxScans/{scanId} {
+      allow read: if isActiveUser();  // All authenticated users can read scan records
+      allow create: if isActiveUser() && (
+        hasRole('logistics') || hasRole('production') ||
+        hasRole('supervisor') || hasRole('manager')
+      );
+      allow update, delete: if isDevAdmin() || hasRole('manager');  // Only managers can modify/delete scans
+    }
+
     // Car Inspection QA System - Vehicle quality inspection tracking
 
     // Inspection templates - Master checklists for car inspections
@@ -407,6 +417,63 @@ service cloud.firestore {
         allow create: if isActiveUser() && hasRole('qa');
         allow delete: if isDevAdmin() || hasRole('manager');
       }
+    }
+
+    // ========================================
+    // ATTENDANCE DASHBOARD COLLECTIONS
+    // (Used by attendance-dashboard-react app)
+    // ========================================
+
+    // Helper function for attendance dashboard: Check if user is attendance devadmin
+    function isAttendanceDevAdmin() {
+      return isAuthenticated() &&
+             exists(/databases/$(database)/documents/attendance_users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/attendance_users/$(request.auth.uid)).data.role == 'devadmin';
+    }
+
+    // Helper function for attendance dashboard: Check if user is attendance manager
+    function isAttendanceManager() {
+      return isAuthenticated() &&
+             exists(/databases/$(database)/documents/attendance_users/$(request.auth.uid)) &&
+             (get(/databases/$(database)/documents/attendance_users/$(request.auth.uid)).data.role == 'manager' ||
+              get(/databases/$(database)/documents/attendance_users/$(request.auth.uid)).data.role == 'devadmin');
+    }
+
+    // Attendance Users collection
+    match /attendance_users/{userId} {
+      // Allow authenticated users to read their own document
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      // Allow authenticated users to query all documents (needed for email-based lookup)
+      allow list: if isAuthenticated();
+      // Allow users to create their own account
+      allow create: if isAuthenticated() && (request.auth.uid == userId || request.resource.data.email == request.auth.token.email);
+      // Devadmin can do everything
+      allow read, list, create, update, delete: if isAttendanceDevAdmin();
+    }
+
+    // Months collection - Attendance managers can read/write
+    match /months/{monthId} {
+      allow read, write: if isAttendanceManager();
+    }
+
+    // Attendance records - Attendance managers can read/write
+    match /attendanceRecords/{monthId}/{document=**} {
+      allow read, write: if isAttendanceManager();
+    }
+
+    // HR Modifications - Attendance managers can read/write
+    match /modifications/{monthId}/{document=**} {
+      allow read, write: if isAttendanceManager();
+    }
+
+    // Global config - Attendance managers can read/write
+    match /config/{configId} {
+      allow read, write: if isAttendanceManager();
+    }
+
+    // Grid Cache - Attendance managers can read/write
+    match /gridCache/{monthId}/workers/{workerId} {
+      allow read, write: if isAttendanceManager();
     }
 
     // Deny all other access

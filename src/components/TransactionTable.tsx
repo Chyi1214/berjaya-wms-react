@@ -1,14 +1,54 @@
 // Transaction Table - Display transactions in manager dashboard
+import { useState } from 'react';
 import { Transaction, TransactionStatus, TransactionType } from '../types';
 
 interface TransactionTableProps {
   transactions: Transaction[];
-  onCancelTransaction?: (transaction: Transaction) => void;
-  canCancel?: boolean;
+  selectedTransactions?: Set<string>;
+  onSelectionChange?: (selected: Set<string>) => void;
 }
 
-export function TransactionTable({ transactions, onCancelTransaction, canCancel = false }: TransactionTableProps) {
-  
+export function TransactionTable({
+  transactions,
+  selectedTransactions = new Set(),
+  onSelectionChange
+}: TransactionTableProps) {
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+
+  const handleSelectAll = (checked: boolean) => {
+    if (!onSelectionChange) return;
+    if (checked) {
+      const allIds = new Set(transactions.map(t => t.id));
+      onSelectionChange(allIds);
+    } else {
+      onSelectionChange(new Set());
+    }
+  };
+
+  const handleSelectOne = (transactionId: string, checked: boolean) => {
+    if (!onSelectionChange) return;
+    const newSelected = new Set(selectedTransactions);
+    if (checked) {
+      newSelected.add(transactionId);
+    } else {
+      newSelected.delete(transactionId);
+    }
+    onSelectionChange(newSelected);
+  };
+
+  const allSelected = transactions.length > 0 && transactions.every(t => selectedTransactions.has(t.id));
+  const someSelected = transactions.some(t => selectedTransactions.has(t.id)) && !allSelected;
+
+  const toggleRow = (transactionId: string) => {
+    const newExpanded = new Set(expandedRows);
+    if (newExpanded.has(transactionId)) {
+      newExpanded.delete(transactionId);
+    } else {
+      newExpanded.add(transactionId);
+    }
+    setExpandedRows(newExpanded);
+  };
+
   const formatTimestamp = (timestamp: Date) => {
     return new Intl.DateTimeFormat('en-US', {
       hour: '2-digit',
@@ -59,6 +99,23 @@ export function TransactionTable({ transactions, onCancelTransaction, canCancel 
       <table className="min-w-full divide-y divide-gray-200">
         <thead className="bg-gray-50">
           <tr>
+            {/* Selection Checkbox Column */}
+            {onSelectionChange && (
+              <th className="px-4 py-3 text-left">
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  ref={input => {
+                    if (input) input.indeterminate = someSelected;
+                  }}
+                  onChange={(e) => handleSelectAll(e.target.checked)}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+              </th>
+            )}
+            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+
+            </th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               Transaction
             </th>
@@ -80,24 +137,46 @@ export function TransactionTable({ transactions, onCancelTransaction, canCancel 
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               Time
             </th>
-            {canCancel && (
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Actions
-              </th>
-            )}
           </tr>
         </thead>
         <tbody className="bg-white divide-y divide-gray-200">
           {transactions.map((transaction) => (
-            <tr key={transaction.id} className="hover:bg-gray-50">
-              <td className="px-6 py-4 whitespace-nowrap">
-                <div className="text-sm text-gray-900 font-mono">
-                  {transaction.id.slice(-8)}
-                </div>
-                <div className="text-xs text-gray-500">
-                  By: {transaction.performedBy}
-                </div>
-              </td>
+            <>
+              <tr key={transaction.id} className="hover:bg-gray-50">
+                {/* Selection Checkbox */}
+                {onSelectionChange && (
+                  <td className="px-4 py-4 whitespace-nowrap">
+                    <input
+                      type="checkbox"
+                      checked={selectedTransactions.has(transaction.id)}
+                      onChange={(e) => handleSelectOne(transaction.id, e.target.checked)}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </td>
+                )}
+
+                {/* Expand Button */}
+                <td className="px-4 py-4 whitespace-nowrap">
+                  <button
+                    onClick={() => toggleRow(transaction.id)}
+                    className="text-gray-400 hover:text-gray-600 focus:outline-none"
+                    title={expandedRows.has(transaction.id) ? 'Hide details' : 'Show details'}
+                  >
+                    <svg className="w-5 h-5 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{transform: expandedRows.has(transaction.id) ? 'rotate(90deg)' : 'rotate(0deg)'}}>
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                </td>
+
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="text-sm text-gray-900 font-mono">
+                    {transaction.id.slice(-8)}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    By: {transaction.performedBy}
+                  </div>
+                </td>
               
               <td className="px-6 py-4 whitespace-nowrap">
                 <div className="text-sm font-medium text-gray-900">
@@ -158,27 +237,61 @@ export function TransactionTable({ transactions, onCancelTransaction, canCancel 
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                 {formatTimestamp(transaction.timestamp)}
               </td>
-
-              {/* Actions Cell */}
-              {canCancel && (
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                  {transaction.status === TransactionStatus.COMPLETED && !transaction.isRectification && (
-                    <button
-                      onClick={() => onCancelTransaction?.(transaction)}
-                      className="text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 px-2 py-1 rounded text-xs font-medium transition-colors"
-                      title="Cancel and rectify this transaction"
-                    >
-                      🔄 Cancel & Rectify
-                    </button>
-                  )}
-                  {transaction.parentTransactionId && (
-                    <span className="text-xs text-gray-500">
-                      ↳ Rectifies #{transaction.parentTransactionId.slice(-8)}
-                    </span>
-                  )}
-                </td>
-              )}
             </tr>
+
+            {/* Expanded Row - Transaction Details */}
+            {expandedRows.has(transaction.id) && (
+              <tr key={`${transaction.id}-details`}>
+                <td colSpan={8 + (onSelectionChange ? 1 : 0)} className="px-6 py-4 bg-gray-50 border-t border-gray-200">
+                  <div className="space-y-3">
+                    {/* Transaction Details */}
+                    <div className="bg-white border border-gray-200 rounded-lg p-4">
+                      <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center">
+                        📋 Transaction Details
+                      </h4>
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <span className="text-gray-600">Full ID:</span>
+                          <span className="ml-2 font-mono text-gray-900">{transaction.id}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Type:</span>
+                          <span className="ml-2 text-gray-900">{transaction.transactionType}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Previous Amount:</span>
+                          <span className="ml-2 text-gray-900">{transaction.previousAmount || 'N/A'}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">New Amount:</span>
+                          <span className="ml-2 text-gray-900">{transaction.newAmount || 'N/A'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Notes Section */}
+                    {transaction.notes && (
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <h4 className="text-sm font-semibold text-blue-900 mb-2 flex items-center">
+                          📝 Notes / Reason
+                        </h4>
+                        <p className="text-sm text-gray-700 whitespace-pre-wrap">{transaction.notes}</p>
+                      </div>
+                    )}
+
+                    {/* Rectification Info */}
+                    {transaction.isRectification && transaction.parentTransactionId && (
+                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                        <span className="text-sm text-yellow-800">
+                          🔄 This is a rectification transaction for #{transaction.parentTransactionId.slice(-8)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            )}
+          </>
           ))}
         </tbody>
       </table>

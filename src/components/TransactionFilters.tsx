@@ -20,10 +20,26 @@ export function TransactionFilters({ filters, onFiltersChange }: TransactionFilt
 
   const loadAvailableBatches = async () => {
     try {
-      const config = await batchAllocationService.getBatchConfig();
-      if (config) {
-        setAvailableBatches(config.availableBatches);
-      }
+      // Get all batch allocations to find all batches that have ever been used
+      const allocations = await batchAllocationService.getAllBatchAllocations();
+      const batches = new Set<string>();
+
+      allocations.forEach(allocation => {
+        Object.keys(allocation.allocations).forEach(batchId => {
+          if (batchId !== 'DEFAULT' && allocation.allocations[batchId] > 0) {
+            batches.add(batchId);
+          }
+        });
+      });
+
+      // Sort numerically
+      const sortedBatches = Array.from(batches).sort((a, b) => {
+        const aNum = parseInt(a) || 0;
+        const bNum = parseInt(b) || 0;
+        return aNum - bNum;
+      });
+
+      setAvailableBatches(sortedBatches);
     } catch (error) {
       console.error('Failed to load batch configuration:', error);
     }
@@ -134,7 +150,7 @@ export function TransactionFilters({ filters, onFiltersChange }: TransactionFilt
             className="input-primary text-sm"
           >
             <option value="">All batches</option>
-            <option value="UNASSIGNED">🚫 Unassigned</option>
+            <option value="DEFAULT">🚫 Default</option>
             {availableBatches.map(batchId => (
               <option key={batchId} value={batchId}>
                 Batch {batchId}
@@ -156,6 +172,22 @@ export function TransactionFilters({ filters, onFiltersChange }: TransactionFilt
             <option value="">Show all</option>
             <option value="false">Hide rectifications</option>
             <option value="true">Show only rectifications</option>
+          </select>
+        </div>
+
+        {/* Cross-Batch Transfer Filter */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            📦 Cross-Batch Transfers
+          </label>
+          <select
+            value={filters.showCrossBatchOnly === undefined ? '' : filters.showCrossBatchOnly ? 'true' : 'false'}
+            onChange={(e) => updateFilter('showCrossBatchOnly', e.target.value === '' ? undefined : e.target.value === 'true')}
+            className="input-primary text-sm"
+          >
+            <option value="">Show all</option>
+            <option value="false">Hide cross-batch</option>
+            <option value="true">Show only cross-batch</option>
           </select>
         </div>
 

@@ -148,19 +148,50 @@ class TransactionService {
     }
   }
 
+  // Delete a transaction record permanently (does NOT reverse inventory changes)
+  async deleteTransaction(transactionId: string): Promise<void> {
+    try {
+      // Find and delete the transaction document
+      const transactionsQuery = query(collection(db, TRANSACTIONS_COLLECTION));
+      const snapshot = await getDocs(transactionsQuery);
+      const deletePromises: Promise<void>[] = [];
+
+      snapshot.docs.forEach((docSnapshot) => {
+        const data = docSnapshot.data() as StoredTransaction;
+        if (data.id === transactionId) {
+          const deletePromise = deleteDoc(doc(db, TRANSACTIONS_COLLECTION, docSnapshot.id));
+          deletePromises.push(deletePromise);
+        }
+      });
+
+      // Wait for all deletions to complete
+      await Promise.all(deletePromises);
+
+      if (deletePromises.length > 0) {
+        logger.info('Transaction deleted from Firebase', { transactionId });
+      } else {
+        logger.warn('No transaction found with ID', { transactionId });
+        throw new Error(`Transaction not found: ${transactionId}`);
+      }
+    } catch (error) {
+      logger.error('Error deleting transaction', error);
+      throw error;
+    }
+  }
+
   // Get OTP for a transaction
   async getOTP(transactionId: string): Promise<string | null> {
     try {
       const otpsQuery = query(collection(db, OTPS_COLLECTION));
       const snapshot = await getDocs(otpsQuery);
-      
+
       for (const docSnapshot of snapshot.docs) {
         const data = docSnapshot.data() as StoredOTP;
         if (data.transactionId === transactionId) {
           return data.otp;
         }
       }
-      
+
       return null;
     } catch (error) {
       logger.error('Error getting OTP', error);

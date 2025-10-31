@@ -112,23 +112,8 @@ function parseCSV(csv: string): string[][] {
     });
 }
 
-function computeStatus(expectedBySku: Record<string, number>, scannedBySku: Record<string, number>): PackingBoxDoc['status'] {
-  // Over-scanned check
-  for (const sku of Object.keys(scannedBySku)) {
-    const scanned = scannedBySku[sku] || 0;
-    const expected = expectedBySku[sku] || 0;
-    if (scanned > expected) return 'over_scanned';
-  }
-  const totalExpected = Object.values(expectedBySku).reduce((a, b) => a + b, 0);
-  const totalScanned = Object.values(scannedBySku).reduce((a, b) => a + b, 0);
-  if (totalScanned === 0) return 'not_started';
-  if (totalScanned < totalExpected) return 'in_progress';
-  // Complete when every sku meets expected exactly
-  for (const sku of Object.keys(expectedBySku)) {
-    if ((scannedBySku[sku] || 0) !== expectedBySku[sku]) return 'in_progress';
-  }
-  return 'complete';
-}
+// OBSOLETE: computeStatus function removed in v7.8.0 - status is now computed inline in applyScan
+// Flexible mode doesn't enforce strict validation, status reflects reality not expectations
 
 // Smart column mapping suggestion
 function suggestColumnMapping(header: string): 'caseNo' | 'partNo' | 'qty' | 'ignore' {
@@ -444,25 +429,48 @@ export const packingBoxesService = {
 
     return runTransaction(db, async (tx) => {
       const snap = await tx.get(ref);
-      if (!snap.exists()) throw new Error(`Box not found: ${caseNo}`);
-      const data = snap.data() as PackingBoxDoc;
-      const expected = data.expectedBySku[sku] || 0;
-      if (expected <= 0) throw new Error(`SKU ${sku} not in box ${caseNo}`);
-      const currentScanned = data.scannedBySku[sku] || 0;
-      if (currentScanned + qty > expected) {
-        throw new Error(
-          `Exceeds expected for ${sku} in box ${caseNo}. Available: ${expected - currentScanned}, requested: ${qty}`
-        );
+
+      // FLEXIBLE MODE: Create box if doesn't exist, track actual reality
+      let data: PackingBoxDoc;
+      if (!snap.exists()) {
+        // Auto-create box for flexible scanning
+        data = {
+          batchId,
+          caseNo,
+          expectedBySku: {},  // No expectations in flexible mode
+          scannedBySku: {},
+          totals: { expectedQty: 0, scannedQty: 0 },
+          status: 'in_progress' as any,
+          createdAt: Timestamp.now(),
+          updatedAt: Timestamp.now(),
+        };
+      } else {
+        data = snap.data() as PackingBoxDoc;
       }
 
+      // NO VALIDATION - just track what actually happened
+      const currentScanned = data.scannedBySku[sku] || 0;
       const newScannedBySku = { ...data.scannedBySku, [sku]: currentScanned + qty };
       const newTotalsScanned = Object.values(newScannedBySku).reduce((a, b) => a + b, 0);
-      const newStatus = computeStatus(data.expectedBySku, newScannedBySku);
+      const expectedTotal = Object.values(data.expectedBySku).reduce((a, b) => a + b, 0);
+
+      // Status reflects reality, not validation
+      let newStatus: string;
+      if (newTotalsScanned === 0) {
+        newStatus = 'not_started';
+      } else if (expectedTotal > 0 && newTotalsScanned >= expectedTotal) {
+        newStatus = 'complete';
+      } else if (newTotalsScanned > expectedTotal) {
+        newStatus = 'over_scanned';
+      } else {
+        newStatus = 'in_progress';
+      }
+
       const updated: PackingBoxDoc = {
         ...data,
         scannedBySku: newScannedBySku,
-        totals: { expectedQty: data.totals.expectedQty, scannedQty: newTotalsScanned },
-        status: newStatus,
+        totals: { expectedQty: expectedTotal, scannedQty: newTotalsScanned },
+        status: newStatus as any,
         updatedAt: Timestamp.now(),
       };
       tx.set(ref, updated);

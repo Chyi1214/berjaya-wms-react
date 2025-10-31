@@ -1,10 +1,13 @@
 // Enhanced Inventory Table Component - Manager dashboard with zone breakdown
 import { useState } from 'react';
-import { InventoryCountEntry } from '../types';
+import { InventoryCountEntry, BatchAllocation } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
+import StockAdjustmentDialog from './manager/inventory/StockAdjustmentDialog';
+import MakeTransactionDialog from './manager/inventory/MakeTransactionDialog';
 
 interface EnhancedInventoryTableProps {
   counts: InventoryCountEntry[];
+  batchAllocations?: BatchAllocation[];
   showActions?: boolean;
   onAdjustStock?: (sku: string, location: string) => void;
 }
@@ -18,6 +21,13 @@ interface ZoneInventory {
   countedBy: string;
 }
 
+// Batch breakdown data
+interface BatchBreakdown {
+  batchId: string;
+  location: string;
+  quantity: number;
+}
+
 // Enhanced inventory summary with zone breakdown
 interface EnhancedInventorySummary {
   sku: string;
@@ -27,13 +37,17 @@ interface EnhancedInventorySummary {
   productionTotal: number;
   grandTotal: number;
   lastUpdated: Date;
+  batchBreakdown?: BatchBreakdown[];
   isExpanded?: boolean;
 }
 
-export function EnhancedInventoryTable({ counts }: EnhancedInventoryTableProps) {
+export function EnhancedInventoryTable({ counts, batchAllocations }: EnhancedInventoryTableProps) {
   const { t } = useLanguage();
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  const [adjustDialogSku, setAdjustDialogSku] = useState<{ sku: string; itemName: string } | null>(null);
+  const [transferDialogSku, setTransferDialogSku] = useState<{ sku: string; itemName: string } | null>(null);
 
   // Process inventory data with zone breakdown
   const processInventoryData = (): EnhancedInventorySummary[] => {
@@ -96,6 +110,35 @@ export function EnhancedInventoryTable({ counts }: EnhancedInventoryTableProps) 
         lastUpdated: latestCount.timestamp,
         countedBy: latestCount.countedBy
       }));
+
+      // Add batch breakdown if batch allocations are provided
+      if (batchAllocations) {
+        const batchBreakdown: BatchBreakdown[] = [];
+
+        // Find all batch allocations for this SKU
+        const skuAllocations = batchAllocations.filter(alloc => alloc.sku === summary.sku);
+
+        skuAllocations.forEach(alloc => {
+          Object.entries(alloc.allocations).forEach(([batchId, quantity]) => {
+            if (quantity > 0) {
+              batchBreakdown.push({
+                batchId,
+                location: alloc.location,
+                quantity
+              });
+            }
+          });
+        });
+
+        // Sort by batch ID numerically
+        batchBreakdown.sort((a, b) => {
+          const aNum = a.batchId === 'DEFAULT' ? Number.MAX_SAFE_INTEGER : parseInt(a.batchId) || 0;
+          const bNum = b.batchId === 'DEFAULT' ? Number.MAX_SAFE_INTEGER : parseInt(b.batchId) || 0;
+          return aNum - bNum;
+        });
+
+        summary.batchBreakdown = batchBreakdown;
+      }
     });
 
     // Calculate totals and sort zones
@@ -271,30 +314,129 @@ export function EnhancedInventoryTable({ counts }: EnhancedInventoryTableProps) 
                     {item.lastUpdated.toLocaleString()}
                   </td>
                   <td className="px-4 py-3 text-center">
-                    {item.productionZones.length > 0 && (
-                      <button
-                        onClick={() => toggleRowExpansion(item.sku)}
-                        className="text-blue-600 hover:text-blue-900 text-sm font-medium"
-                      >
-                        {expandedRows.has(item.sku) ? (
-                          <>
-                            <svg className="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="flex items-center justify-center gap-2">
+                      {/* Batch Breakdown Button (shown only when batch allocations available) */}
+                      {item.batchBreakdown && item.batchBreakdown.length > 0 && (
+                        <button
+                          onClick={() => toggleRowExpansion(`${item.sku}-batches`)}
+                          className="text-green-600 hover:text-green-900 p-1 rounded hover:bg-green-50"
+                          title={expandedRows.has(`${item.sku}-batches`) ? 'Hide Batches' : 'Show Batches'}
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            {expandedRows.has(`${item.sku}-batches`) ? (
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                            </svg>
-                            Hide Zones
-                          </>
-                        ) : (
-                          <>
-                            <svg className="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            ) : (
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                            </svg>
-                            Show Zones
-                          </>
+                            )}
+                          </svg>
+                        </button>
+                      )}
+
+                      {/* Zone Expansion Button */}
+                      {item.productionZones.length > 0 && (
+                        <button
+                          onClick={() => toggleRowExpansion(item.sku)}
+                          className="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-50"
+                          title={expandedRows.has(item.sku) ? 'Hide Zones' : 'Show Zones'}
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            {expandedRows.has(item.sku) ? (
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                            ) : (
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            )}
+                          </svg>
+                        </button>
+                      )}
+
+                      {/* Action Dropdown Menu */}
+                      <div className="relative">
+                        <button
+                          onClick={() => setOpenDropdown(openDropdown === item.sku ? null : item.sku)}
+                          className="text-gray-600 hover:text-gray-900 p-1 rounded hover:bg-gray-100"
+                          title="Actions"
+                        >
+                          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                          </svg>
+                        </button>
+
+                        {/* Dropdown Menu */}
+                        {openDropdown === item.sku && (
+                          <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
+                            <button
+                              onClick={() => {
+                                setAdjustDialogSku({ sku: item.sku, itemName: item.itemName });
+                                setOpenDropdown(null);
+                              }}
+                              className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center text-sm text-gray-700 rounded-t-lg"
+                            >
+                              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                              </svg>
+                              Adjust Stock
+                            </button>
+                            <button
+                              onClick={() => {
+                                setTransferDialogSku({ sku: item.sku, itemName: item.itemName });
+                                setOpenDropdown(null);
+                              }}
+                              className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center text-sm text-gray-700 border-t border-gray-100 rounded-b-lg"
+                            >
+                              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                              </svg>
+                              Make Transaction
+                            </button>
+                          </div>
                         )}
-                      </button>
-                    )}
+                      </div>
+                    </div>
                   </td>
                 </tr>
+
+                {/* Expanded Batch Breakdown */}
+                {expandedRows.has(`${item.sku}-batches`) && item.batchBreakdown && item.batchBreakdown.length > 0 && (
+                  <tr key={`${item.sku}-batches`} className="bg-green-50">
+                    <td colSpan={7} className="px-4 py-3">
+                      <div className="ml-8">
+                        <h4 className="text-sm font-medium text-gray-900 mb-3 flex items-center">
+                          <svg className="w-4 h-4 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                          </svg>
+                          Batch Breakdown for {item.sku}
+                        </h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                          {item.batchBreakdown.map((batch) => (
+                            <div key={`${batch.batchId}-${batch.location}`} className="bg-white border border-green-200 rounded-lg p-3">
+                              <div className="flex justify-between items-center">
+                                <div>
+                                  <div className="text-sm font-medium text-gray-900">
+                                    {batch.batchId === 'DEFAULT' ? '❓ Default' : `📦 Batch ${batch.batchId}`}
+                                  </div>
+                                  <div className="text-xs text-gray-500">
+                                    @ {batch.location === 'logistics' ? 'Logistics' : batch.location.replace('production_zone_', 'Zone ')}
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <div className="text-lg font-bold text-green-600">
+                                    {batch.quantity}
+                                  </div>
+                                  <div className="text-xs text-gray-500">
+                                    units
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="mt-3 text-xs text-gray-600">
+                          Total across all batches: <span className="font-semibold">{item.batchBreakdown.reduce((sum, b) => sum + b.quantity, 0)} units</span>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                )}
 
                 {/* Expanded Zone Details */}
                 {expandedRows.has(item.sku) && item.productionZones.length > 0 && (
@@ -366,14 +508,29 @@ export function EnhancedInventoryTable({ counts }: EnhancedInventoryTableProps) 
               </div>
             </div>
 
-            {item.productionZones.length > 0 && (
+            {/* Action Buttons */}
+            <div className="mt-3 pt-3 border-t border-gray-200 flex gap-2">
+              {item.productionZones.length > 0 && (
+                <button
+                  onClick={() => toggleRowExpansion(item.sku)}
+                  className="flex-1 text-blue-600 hover:text-blue-900 text-sm font-medium py-2 border border-blue-200 rounded-lg hover:bg-blue-50"
+                >
+                  {expandedRows.has(item.sku) ? 'Hide Zones' : 'Show Zones'}
+                </button>
+              )}
               <button
-                onClick={() => toggleRowExpansion(item.sku)}
-                className="w-full text-blue-600 hover:text-blue-900 text-sm font-medium py-2 border-t border-gray-200"
+                onClick={() => setAdjustDialogSku({ sku: item.sku, itemName: item.itemName })}
+                className="flex-1 text-gray-700 hover:text-gray-900 text-sm font-medium py-2 border border-gray-200 rounded-lg hover:bg-gray-50"
               >
-                {expandedRows.has(item.sku) ? 'Hide Zone Details' : 'Show Zone Details'}
+                Adjust Stock
               </button>
-            )}
+              <button
+                onClick={() => setTransferDialogSku({ sku: item.sku, itemName: item.itemName })}
+                className="flex-1 text-gray-700 hover:text-gray-900 text-sm font-medium py-2 border border-gray-200 rounded-lg hover:bg-gray-50"
+              >
+                Transfer
+              </button>
+            </div>
 
             {/* Mobile Zone Details */}
             {expandedRows.has(item.sku) && item.productionZones.length > 0 && (
@@ -405,6 +562,31 @@ export function EnhancedInventoryTable({ counts }: EnhancedInventoryTableProps) 
           <div className="text-2xl mb-2">🔍</div>
           <p>No items found matching "{searchTerm}"</p>
         </div>
+      )}
+
+      {/* Dialogs */}
+      {adjustDialogSku && (
+        <StockAdjustmentDialog
+          sku={adjustDialogSku.sku}
+          itemName={adjustDialogSku.itemName}
+          onClose={() => setAdjustDialogSku(null)}
+          onSuccess={() => {
+            setAdjustDialogSku(null);
+            // Optionally trigger a data refresh here
+          }}
+        />
+      )}
+
+      {transferDialogSku && (
+        <MakeTransactionDialog
+          sku={transferDialogSku.sku}
+          itemName={transferDialogSku.itemName}
+          onClose={() => setTransferDialogSku(null)}
+          onSuccess={() => {
+            setTransferDialogSku(null);
+            // Optionally trigger a data refresh here
+          }}
+        />
       )}
     </div>
   );

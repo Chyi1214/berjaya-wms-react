@@ -23,6 +23,10 @@ export interface WasteReport {
   reason: string;
   detailedReason: string;
 
+  // Batch tracking (v7.18.0)
+  batchId?: string;           // Which batch this waste came from
+  batchAllocation?: number;   // How much was in that batch at time of report
+
   // DEFECT-specific fields
   rejectionReasons?: string[];
   customReason?: string;

@@ -6,31 +6,40 @@ import EnhancedInventoryTable from '../../EnhancedInventoryTable';
 import { batchAllocationService } from '../../../services/batchAllocationService';
 import { tableStateService } from '../../../services/tableState';
 import { useAuth } from '../../../contexts/AuthContext';
+import { DeleteBatchModal } from '../../operations/DeleteBatchModal';
 
 interface ExpectedItemTabProps {
-  tableData: InventoryCountEntry[];
+  tableData?: InventoryCountEntry[]; // Not used anymore - we build from batch_allocations (Layer 2 is source of truth)
 }
 
-export function ExpectedItemTab({ tableData }: ExpectedItemTabProps) {
+interface DivergenceInfo {
+  sku: string;
+  location: string;
+  layer1Amount: number; // expected_inventory
+  layer2Amount: number; // batch_allocations sum
+  divergence: number; // layer2 - layer1
+}
+
+export function ExpectedItemTab(_props: ExpectedItemTabProps) {
   const { userRecord } = useAuth();
   const [selectedBatch, setSelectedBatch] = useState<string>('ALL');
   const [selectedLocation, setSelectedLocation] = useState<string>('ALL');
   const [batchAllocations, setBatchAllocations] = useState<BatchAllocation[]>([]);
+  const [expectedInventory, setExpectedInventory] = useState<InventoryCountEntry[]>([]);
   const [availableBatches, setAvailableBatches] = useState<string[]>([]);
   const [availableLocations, setAvailableLocations] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [showCleanDialog, setShowCleanDialog] = useState(false);
-  const [isCleaning, setIsCleaning] = useState(false);
+  const [isReconciling, setIsReconciling] = useState(false);
 
-  // Load batch allocations
+  // Batch actions modal state
+  const [showBatchActionsModal, setShowBatchActionsModal] = useState(false);
+
+  // Load batch allocations with real-time updates
   useEffect(() => {
-    loadBatchAllocations();
-  }, []);
-
-  const loadBatchAllocations = async () => {
     setIsLoading(true);
-    try {
-      const allocations = await batchAllocationService.getAllBatchAllocations();
+
+    // Set up real-time listener for batch allocations
+    const unsubscribe = batchAllocationService.onBatchAllocationsChange((allocations) => {
       setBatchAllocations(allocations);
 
       // Extract unique batches and locations
@@ -39,7 +48,7 @@ export function ExpectedItemTab({ tableData }: ExpectedItemTabProps) {
 
       allocations.forEach(allocation => {
         Object.keys(allocation.allocations).forEach(batchId => {
-          if (batchId !== 'UNASSIGNED') {
+          if (batchId !== 'DEFAULT') {
             batches.add(batchId);
           }
         });
@@ -48,20 +57,27 @@ export function ExpectedItemTab({ tableData }: ExpectedItemTabProps) {
 
       setAvailableBatches(Array.from(batches).sort());
       setAvailableLocations(Array.from(locations).sort());
-    } catch (error) {
-      console.error('Failed to load batch allocations:', error);
-    } finally {
       setIsLoading(false);
-    }
-  };
+    });
+
+    // Cleanup listener on unmount
+    return () => unsubscribe();
+  }, []);
+
+  // Load expected inventory (Layer 1) with real-time updates
+  useEffect(() => {
+    // Set up real-time listener for expected_inventory
+    const unsubscribe = tableStateService.onExpectedInventoryChange((inventory) => {
+      setExpectedInventory(inventory);
+    });
+
+    // Cleanup listener on unmount
+    return () => unsubscribe();
+  }, []);
 
   // Filter table data based on batch and location
   const filteredData = useMemo(() => {
-    if (selectedBatch === 'ALL' && selectedLocation === 'ALL') {
-      return tableData;
-    }
-
-    // Build a map of filtered items from batch allocations
+    // ALWAYS build from batch allocations (Layer 2 is the source of truth)
     const filteredItems = new Map<string, InventoryCountEntry>();
 
     batchAllocations.forEach(allocation => {
@@ -77,7 +93,7 @@ export function ExpectedItemTab({ tableData }: ExpectedItemTabProps) {
           return;
         }
 
-        // Create or update entry for this SKU+Location
+        // Create or update entry for this SKU+Location for specific batch
         const key = `${allocation.sku}_${allocation.location}`;
         filteredItems.set(key, {
           sku: allocation.sku,
@@ -88,7 +104,7 @@ export function ExpectedItemTab({ tableData }: ExpectedItemTabProps) {
           countedBy: 'system'
         });
       } else {
-        // No batch filter, just location filter - show total
+        // "All Batches" selected - show total allocated
         const key = `${allocation.sku}_${allocation.location}`;
         filteredItems.set(key, {
           sku: allocation.sku,
@@ -102,7 +118,7 @@ export function ExpectedItemTab({ tableData }: ExpectedItemTabProps) {
     });
 
     return Array.from(filteredItems.values());
-  }, [tableData, batchAllocations, selectedBatch, selectedLocation]);
+  }, [batchAllocations, selectedBatch, selectedLocation]);
 
   // Calculate summary statistics
   const summary = useMemo(() => {
@@ -117,94 +133,112 @@ export function ExpectedItemTab({ tableData }: ExpectedItemTabProps) {
     };
   }, [filteredData]);
 
-  // EMERGENCY: One-time clean of raw inventory
-  const handleEmergencyCleanAll = async () => {
+  // Calculate divergences between Layer 1 (expected_inventory) and Layer 2 (batch_allocations)
+  const divergences = useMemo<DivergenceInfo[]>(() => {
+    const divergenceMap = new Map<string, DivergenceInfo>();
+
+    // Build Layer 1 map (expected_inventory)
+    const layer1Map = new Map<string, number>();
+    expectedInventory.forEach(item => {
+      const key = `${item.sku}_${item.location}`;
+      layer1Map.set(key, item.amount);
+    });
+
+    // Build Layer 2 map (batch_allocations) and calculate divergence
+    batchAllocations.forEach(allocation => {
+      const key = `${allocation.sku}_${allocation.location}`;
+      const layer2Amount = allocation.totalAllocated;
+      const layer1Amount = layer1Map.get(key) || 0;
+      const divergence = layer2Amount - layer1Amount;
+
+      // Only track if there's a divergence OR if either layer has data
+      if (divergence !== 0 || layer1Amount > 0 || layer2Amount > 0) {
+        divergenceMap.set(key, {
+          sku: allocation.sku,
+          location: allocation.location,
+          layer1Amount,
+          layer2Amount,
+          divergence
+        });
+      }
+    });
+
+    // Check for items in Layer 1 that don't exist in Layer 2
+    expectedInventory.forEach(item => {
+      const key = `${item.sku}_${item.location}`;
+      if (!divergenceMap.has(key) && item.amount > 0) {
+        divergenceMap.set(key, {
+          sku: item.sku,
+          location: item.location,
+          layer1Amount: item.amount,
+          layer2Amount: 0,
+          divergence: -item.amount
+        });
+      }
+    });
+
+    return Array.from(divergenceMap.values()).filter(d => d.divergence !== 0);
+  }, [batchAllocations, expectedInventory]);
+
+  // Calculate divergence summary
+  const divergenceSummary = useMemo(() => {
+    const totalDivergences = divergences.length;
+    const totalDivergenceAmount = divergences.reduce((sum, d) => sum + Math.abs(d.divergence), 0);
+    const positives = divergences.filter(d => d.divergence > 0).length;
+    const negatives = divergences.filter(d => d.divergence < 0).length;
+
+    return {
+      totalDivergences,
+      totalDivergenceAmount,
+      positives,
+      negatives
+    };
+  }, [divergences]);
+
+  // Handle data reconciliation
+  const handleReconcile = async () => {
     if (!userRecord) return;
 
-    if (!confirm('🚨 EMERGENCY CLEAN\n\nThis will delete ALL inventory from expected_inventory collection.\n\nThis is a ONE-TIME emergency button for legacy data.\n\nContinue?')) {
+    if (!confirm('🔍 Data Reconciliation\n\nThis will:\n• Check if expected_inventory matches batch_allocations\n• Report any mismatches\n• Offer to auto-fix discrepancies\n\nRun reconciliation check?')) {
       return;
     }
 
-    if (!confirm('⚠️ FINAL WARNING: This will DELETE ALL VISIBLE INVENTORY.\n\nType YES in the next prompt.')) {
-      return;
-    }
-
-    const finalConfirm = prompt('Type YES to confirm:');
-    if (finalConfirm !== 'YES') {
-      alert('❌ Cancelled');
-      return;
-    }
-
-    setIsCleaning(true);
+    setIsReconciling(true);
     try {
-      await tableStateService.clearExpectedInventory();
-      alert('✅ All inventory cleared! Please refresh the page.');
-      window.location.reload();
-    } catch (error) {
-      console.error('Failed to clear inventory:', error);
-      alert('❌ Failed to clear inventory.');
-    } finally {
-      setIsCleaning(false);
-    }
-  };
+      // First run without auto-fix to see the report
+      const result = await tableStateService.reconcileInventoryData(false);
 
-  // Handle clean stock operations
-  const handleCleanStock = async (mode: 'ALL' | 'BATCH' | 'UNASSIGNED') => {
-    if (!userRecord) return;
+      const message = [
+        '📊 Reconciliation Report:',
+        '',
+        `Total SKUs: ${result.totalSKUs}`,
+        `✅ Matches: ${result.matches}`,
+        `⚠️  Mismatches: ${result.mismatches.length}`,
+        '',
+      ].join('\n');
 
-    let confirmMessage = '';
-    let actionDescription = '';
+      if (result.mismatches.length > 0) {
+        const details = result.mismatches.slice(0, 10).map(m =>
+          `${m.sku} @ ${m.location}: ${m.expectedAmount} → ${m.calculatedAmount} (${m.diff >= 0 ? '+' : ''}${m.diff})`
+        ).join('\n');
 
-    if (mode === 'ALL') {
-      confirmMessage = '🚨 ZERO ALL INVENTORY?\n\nThis will:\n• Remove ALL stock across ALL batches\n• Clear ALL locations\n• Cannot be undone!\n\nAre you absolutely sure?';
-      actionDescription = 'all inventory';
-    } else if (mode === 'BATCH' && selectedBatch !== 'ALL') {
-      confirmMessage = `🗑️ Zero stock for Batch ${selectedBatch}?\n\nThis will:\n• Remove all inventory for Batch ${selectedBatch}\n• Across all locations\n• Cannot be undone!\n\nContinue?`;
-      actionDescription = `Batch ${selectedBatch}`;
-    } else if (mode === 'UNASSIGNED') {
-      confirmMessage = '🗑️ Zero all UNASSIGNED stock?\n\nThis will:\n• Remove all stock not assigned to any batch\n• Across all locations\n• Cannot be undone!\n\nContinue?';
-      actionDescription = 'unassigned inventory';
-    } else {
-      alert('⚠️ Please select a specific batch to clean batch stock.');
-      return;
-    }
+        const fullMessage = message + details + (result.mismatches.length > 10 ? '\n...(more in console)' : '');
 
-    if (!confirm(confirmMessage)) return;
-
-    // Double confirmation for ALL
-    if (mode === 'ALL') {
-      if (!confirm('⚠️ FINAL WARNING: You are about to DELETE ALL INVENTORY DATA.\n\nType YES in the next prompt to confirm.')) {
-        return;
-      }
-      const finalConfirm = prompt('Type YES (in capital letters) to confirm deletion of ALL inventory:');
-      if (finalConfirm !== 'YES') {
-        alert('❌ Cancellation confirmed. No data was deleted.');
-        return;
-      }
-    }
-
-    setIsCleaning(true);
-    try {
-      let result;
-
-      if (mode === 'ALL') {
-        result = await batchAllocationService.zeroAllStock(userRecord.email);
-      } else if (mode === 'BATCH') {
-        result = await batchAllocationService.zeroStockForBatch(selectedBatch, userRecord.email);
+        if (confirm(fullMessage + '\n\n🔧 Auto-fix these mismatches?')) {
+          // Run again with auto-fix
+          const fixResult = await tableStateService.reconcileInventoryData(true);
+          alert(`✅ Fixed ${fixResult.mismatches.length} mismatches!\n\nData will update automatically via real-time sync.`);
+          // No need to manually reload - real-time listener will update automatically
+        }
       } else {
-        result = await batchAllocationService.zeroUnassignedStock(userRecord.email);
+        alert(message + '\n✅ All data is in sync! No fixes needed.');
       }
 
-      alert(`✅ Successfully zeroed ${actionDescription}!\n\n📊 Summary:\n• ${result.skusAffected} SKU+Location combinations affected\n• ${result.totalZeroed} total units zeroed`);
-
-      // Reload data
-      await loadBatchAllocations();
-      setShowCleanDialog(false);
     } catch (error) {
-      console.error('Failed to clean stock:', error);
-      alert('❌ Failed to clean stock. Please try again.');
+      console.error('Failed to reconcile data:', error);
+      alert('❌ Failed to reconcile data. Check console for details.');
     } finally {
-      setIsCleaning(false);
+      setIsReconciling(false);
     }
   };
 
@@ -273,28 +307,23 @@ export function ExpectedItemTab({ tableData }: ExpectedItemTabProps) {
             </select>
           </div>
 
+          {/* Removed manual refresh button - data updates automatically via real-time sync */}
+
           <button
-            onClick={loadBatchAllocations}
-            disabled={isLoading}
-            className="self-end px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm font-medium disabled:opacity-50"
+            onClick={handleReconcile}
+            disabled={isReconciling}
+            className="self-end px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium disabled:opacity-50"
+            title="Check and fix data sync between layers"
           >
-            🔄 Refresh
+            {isReconciling ? '⏳ Checking...' : '🔍 Reconcile Data'}
           </button>
 
           <button
-            onClick={() => setShowCleanDialog(true)}
-            className="self-end px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md text-sm font-medium"
+            onClick={() => setShowBatchActionsModal(true)}
+            className="self-end px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-md text-sm font-medium"
+            title="Manage batch inventory (Layer 2 only)"
           >
-            🗑️ Clean Stock
-          </button>
-
-          <button
-            onClick={handleEmergencyCleanAll}
-            disabled={isCleaning}
-            className="self-end px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-md text-sm font-medium disabled:opacity-50"
-            title="ONE-TIME: Clear legacy inventory data"
-          >
-            ⚡ Emergency Clean
+            🗑️ Batch Actions
           </button>
         </div>
 
@@ -337,6 +366,97 @@ export function ExpectedItemTab({ tableData }: ExpectedItemTabProps) {
         )}
       </div>
 
+      {/* Divergence Alert Section */}
+      {divergences.length > 0 && (
+        <div className="bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-orange-300 rounded-lg p-5">
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-2xl">⚠️</span>
+                <h4 className="text-lg font-bold text-orange-900">
+                  Layer Divergence Detected
+                </h4>
+              </div>
+
+              <p className="text-sm text-orange-800 mb-4">
+                The two inventory layers are not in sync. This means the detailed batch breakdowns (Layer 2) don't match the aggregated totals (Layer 1).
+              </p>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                <div className="bg-white rounded-lg border border-orange-200 p-3">
+                  <div className="text-2xl font-bold text-orange-900">{divergenceSummary.totalDivergences}</div>
+                  <div className="text-xs text-orange-700">SKU+Location Divergences</div>
+                </div>
+                <div className="bg-white rounded-lg border border-orange-200 p-3">
+                  <div className="text-2xl font-bold text-orange-900">{divergenceSummary.totalDivergenceAmount}</div>
+                  <div className="text-xs text-orange-700">Total Units Misaligned</div>
+                </div>
+                <div className="bg-green-50 rounded-lg border border-green-300 p-3">
+                  <div className="text-2xl font-bold text-green-900">+{divergenceSummary.positives}</div>
+                  <div className="text-xs text-green-700">Over-allocated</div>
+                  <div className="text-xs text-green-600">(Layer 2 &gt; Layer 1)</div>
+                </div>
+                <div className="bg-red-50 rounded-lg border border-red-300 p-3">
+                  <div className="text-2xl font-bold text-red-900">−{divergenceSummary.negatives}</div>
+                  <div className="text-xs text-red-700">Under-allocated</div>
+                  <div className="text-xs text-red-600">(Layer 2 &lt; Layer 1)</div>
+                </div>
+              </div>
+
+              <details className="bg-white rounded-lg border border-orange-200 p-3">
+                <summary className="cursor-pointer font-medium text-orange-900 hover:text-orange-700">
+                  📋 View Detailed Divergences ({divergences.length} items)
+                </summary>
+                <div className="mt-3 max-h-60 overflow-y-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 sticky top-0">
+                      <tr>
+                        <th className="text-left p-2 border-b">SKU</th>
+                        <th className="text-left p-2 border-b">Location</th>
+                        <th className="text-right p-2 border-b">Layer 1</th>
+                        <th className="text-right p-2 border-b">Layer 2</th>
+                        <th className="text-right p-2 border-b">Divergence</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {divergences.map((d, idx) => (
+                        <tr key={idx} className="border-b hover:bg-gray-50">
+                          <td className="p-2 font-mono text-xs">{d.sku}</td>
+                          <td className="p-2">{d.location}</td>
+                          <td className="p-2 text-right">{d.layer1Amount}</td>
+                          <td className="p-2 text-right">{d.layer2Amount}</td>
+                          <td className={`p-2 text-right font-bold ${
+                            d.divergence > 0 ? 'text-green-700' : 'text-red-700'
+                          }`}>
+                            {d.divergence > 0 ? '+' : ''}{d.divergence}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </details>
+            </div>
+
+            <button
+              onClick={handleReconcile}
+              disabled={isReconciling}
+              className="ml-4 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-md text-sm font-medium disabled:opacity-50 whitespace-nowrap"
+            >
+              {isReconciling ? '⏳ Fixing...' : '🔧 Fix Now'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Success - All Synced (compact badge) */}
+      {divergences.length === 0 && batchAllocations.length > 0 && expectedInventory.length > 0 && (
+        <div className="bg-green-50 border border-green-300 rounded-lg p-2.5 inline-flex items-center gap-2">
+          <span className="text-sm">✅</span>
+          <span className="text-sm font-medium text-green-900">All Layers Synced</span>
+        </div>
+      )}
+
       {/* Table */}
       {isLoading ? (
         <div className="flex items-center justify-center py-12">
@@ -344,7 +464,10 @@ export function ExpectedItemTab({ tableData }: ExpectedItemTabProps) {
           <span className="ml-3 text-gray-600">Loading inventory...</span>
         </div>
       ) : filteredData.length > 0 ? (
-        <EnhancedInventoryTable counts={filteredData} />
+        <EnhancedInventoryTable
+          counts={filteredData}
+          batchAllocations={selectedBatch === 'ALL' ? batchAllocations : undefined}
+        />
       ) : (
         <div className="text-center py-8 text-gray-500 bg-white rounded-lg border border-gray-200">
           <div className="text-4xl mb-4">📦</div>
@@ -357,87 +480,17 @@ export function ExpectedItemTab({ tableData }: ExpectedItemTabProps) {
         </div>
       )}
 
-      {/* Clean Stock Dialog */}
-      {showCleanDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg max-w-md w-full p-6 m-4">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-              <span className="text-2xl mr-2">🗑️</span>
-              Clean Stock
-            </h3>
-
-            <p className="text-sm text-gray-600 mb-6">
-              Choose how you want to clean inventory. This operation cannot be undone.
-            </p>
-
-            <div className="space-y-3 mb-6">
-              {/* Clean Specific Batch */}
-              <button
-                onClick={() => handleCleanStock('BATCH')}
-                disabled={isCleaning || selectedBatch === 'ALL'}
-                className={`w-full text-left p-4 rounded-lg border-2 transition-colors ${
-                  selectedBatch === 'ALL'
-                    ? 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed'
-                    : 'border-orange-200 bg-orange-50 hover:border-orange-400 hover:bg-orange-100'
-                }`}
-              >
-                <div className="font-medium text-orange-900">
-                  🏭 Zero Batch {selectedBatch === 'ALL' ? '(Select a batch first)' : selectedBatch}
-                </div>
-                <div className="text-sm text-orange-700 mt-1">
-                  Remove all inventory for the selected batch across all locations
-                </div>
-              </button>
-
-              {/* Clean Unassigned */}
-              <button
-                onClick={() => handleCleanStock('UNASSIGNED')}
-                disabled={isCleaning}
-                className="w-full text-left p-4 rounded-lg border-2 border-yellow-200 bg-yellow-50 hover:border-yellow-400 hover:bg-yellow-100 transition-colors"
-              >
-                <div className="font-medium text-yellow-900">
-                  ❓ Zero Unassigned Stock
-                </div>
-                <div className="text-sm text-yellow-700 mt-1">
-                  Remove all inventory not assigned to any batch
-                </div>
-              </button>
-
-              {/* Clean ALL */}
-              <button
-                onClick={() => handleCleanStock('ALL')}
-                disabled={isCleaning}
-                className="w-full text-left p-4 rounded-lg border-2 border-red-300 bg-red-50 hover:border-red-500 hover:bg-red-100 transition-colors"
-              >
-                <div className="font-medium text-red-900">
-                  🚨 Zero ALL Inventory
-                </div>
-                <div className="text-sm text-red-700 mt-1">
-                  <strong>DANGER:</strong> Remove ALL stock across ALL batches and locations
-                </div>
-              </button>
-            </div>
-
-            {isCleaning && (
-              <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <div className="flex items-center">
-                  <div className="animate-spin h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full mr-2"></div>
-                  <span className="text-blue-800">Processing...</span>
-                </div>
-              </div>
-            )}
-
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowCleanDialog(false)}
-                disabled={isCleaning}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* Batch Actions Modal */}
+      {showBatchActionsModal && (
+        <DeleteBatchModal
+          batch={null}
+          boxCount={0}
+          mode="inventory-only"
+          onConfirm={() => {
+            setShowBatchActionsModal(false);
+          }}
+          onCancel={() => setShowBatchActionsModal(false)}
+        />
       )}
     </div>
   );

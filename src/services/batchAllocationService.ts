@@ -9,7 +9,8 @@ import {
   where,
   orderBy,
   Timestamp,
-  updateDoc
+  updateDoc,
+  onSnapshot
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { BatchAllocation, BatchConfig, BatchProgress } from '../types/inventory';
@@ -199,6 +200,33 @@ class BatchAllocationService {
     }
   }
 
+  /**
+   * Real-time listener for batch allocations - updates automatically when data changes
+   * Returns an unsubscribe function to stop listening
+   */
+  onBatchAllocationsChange(callback: (allocations: BatchAllocation[]) => void): () => void {
+    const q = query(
+      collection(db, BATCH_ALLOCATIONS_COLLECTION),
+      orderBy('lastUpdated', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const allocations: BatchAllocation[] = [];
+
+      snapshot.forEach((doc) => {
+        const allocation = mapFirestoreToBatchAllocation(doc.data());
+        allocations.push(allocation);
+      });
+
+      logger.debug('Real-time update: batch allocations changed:', { count: allocations.length });
+      callback(allocations);
+    }, (error) => {
+      logger.error('Error in batch allocations listener:', error);
+    });
+
+    return unsubscribe;
+  }
+
   async addToBatchAllocation(
     sku: string,
     location: string,
@@ -330,7 +358,7 @@ class BatchAllocationService {
 
       for (const allocation of allocations) {
         for (const [batchId, amount] of Object.entries(allocation.allocations)) {
-          if (batchId !== 'UNASSIGNED') {
+          if (batchId !== 'DEFAULT') {
             const current = batchTotals.get(batchId) || 0;
             batchTotals.set(batchId, current + amount);
           }
@@ -489,7 +517,7 @@ class BatchAllocationService {
   }
 
   /**
-   * Zero all stock that is not assigned to any batch (UNASSIGNED items)
+   * Zero all stock that is not assigned to any batch (DEFAULT items)
    */
   async zeroUnassignedStock(updatedBy: string): Promise<{ skusAffected: number; totalZeroed: number }> {
     try {
@@ -498,14 +526,14 @@ class BatchAllocationService {
       let totalZeroed = 0;
 
       const updatePromises = allocations.map(async (allocation) => {
-        const unassignedQty = allocation.allocations['UNASSIGNED'];
+        const unassignedQty = allocation.allocations['DEFAULT'];
         if (unassignedQty && unassignedQty > 0) {
           totalZeroed += unassignedQty;
           skusAffected++;
 
-          // LAYER 2: Remove UNASSIGNED from batch allocations
+          // LAYER 2: Remove DEFAULT from batch allocations
           const updatedAllocations = { ...allocation.allocations };
-          delete updatedAllocations['UNASSIGNED'];
+          delete updatedAllocations['DEFAULT'];
 
           const newTotal = Object.values(updatedAllocations).reduce((sum: number, qty) => sum + (qty as number), 0);
 

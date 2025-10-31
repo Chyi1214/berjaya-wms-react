@@ -68,22 +68,22 @@ function AppContent() {
           break;
           
         case UserRole.MANAGER:
-          // Managers still use the legacy inventory_counts system
-          const inventoryService = await getInventoryService();
-          const transactionService = await getTransactionService();
-          
-          const counts = await inventoryService.getAllInventoryCounts();
-          setInventoryCounts(counts);
-          
+          // Managers use the two-layer inventory system (expected_inventory + batch_allocations)
+          const managerTableStateService = await getTableStateService();
+          const managerTransactionService = await getTransactionService();
+
+          const expected = await managerTableStateService.getExpectedInventory();
+          setInventoryCounts(expected);
+
           // Set up real-time listeners
-          const unsubInventory = inventoryService.onInventoryCountsChange((counts: InventoryCountEntry[]) => {
-            setInventoryCounts(counts);
+          const unsubInventory = managerTableStateService.onExpectedInventoryChange((expected: InventoryCountEntry[]) => {
+            setInventoryCounts(expected);
           });
-          
-          const unsubTransactions = transactionService.onTransactionsChange((transactions: Transaction[]) => {
+
+          const unsubTransactions = managerTransactionService.onTransactionsChange((transactions: Transaction[]) => {
             setTransactions(transactions);
           });
-          
+
           // Store unsubscribe functions for cleanup
           (window as any).__unsubscribe = { inventory: unsubInventory, transactions: unsubTransactions };
           break;
@@ -179,11 +179,9 @@ function AppContent() {
   // Handle new inventory count (save to Firebase) - supports both single items and BOM expansion
   const handleInventoryCount = async (entries: InventoryCountEntry[]) => {
     try {
-      // Lazy load inventory service and save all entries to Firebase
-      const inventoryService = await getInventoryService();
-      for (const entry of entries) {
-        await inventoryService.saveInventoryCount(entry);
-      }
+      // Use tableStateService to save to expected_inventory
+      const tableStateService = await getTableStateService();
+      await tableStateService.saveExpectedInventory(entries);
       logger.info('Inventory counts saved to Firebase', { count: entries.length, entries });
     } catch (error) {
       logger.error('Failed to save inventory count', error);
@@ -195,8 +193,8 @@ function AppContent() {
   const handleClearCounts = async () => {
     if (window.confirm('Clear all inventory counts? This cannot be undone.')) {
       try {
-        const inventoryService = await getInventoryService();
-        await inventoryService.clearAllInventory();
+        const tableStateService = await getTableStateService();
+        await tableStateService.saveExpectedInventory([]);
         logger.warn('All inventory data cleared from Firebase');
       } catch (error) {
         logger.error('Failed to clear inventory', error);

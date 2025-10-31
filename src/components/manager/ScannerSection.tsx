@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { ScannerOperationsCard, CSVUploadInstructionsCard } from '../operations';
 import { ScannerInventoryTable } from '../scanner/ScannerInventoryTable';
 import { AddScannerEntryForm } from '../scanner/AddScannerEntryForm';
+import { SupplierBoxScanManager } from '../scanner/SupplierBoxScanManager';
 
 interface UploadResult {
   success: number;
@@ -19,7 +20,7 @@ interface ScannerSectionProps {
   onRefresh?: () => void;
 }
 
-type TabType = 'inventory' | 'csv' | 'instructions';
+type TabType = 'inventory' | 'csv' | 'instructions' | 'qr_tracking';
 
 export function ScannerSection({ onRefresh: _onRefresh }: ScannerSectionProps) {
   const { user } = useAuth();
@@ -38,6 +39,7 @@ export function ScannerSection({ onRefresh: _onRefresh }: ScannerSectionProps) {
   const tabs = [
     { id: 'inventory' as TabType, label: '📋 Inventory List', description: 'View and manage individual scanner entries' },
     { id: 'csv' as TabType, label: '📤 CSV Operations', description: 'Bulk upload and download operations' },
+    { id: 'qr_tracking' as TabType, label: '📦 QR Tracking', description: 'Supplier box QR scan tracking and management' },
     { id: 'instructions' as TabType, label: '📚 Instructions', description: 'CSV format guide and templates' }
   ];
 
@@ -98,6 +100,13 @@ export function ScannerSection({ onRefresh: _onRefresh }: ScannerSectionProps) {
               onRefresh={handleRefresh}
               userEmail={user.email}
             />
+          </div>
+        )}
+
+        {/* QR Tracking Tab - NEW in v7.8.0 */}
+        {activeTab === 'qr_tracking' && (
+          <div className="space-y-6">
+            <SupplierBoxScanManager />
           </div>
         )}
 

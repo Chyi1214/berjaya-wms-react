@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { ScanLookup } from '../../types';
 import { scanLookupService } from '../../services/scanLookupService';
 import { packingBoxesService } from '../../services/packingBoxesService';
+import { logger } from '../../services/logger';
 
 interface UnifiedLogisticsMonitorProps {
   userEmail: string;
@@ -42,6 +43,11 @@ export function UnifiedLogisticsMonitor({ userEmail: _userEmail }: UnifiedLogist
   const [expandedBox, setExpandedBox] = useState<string | null>(null);
   const [boxScans, setBoxScans] = useState<Record<string, Array<{ sku: string; qty: number; userEmail: string; timestamp: Date }>>>({});
 
+  // Batch analysis UI state
+  const [batchAnalysisCollapsed, setBatchAnalysisCollapsed] = useState(true);
+  const [sortBy, setSortBy] = useState<'sku' | 'completion'>('completion'); // completion = missing first
+  const [boxSortBy, setBoxSortBy] = useState<'caseNo' | 'completion'>('completion'); // completion = incomplete first
+
   // Load initial data
   const loadData = async () => {
     try {
@@ -57,32 +63,17 @@ export function UnifiedLogisticsMonitor({ userEmail: _userEmail }: UnifiedLogist
 
       setAvailableBatches(activatedBatches);
 
-      console.log('🎯 Loaded activated batches:', activatedBatches);
-
-      // Count unboxed boxes and total boxes from all activated batches
-      let totalUnboxedBoxes = 0;
-      let allBoxesCount = 0;
-      for (const batchId of activatedBatches) {
-        const boxes = await packingBoxesService.listBoxes(batchId);
-        allBoxesCount += boxes.length;
-        // Count boxes that are not complete
-        const unboxedCount = boxes.filter(box => box.status !== 'complete').length;
-        totalUnboxedBoxes += unboxedCount;
-      }
-      setUnboxedBoxes(totalUnboxedBoxes);
-      setTotalBoxes(allBoxesCount);
-
-      console.log(`📦 Unboxing progress: ${allBoxesCount - totalUnboxedBoxes}/${allBoxesCount} boxes complete (${totalUnboxedBoxes} remaining)`);
+      logger.info('Loaded activated batches:', { activatedBatches });
 
       // Set first activated batch as default if available
       if (activatedBatches.length > 0 && !selectedBatch) {
         const defaultBatch = activatedBatches[0];
         setSelectedBatch(defaultBatch);
-        console.log('🔄 Set default batch:', defaultBatch);
+        logger.debug('Set default batch:', { defaultBatch });
       }
 
     } catch (error) {
-      console.error('Failed to load initial data:', error);
+      logger.error('Failed to load initial data:', { error });
     } finally {
       setLoading(false);
     }
@@ -93,7 +84,7 @@ export function UnifiedLogisticsMonitor({ userEmail: _userEmail }: UnifiedLogist
     if (!batchId) return;
 
     try {
-      console.log('📊 Loading zone data for batch', batchId);
+      logger.debug('Loading zone data for batch:', { batchId });
 
       // Step 1: Get total quantities needed from packing boxes (source of truth)
       const boxes = await packingBoxesService.listBoxes(batchId);
@@ -104,7 +95,7 @@ export function UnifiedLogisticsMonitor({ userEmail: _userEmail }: UnifiedLogist
         });
       });
 
-      console.log(`📦 Batch totals calculated for ${batchTotals.size} SKUs`);
+      logger.debug('Batch totals calculated:', { skuCount: batchTotals.size });
 
       // Step 2: Get scanner lookup data (Layer 1 - which zone each SKU belongs to)
       const scannerData = await scanLookupService.getAllLookups();
@@ -121,7 +112,7 @@ export function UnifiedLogisticsMonitor({ userEmail: _userEmail }: UnifiedLogist
       const { batchAllocationService } = await import('../../services/batchAllocationService');
       const allAllocations = await batchAllocationService.getAllBatchAllocations();
 
-      console.log(`🔍 Loaded ${allAllocations.length} batch allocation records`);
+      logger.debug('Loaded batch allocation records:', { count: allAllocations.length });
 
       // Build zone-centric view using batch allocations
       const zoneMap = new Map<string, ZoneItemStatus[]>();
@@ -131,7 +122,7 @@ export function UnifiedLogisticsMonitor({ userEmail: _userEmail }: UnifiedLogist
         // Get the zone this SKU belongs to from scanner lookup
         const targetZoneId = skuToZoneMap.get(sku);
         if (!targetZoneId) {
-          console.warn(`⚠️ SKU ${sku} has no scanner lookup entry - skipping`);
+          logger.warn('SKU has no scanner lookup entry - skipping:', { sku });
           return;
         }
 
@@ -147,18 +138,18 @@ export function UnifiedLogisticsMonitor({ userEmail: _userEmail }: UnifiedLogist
             const qtyForBatch = allocation.allocations[batchId] || 0;
 
             if (qtyForBatch > 0) {
-              console.log(`  📍 ${sku} @ ${allocation.location}: ${qtyForBatch} units for batch ${batchId}`);
+              logger.debug('SKU location allocation:', { sku, location: allocation.location, qty: qtyForBatch, batchId });
               locationDistribution[allocation.location] = qtyForBatch;
               totalAllocated += qtyForBatch;
             }
           }
         });
 
-        console.log(`  ✅ ${sku} distribution:`, locationDistribution, `(total needed: ${total})`);
+        logger.debug('SKU distribution:', { sku, locationDistribution, totalNeeded: total });
 
         // Only add to zone map if there's actual batch allocation
         if (totalAllocated === 0) {
-          console.log(`  ⏭️ Skipping ${sku} - no batch allocation yet`);
+          logger.debug('Skipping SKU - no batch allocation yet:', { sku });
           return;
         }
 
@@ -217,10 +208,10 @@ export function UnifiedLogisticsMonitor({ userEmail: _userEmail }: UnifiedLogist
       zones.sort((a, b) => a.completionRate - b.completionRate);
 
       setZoneData(zones);
-      console.log(`✅ Loaded ${zones.length} zones with cached calculations`);
+      logger.info('Loaded zones with cached calculations:', { zoneCount: zones.length });
 
     } catch (error) {
-      console.error('Failed to load batch data:', error);
+      logger.error('Failed to load batch data:', { error });
     }
   };
 
@@ -240,14 +231,28 @@ export function UnifiedLogisticsMonitor({ userEmail: _userEmail }: UnifiedLogist
     }
   }, [selectedBatch, activeTab]);
 
-  // Load boxes data
+  // Load boxes data and calculate batch-specific unboxed count
   const loadBoxesData = async (batchId: string) => {
     try {
       const b = await packingBoxesService.listBoxes(batchId);
       setBoxes(b);
+
+      // Calculate batch-specific unboxed boxes count
+      const unboxedCount = b.filter(box => box.status !== 'complete').length;
+      setUnboxedBoxes(unboxedCount);
+      setTotalBoxes(b.length);
+
+      logger.debug('Batch-specific box count:', {
+        batchId,
+        total: b.length,
+        unboxed: unboxedCount,
+        complete: b.length - unboxedCount
+      });
     } catch (e) {
-      console.error('Failed to load boxes:', e);
+      logger.error('Failed to load boxes:', { error: e });
       setBoxes([]);
+      setUnboxedBoxes(0);
+      setTotalBoxes(0);
     }
   };
 
@@ -265,7 +270,7 @@ export function UnifiedLogisticsMonitor({ userEmail: _userEmail }: UnifiedLogist
         await loadData();
       }
     } catch (error) {
-      console.error('Failed to refresh:', error);
+      logger.error('Failed to refresh:', { error });
     } finally {
       setRefreshing(false);
     }
@@ -519,17 +524,253 @@ export function UnifiedLogisticsMonitor({ userEmail: _userEmail }: UnifiedLogist
 
       {/* Boxes view */}
       {selectedBatch && activeTab === 'boxes' && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-          <div className="p-4 border-b border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900">📦 Boxes for Batch {selectedBatch}</h3>
-            <p className="text-sm text-gray-600">Track per-box progress and scan history</p>
-          </div>
+        <>
+          {/* Batch-Level Analysis Summary */}
+          {boxes.length > 0 && (() => {
+            // Calculate batch totals (ignoring box boundaries)
+            const batchTotals = boxes.reduce((acc, box) => {
+              Object.entries(box.expectedBySku).forEach(([sku, qty]) => {
+                acc.expected[sku] = (acc.expected[sku] || 0) + qty;
+              });
+              Object.entries(box.scannedBySku).forEach(([sku, qty]) => {
+                acc.scanned[sku] = (acc.scanned[sku] || 0) + qty;
+              });
+              return acc;
+            }, { expected: {} as Record<string, number>, scanned: {} as Record<string, number> });
+
+            // Get all unique SKUs
+            const allSkus = new Set([
+              ...Object.keys(batchTotals.expected),
+              ...Object.keys(batchTotals.scanned)
+            ]);
+
+            // Calculate discrepancies per SKU
+            let skuAnalysis = Array.from(allSkus).map(sku => {
+              const expected = batchTotals.expected[sku] || 0;
+              const scanned = batchTotals.scanned[sku] || 0;
+              const diff = scanned - expected;
+              const status = diff === 0 ? 'ok' : diff > 0 ? 'excess' : 'missing';
+              return { sku, expected, scanned, diff, status };
+            });
+
+            // Apply sorting
+            if (sortBy === 'completion') {
+              // Sort by completion: missing first, then excess, then ok
+              skuAnalysis.sort((a, b) => {
+                if (a.status === 'missing' && b.status !== 'missing') return -1;
+                if (a.status !== 'missing' && b.status === 'missing') return 1;
+                if (a.status === 'excess' && b.status === 'ok') return -1;
+                if (a.status === 'ok' && b.status === 'excess') return 1;
+                return a.sku.localeCompare(b.sku);
+              });
+            } else {
+              // Sort by SKU alphabetically
+              skuAnalysis.sort((a, b) => a.sku.localeCompare(b.sku));
+            }
+
+            const missingCount = skuAnalysis.filter(s => s.status === 'missing').length;
+            const excessCount = skuAnalysis.filter(s => s.status === 'excess').length;
+            const okCount = skuAnalysis.filter(s => s.status === 'ok').length;
+
+            return (
+              <div className="bg-white rounded-lg shadow-sm border-2 border-blue-500 mb-6">
+                {/* Header - Always visible */}
+                <div
+                  className="p-4 bg-blue-50 border-b-2 border-blue-200 cursor-pointer hover:bg-blue-100 transition-colors"
+                  onClick={() => setBatchAnalysisCollapsed(!batchAnalysisCollapsed)}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center space-x-3">
+                      <h3 className="text-xl font-bold text-gray-900">📊 Batch-Level Analysis</h3>
+                      <button className="text-gray-600 hover:text-gray-900">
+                        {batchAnalysisCollapsed ? '▶' : '▼'}
+                      </button>
+                    </div>
+                    <div className="flex items-center space-x-4">
+                      {missingCount > 0 && (
+                        <div className="text-sm">
+                          <span className="font-semibold text-red-600">{missingCount}</span>
+                          <span className="text-gray-600"> Missing</span>
+                        </div>
+                      )}
+                      {excessCount > 0 && (
+                        <div className="text-sm">
+                          <span className="font-semibold text-orange-600">{excessCount}</span>
+                          <span className="text-gray-600"> Excess</span>
+                        </div>
+                      )}
+                      <div className="text-sm">
+                        <span className="font-semibold text-green-600">{okCount}</span>
+                        <span className="text-gray-600"> Complete</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-gray-600">
+                      Aggregate view across all boxes - Click to {batchAnalysisCollapsed ? 'expand' : 'collapse'}
+                    </p>
+                    {!batchAnalysisCollapsed && (
+                      <div className="flex items-center space-x-2">
+                        <span className="text-xs text-gray-600">Sort by:</span>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSortBy('completion');
+                          }}
+                          className={`text-xs px-2 py-1 rounded ${
+                            sortBy === 'completion'
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-white text-gray-600 border border-gray-300'
+                          }`}
+                        >
+                          Completion
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSortBy('sku');
+                          }}
+                          className={`text-xs px-2 py-1 rounded ${
+                            sortBy === 'sku'
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-white text-gray-600 border border-gray-300'
+                          }`}
+                        >
+                          SKU
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Content - Collapsible */}
+                {!batchAnalysisCollapsed && (
+                  <div className="p-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {skuAnalysis.map(({ sku, expected, scanned, diff, status }) => (
+                      <div
+                        key={sku}
+                        className={`p-3 rounded-lg border-2 ${
+                          status === 'ok' ? 'bg-green-50 border-green-300' :
+                          status === 'excess' ? 'bg-orange-50 border-orange-300' :
+                          'bg-red-50 border-red-300'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="font-mono font-bold text-gray-900">{sku}</div>
+                          {status === 'ok' && <span className="text-xs bg-green-600 text-white px-2 py-0.5 rounded-full">✓ Match</span>}
+                          {status === 'excess' && <span className="text-xs bg-orange-600 text-white px-2 py-0.5 rounded-full">+ {diff}</span>}
+                          {status === 'missing' && <span className="text-xs bg-red-600 text-white px-2 py-0.5 rounded-full">{diff}</span>}
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <div>
+                            <span className="text-gray-600">Expected:</span>
+                            <span className="ml-1 font-semibold text-gray-900">{expected}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Scanned:</span>
+                            <span className={`ml-1 font-semibold ${
+                              status === 'ok' ? 'text-green-600' :
+                              status === 'excess' ? 'text-orange-600' :
+                              'text-red-600'
+                            }`}>
+                              {scanned}
+                            </span>
+                          </div>
+                        </div>
+                        {status !== 'ok' && (
+                          <div className="mt-2 text-xs font-medium">
+                            {status === 'missing' && (
+                              <div className="text-red-700">
+                                ⚠️ Missing {Math.abs(diff)} unit{Math.abs(diff) !== 1 ? 's' : ''}
+                              </div>
+                            )}
+                            {status === 'excess' && (
+                              <div className="text-orange-700">
+                                ⚠️ Extra {diff} unit{diff !== 1 ? 's' : ''} scanned
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* Individual Boxes View */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+            <div className="p-4 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">📦 Boxes for Batch {selectedBatch}</h3>
+                  <p className="text-sm text-gray-600">Track per-box progress and scan history</p>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <span className="text-xs text-gray-600">Sort by:</span>
+                  <button
+                    onClick={() => setBoxSortBy('completion')}
+                    className={`text-xs px-3 py-1.5 rounded ${
+                      boxSortBy === 'completion'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    Completion
+                  </button>
+                  <button
+                    onClick={() => setBoxSortBy('caseNo')}
+                    className={`text-xs px-3 py-1.5 rounded ${
+                      boxSortBy === 'caseNo'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    Case No
+                  </button>
+                </div>
+              </div>
+            </div>
           <div className="p-4 space-y-2">
             {boxes.length === 0 ? (
               <div className="text-center py-8 text-gray-500">No boxes found for this batch</div>
             ) : (
               boxes
-                .sort((a, b) => a.caseNo.localeCompare(b.caseNo))
+                .slice()
+                .sort((a, b) => {
+                  if (boxSortBy === 'completion') {
+                    // Sort by completion: incomplete/in_progress first, then not_started, then complete
+                    const statusOrder = {
+                      'in_progress': 1,
+                      'not_started': 2,
+                      'over_scanned': 3,
+                      'complete': 4
+                    };
+                    const aOrder = statusOrder[a.status] || 5;
+                    const bOrder = statusOrder[b.status] || 5;
+
+                    if (aOrder !== bOrder) {
+                      return aOrder - bOrder;
+                    }
+
+                    // Within same status, sort by completion percentage (lower first)
+                    const aPct = a.totals.expectedQty > 0 ? (a.totals.scannedQty / a.totals.expectedQty) : 0;
+                    const bPct = b.totals.expectedQty > 0 ? (b.totals.scannedQty / b.totals.expectedQty) : 0;
+
+                    if (aPct !== bPct) {
+                      return aPct - bPct;
+                    }
+
+                    // Finally by case number
+                    return a.caseNo.localeCompare(b.caseNo);
+                  } else {
+                    // Sort by case number alphabetically
+                    return a.caseNo.localeCompare(b.caseNo);
+                  }
+                })
                 .map((box) => {
                   const pct = box.totals.expectedQty > 0 ? Math.round((box.totals.scannedQty / box.totals.expectedQty) * 100) : 0;
                   const isExpanded = expandedBox === box.caseNo;
@@ -567,7 +808,7 @@ export function UnifiedLogisticsMonitor({ userEmail: _userEmail }: UnifiedLogist
                                   const scans = await packingBoxesService.listScans(selectedBatch, next, 50);
                                   setBoxScans((prev) => ({ ...prev, [next]: scans }));
                                 } catch (e) {
-                                  console.error('Failed to load scans for box', next, e);
+                                  logger.error('Failed to load scans for box:', { boxId: next, error: e });
                                 }
                               }
                             }}
@@ -617,6 +858,7 @@ export function UnifiedLogisticsMonitor({ userEmail: _userEmail }: UnifiedLogist
             )}
           </div>
         </div>
+        </>
       )}
 
       {/* No Batch Selected */}

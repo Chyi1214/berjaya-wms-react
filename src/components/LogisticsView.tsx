@@ -12,6 +12,7 @@ import { ElaMenu } from './ela/ElaMenu';
 import { ElaChat } from './ela/ElaChat';
 import PersonalSettings from './PersonalSettings';
 import { TranslationChannels } from './chat/TranslationChannels';
+import { logger } from '../services/logger';
 
 interface LogisticsViewProps {
   user: User;
@@ -34,7 +35,7 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onTransacti
   // Handle new count submission (now supports both single items and BOM expansion)
   const handleCountSubmit = async (entries: InventoryCountEntry[]) => {
     await onCountSubmit(entries);
-    console.log(`Count submitted and passed to App: ${entries.length} entries`, entries);
+    logger.info('Count submitted and passed to App:', { entriesCount: entries.length, entries });
   };
 
   // Handle back to menu
@@ -67,7 +68,7 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onTransacti
         setTransactionResult(result);
       }
     } catch (error) {
-      console.error('Failed to create transaction:', error);
+      logger.error('Failed to create transaction:', { error });
       throw error;
     }
   };

@@ -3,6 +3,7 @@ import { batchManagementService } from '../../services/batchManagement';
 import { Batch } from '../../types/inventory';
 import { ColumnPreview, ColumnMapping, packingBoxesService, SkippedRowDetail } from '../../services/packingBoxesService';
 import { PackingListColumnMapper } from './PackingListColumnMapper';
+import { DeleteBatchModal } from './DeleteBatchModal';
 
 interface EnhancedBatchManagementProps {
   user: { email: string } | null;
@@ -39,6 +40,9 @@ export const EnhancedBatchManagement = memo(function EnhancedBatchManagement({
   const [showColumnMapper, setShowColumnMapper] = useState(false);
   const [columnPreviews, setColumnPreviews] = useState<ColumnPreview[]>([]);
   const [pendingCsvText, setPendingCsvText] = useState<string>('');
+
+  // Delete modal state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   // Load batches on mount
   useEffect(() => {
@@ -436,40 +440,36 @@ export const EnhancedBatchManagement = memo(function EnhancedBatchManagement({
     }
   };
 
-  // Delete batch
-  const handleDeleteBatch = async () => {
+  // Show delete modal
+  const handleDeleteBatch = () => {
     if (!selectedBatch || !user?.email) {
       alert('Please select a batch and ensure you are logged in');
       return;
     }
 
-    const confirmMessage = `⚠️ DELETE Batch ${selectedBatch.batchId}?
-
-This will permanently remove:
-❌ Batch data and configuration
-❌ All VIN plans and receipts
-❌ Health tracking requirements
-❌ All related records
-
-This action cannot be undone!
-
-Are you absolutely sure?`;
-
-    if (!confirm(confirmMessage)) {
+    if (selectedBatch.batchId === 'DEFAULT') {
+      alert('Cannot delete DEFAULT batch - it is a system batch');
       return;
     }
+
+    setShowDeleteModal(true);
+  };
+
+  // Perform the actual deletion
+  const handleConfirmDelete = async () => {
+    if (!selectedBatch) return;
 
     setIsUploading(true);
     try {
       await batchManagementService.deleteBatch(selectedBatch.batchId);
       console.log(`✅ Successfully deleted batch ${selectedBatch.batchId}`);
-      
+
       // Clear selected batch and reload list
       setSelectedBatch(null);
-      // DISABLED: setBatchHealthStatus(null);
+      setShowDeleteModal(false);
       await loadBatches();
       onRefresh?.();
-      
+
       alert(`🗑️ Batch ${selectedBatch.batchId} deleted successfully!`);
     } catch (error) {
       console.error('Failed to delete batch:', error);
@@ -636,7 +636,7 @@ Material consumption will be tracked automatically as cars complete.`);
         <div className="bg-white border rounded-lg p-4">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-medium text-gray-900">📦 All Batches</h3>
-            <span className="text-sm text-gray-500">{batches.length}</span>
+            <span className="text-sm text-gray-500">{batches.filter(b => b.batchId !== 'DEFAULT').length}</span>
           </div>
           
           {/* Create New Batch */}
@@ -667,6 +667,7 @@ Material consumption will be tracked automatically as cars complete.`);
           {/* Batch List - Sorted by Priority (Upload Sequence) */}
           <div className="space-y-2 max-h-80 overflow-y-auto">
             {batches
+              .filter(batch => batch.batchId !== 'DEFAULT') // Hide DEFAULT batch from UI
               .sort((a, b) => {
                 try {
                   const aTime = a.createdAt instanceof Date ? a.createdAt.getTime() : new Date(a.createdAt).getTime();
@@ -1123,6 +1124,16 @@ Material consumption will be tracked automatically as cars complete.`);
           previews={columnPreviews}
           onConfirm={handleColumnMappingConfirm}
           onCancel={handleColumnMappingCancel}
+        />
+      )}
+
+      {/* Delete Batch Modal */}
+      {showDeleteModal && selectedBatch && (
+        <DeleteBatchModal
+          batch={selectedBatch}
+          boxCount={batchBoxCounts.get(selectedBatch.batchId) || 0}
+          onConfirm={handleConfirmDelete}
+          onCancel={() => setShowDeleteModal(false)}
         />
       )}
     </div>

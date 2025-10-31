@@ -16,6 +16,7 @@ import {
 import { db } from './firebase';
 import { prepareForFirestore } from '../utils/firestore';
 import { Car, CarStatus, ZoneEntry, CarMovement } from '../types';
+import { logger } from './logger';
 
 class CarTrackingService {
   private carsCollection = collection(db, 'cars');
@@ -34,7 +35,7 @@ class CarTrackingService {
       
       return null;
     } catch (error) {
-      console.error('Failed to get car by VIN:', vin, error);
+      logger.error('Failed to get car by VIN:', { vin, error });
       return null;
     }
   }
@@ -61,10 +62,10 @@ class CarTrackingService {
       
       const cleanedData = prepareForFirestore(car);
       await setDoc(docRef, cleanedData);
-      
-      console.log('✅ Created new car:', vin);
+
+      logger.info('Created new car:', { vin });
     } catch (error) {
-      console.error('Failed to create car:', error);
+      logger.error('Failed to create car:', { error });
       throw error;
     }
   }
@@ -107,9 +108,9 @@ class CarTrackingService {
         movementType: 'scan_in'
       });
 
-      console.log('✅ Scanned car into zone:', vin, 'Zone:', zoneId);
+      logger.info('Scanned car into zone:', { vin, zoneId });
     } catch (error) {
-      console.error('Failed to scan car into zone:', error);
+      logger.error('Failed to scan car into zone:', { error });
       throw error;
     }
   }
@@ -117,7 +118,7 @@ class CarTrackingService {
   // Atomic car scan-in - prevents ghost cars by using Firestore transaction
   async scanCarIntoZoneAtomic(vin: string, zoneId: number, scannedBy: string): Promise<void> {
     try {
-      console.log('🔧 Starting atomic car scan-in:', vin, 'Zone:', zoneId);
+      logger.debug('Starting atomic car scan-in:', { vin, zoneId });
 
       await runTransaction(db, async (transaction) => {
         // Step 1: Read both collections
@@ -198,7 +199,7 @@ class CarTrackingService {
           transaction.set(stationRef, newStationData);
         }
 
-        console.log('✅ Atomic scan-in transaction prepared for:', vin, 'Zone:', zoneId);
+        logger.debug('Atomic scan-in transaction prepared for:', { vin, zoneId });
       });
 
       // Step 6: Log movement after transaction succeeds
@@ -211,9 +212,9 @@ class CarTrackingService {
         movementType: 'scan_in'
       });
 
-      console.log('✅ Atomic car scan-in succeeded:', vin, 'Zone:', zoneId);
+      logger.info('Atomic car scan-in succeeded:', { vin, zoneId });
     } catch (error) {
-      console.error('❌ Failed atomic car scan-in:', error);
+      logger.error('Failed atomic car scan-in:', { error });
       throw error;
     }
   }
@@ -261,11 +262,11 @@ class CarTrackingService {
         updatedAt: new Date()
       };
 
-      console.log('🔧 Updating car with:', updatedCar);
+      logger.debug('Updating car with:', { updatedCar });
       // Direct updateDoc to avoid any data processing that might convert null to undefined
       const docRef = doc(this.carsCollection, vin.toUpperCase());
       await updateDoc(docRef, updatedCar);
-      console.log('✅ Car currentZone set to null:', vin);
+      logger.debug('Car currentZone set to null:', { vin });
 
       // Log movement
       await this.logCarMovement({
@@ -279,9 +280,9 @@ class CarTrackingService {
         notes
       });
 
-      console.log('✅ Completed work on car:', vin, 'Zone:', car.currentZone);
+      logger.info('Completed work on car:', { vin, zone: car.currentZone });
     } catch (error) {
-      console.error('Failed to complete car work:', error);
+      logger.error('Failed to complete car work:', { error });
       throw error;
     }
   }
@@ -289,7 +290,7 @@ class CarTrackingService {
   // Atomic car completion - prevents ghost cars by using Firestore transaction
   async completeCarWorkAtomic(vin: string, zoneId: number, completedBy: string, notes?: string): Promise<void> {
     try {
-      console.log('🔧 Starting atomic car completion:', vin, 'Zone:', zoneId);
+      logger.debug('Starting atomic car completion:', { vin, zoneId });
 
       await runTransaction(db, async (transaction) => {
         // Step 1: Read both collections
@@ -370,7 +371,7 @@ class CarTrackingService {
           transaction.update(stationRef, stationUpdates);
         }
 
-        console.log('✅ Atomic transaction prepared for:', vin, 'Zone:', zoneId);
+        logger.debug('Atomic transaction prepared for:', { vin, zoneId });
       });
 
       // Step 6: Log movement after transaction succeeds
@@ -386,9 +387,9 @@ class CarTrackingService {
         notes
       });
 
-      console.log('✅ Atomic car completion succeeded:', vin, 'Zone:', zoneId);
+      logger.info('Atomic car completion succeeded:', { vin, zoneId });
     } catch (error) {
-      console.error('Failed atomic car completion:', error);
+      logger.error('Failed atomic car completion:', { error });
       throw error;
     }
   }
@@ -423,13 +424,13 @@ class CarTrackingService {
       };
 
       // Log completion for audit trail
-      console.log(`Car ${vin} completed by ${completedBy}`);
+      logger.info('Car completed', { vin, completedBy });
 
       await this.updateCar(vin, updatedCar);
-      
-      console.log('✅ Completed production for car:', vin, 'Total time:', totalTime, 'minutes');
+
+      logger.info('Completed production for car:', { vin, totalTime });
     } catch (error) {
-      console.error('Failed to complete car production:', error);
+      logger.error('Failed to complete car production:', { error });
       throw error;
     }
   }
@@ -478,10 +479,10 @@ class CarTrackingService {
           return true;
         });
       }
-      
+
       return filteredCars;
     } catch (error) {
-      console.error('Failed to get cars:', error);
+      logger.error('Failed to get cars:', { error });
       return [];
     }
   }
@@ -503,10 +504,10 @@ class CarTrackingService {
         const data = this.convertTimestamps(doc.data());
         cars.push(data as Car);
       });
-      
+
       return cars;
     } catch (error) {
-      console.error('Failed to get cars in zone:', zoneId, error);
+      logger.error('Failed to get cars in zone:', { zoneId, error });
       return [];
     }
   }
@@ -530,7 +531,7 @@ class CarTrackingService {
         return createdToday || completedToday || car.status === CarStatus.IN_PRODUCTION;
       });
     } catch (error) {
-      console.error('Failed to get today cars:', error);
+      logger.error('Failed to get today cars:', { error });
       return [];
     }
   }
@@ -551,7 +552,7 @@ class CarTrackingService {
 
       if (options?.vin) {
         // VIN-specific query: Use simple where without orderBy to avoid index requirement
-        console.log('🔍 Querying movements for VIN:', options.vin);
+        logger.debug('Querying movements for VIN:', { vin: options.vin });
         const vinQuery = query(
           this.movementsCollection,
           where('vin', '==', options.vin.toUpperCase())
@@ -577,14 +578,14 @@ class CarTrackingService {
         });
       }
 
-      console.log('📋 Raw movements found:', movements.length);
+      logger.debug('Raw movements found:', { count: movements.length });
 
       // Apply additional filters in memory
       if (options?.zoneId !== undefined) {
         movements = movements.filter(movement =>
           movement.fromZone === options.zoneId || movement.toZone === options.zoneId
         );
-        console.log('🏭 After zone filter:', movements.length);
+        logger.debug('After zone filter:', { count: movements.length });
       }
 
       if (options?.dateFrom || options?.dateTo) {
@@ -594,15 +595,15 @@ class CarTrackingService {
           if (options.dateTo && movementDate > options.dateTo) return false;
           return true;
         });
-        console.log('📅 After date filter:', movements.length);
+        logger.debug('After date filter:', { count: movements.length });
       }
 
       const result = movements.slice(0, limit);
-      console.log('✅ Final movements returned:', result.length);
+      logger.debug('Final movements returned:', { count: result.length });
       return result;
 
     } catch (error) {
-      console.error('❌ Failed to get car movements:', error);
+      logger.error('Failed to get car movements:', { error });
       return [];
     }
   }
@@ -649,7 +650,7 @@ class CarTrackingService {
       // Fall back to email if no display name found
       return email;
     } catch (error) {
-      console.error('Failed to get user display name:', error);
+      logger.error('Failed to get user display name:', { error });
       return email; // Fallback to email on error
     }
   }
@@ -680,7 +681,7 @@ class CarTrackingService {
         movedByName: emailToNameMap.get(movement.movedBy) || movement.movedBy
       }));
     } catch (error) {
-      console.error('Failed to get car movements with names:', error);
+      logger.error('Failed to get car movements with names:', { error });
       return [];
     }
   }
@@ -693,7 +694,7 @@ class CarTrackingService {
       ...updates,
       updatedAt: new Date()
     };
-    console.log('🔧 Direct updateDoc with:', updatesWithTimestamp);
+    logger.debug('Direct updateDoc with:', { updates: updatesWithTimestamp });
     await updateDoc(docRef, updatesWithTimestamp);
   }
 
@@ -763,28 +764,28 @@ class CarTrackingService {
           await this.createCar(carData);
         } catch (error) {
           // Car might already exist, skip
-          console.log('Test car already exists:', carData.vin);
+          logger.debug('Test car already exists:', { vin: carData.vin });
         }
       }
-      
-      console.log('✅ Test car data initialized');
+
+      logger.info('Test car data initialized');
     } catch (error) {
-      console.error('Failed to initialize test data:', error);
+      logger.error('Failed to initialize test data:', { error });
     }
   }
 
   // Fix ghost cars - force clear a specific car from a zone
   async forceRemoveCarFromZone(vin: string, reason: string = 'Ghost car cleanup'): Promise<void> {
     try {
-      console.log('🧹 Force removing ghost car from zone:', vin);
+      logger.info('Force removing ghost car from zone:', { vin });
 
       const car = await this.getCarByVIN(vin);
       if (!car) {
-        console.log('❌ Car not found:', vin);
+        logger.warn('Car not found:', { vin });
         return;
       }
 
-      console.log('🔍 Current car state:', {
+      logger.debug('Current car state:', {
         vin: car.vin,
         currentZone: car.currentZone,
         status: car.status
@@ -805,7 +806,7 @@ class CarTrackingService {
           const { workStationService } = await import('./workStationService');
           await workStationService.clearStationCar(currentZone, reason);
         } catch (error) {
-          console.error('Failed to clear car from workStation:', error);
+          logger.error('Failed to clear car from workStation:', { error });
         }
       }
 
@@ -822,9 +823,9 @@ class CarTrackingService {
         });
       }
 
-      console.log('✅ Ghost car removed from both cars and workStations:', vin);
+      logger.info('Ghost car removed from both cars and workStations:', { vin });
     } catch (error) {
-      console.error('Failed to force remove car from zone:', error);
+      logger.error('Failed to force remove car from zone:', { error });
       throw error;
     }
   }
@@ -832,7 +833,7 @@ class CarTrackingService {
   // Clean up all ghost cars - find inconsistencies and fix them
   async cleanupGhostCars(): Promise<{ fixed: number; issues: string[] }> {
     try {
-      console.log('🧹 Starting comprehensive ghost car cleanup...');
+      logger.info('Starting comprehensive ghost car cleanup');
 
       const results = { fixed: 0, issues: [] as string[] };
 
@@ -874,14 +875,14 @@ class CarTrackingService {
           );
         }
       } catch (error) {
-        console.error('Failed to check workStation inconsistencies:', error);
+        logger.error('Failed to check workStation inconsistencies:', { error });
         results.issues.push('Failed to check workStation inconsistencies');
       }
 
-      console.log('✅ Comprehensive ghost car cleanup completed:', results);
+      logger.info('Comprehensive ghost car cleanup completed:', { results });
       return results;
     } catch (error) {
-      console.error('Failed to cleanup ghost cars:', error);
+      logger.error('Failed to cleanup ghost cars:', { error });
       return { fixed: 0, issues: [`Error: ${error instanceof Error ? error.message : String(error)}`] };
     }
   }

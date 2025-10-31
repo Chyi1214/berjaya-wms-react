@@ -3,6 +3,7 @@ import { InventoryCountEntry, ScanLookup, BatchProgress, BatchAllocation } from 
 import { tableStateService } from '../../services/tableState';
 import { scanLookupService } from '../../services/scanLookupService';
 import { batchAllocationService } from '../../services/batchAllocationService';
+import { logger } from '../../services/logger';
 
 interface LogisticsMonitorDashboardProps {
   userEmail: string;
@@ -37,8 +38,8 @@ export function LogisticsMonitorDashboard({ userEmail: _userEmail }: LogisticsMo
       setBatchProgress(batchProgress);
       setLastRefresh(new Date());
     } catch (error) {
-      console.error('Failed to load data:', error);
-    } finally {
+      logger.error('Failed to load data:', { error });
+    } finally{
       setLoading(false);
     }
   };

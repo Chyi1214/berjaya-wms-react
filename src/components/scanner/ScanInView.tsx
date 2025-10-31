@@ -6,7 +6,6 @@ import { scannerService } from '../../services/scannerService';
 import { qrExtractionService } from '../../services/qrExtraction';
 import { transactionService } from '../../services/transactions';
 import { tableStateService } from '../../services/tableState';
-import { inventoryService } from '../../services/inventory';
 import { itemMasterService } from '../../services/itemMaster';
 
 interface ScanInViewProps {
@@ -194,15 +193,6 @@ export function ScanInView({ user, onBack }: ScanInViewProps) {
 
       // Use the SUPER-FAST optimized method - only touches one document!
       const { previousAmount, newAmount } = await tableStateService.addToInventoryCountOptimized(
-        scanResult.sku,
-        masterItem.name,
-        qty,
-        'logistics',
-        user.email
-      );
-
-      // Keep legacy `inventory_counts` in sync so Send form sees availability
-      await inventoryService.addToInventoryCount(
         scanResult.sku,
         masterItem.name,
         qty,
