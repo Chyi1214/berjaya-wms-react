@@ -174,9 +174,11 @@ export interface TransactionFormData {
 // Scanner Types - v3.2.0 Barcode Integration
 export interface ScanLookup {
   sku: string;           // Primary key - "A001", "B003", etc.
+  carType: string;       // Car model (e.g., "TK1", "X70", "X50") - v7.19.0
   targetZone: string;    // Zone identifier - supports numeric ("8", "15") or alphanumeric ("DF02", "Z001")
   itemName?: string;     // Optional item description
   expectedQuantity?: number;  // How many items should be in this zone
+  perCarQuantity?: number;    // Optional: Quantity needed per car - v7.19.0
   createdAt: Date;
   updatedAt: Date;
   updatedBy: string;     // Email of user who last updated

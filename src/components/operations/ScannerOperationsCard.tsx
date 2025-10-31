@@ -1,5 +1,6 @@
-import React, { memo } from 'react';
+import React, { memo, useState, useEffect } from 'react';
 import { scanLookupService } from '../../services/scanLookupService';
+import { batchManagementService } from '../../services/batchManagement';
 
 interface UploadResult {
   success: number;
@@ -34,6 +35,36 @@ export const ScannerOperationsCard = memo(function ScannerOperationsCard({
   replaceMode,
   setReplaceMode,
 }: ScannerOperationsCardProps) {
+  // Car type selection (v7.19.0)
+  const [availableCarTypes, setAvailableCarTypes] = useState<Array<{carCode: string; name: string}>>([]);
+  const [selectedCarType, setSelectedCarType] = useState<string>('TK1');
+  const [carTypesLoading, setCarTypesLoading] = useState(false);
+
+  // Load car types on mount (v7.19.0)
+  useEffect(() => {
+    const loadCarTypes = async () => {
+      try {
+        setCarTypesLoading(true);
+        await batchManagementService.ensureTK1CarTypeExists();
+        const carTypes = await batchManagementService.getAllCarTypes();
+        setAvailableCarTypes(carTypes.map(ct => ({ carCode: ct.carCode, name: ct.name })));
+
+        // Default to TK1 if available
+        if (carTypes.some(ct => ct.carCode === 'TK1')) {
+          setSelectedCarType('TK1');
+        } else if (carTypes.length > 0) {
+          setSelectedCarType(carTypes[0].carCode);
+        }
+      } catch (error) {
+        console.error('Failed to load car types:', error);
+      } finally {
+        setCarTypesLoading(false);
+      }
+    };
+
+    loadCarTypes();
+  }, []);
+
   // Initialize scanner test data
   const handleInitializeScanner = async () => {
     if (!user?.email) return;
@@ -49,18 +80,18 @@ export const ScannerOperationsCard = memo(function ScannerOperationsCard({
     }
   };
 
-  // Check what data exists in scanner lookup table
+  // Check what data exists in scanner lookup table (v7.19.0: car-type-filtered)
   const handleCheckScannerData = async () => {
     try {
-      console.log('🔍 Checking scanner data...');
-      const allLookups = await scanLookupService.getAllLookups();
-      console.log(`📊 Found ${allLookups.length} scanner entries:`, allLookups);
-      
-      // Test a specific lookup
-      const testResult = await scanLookupService.getLookupBySKU('A001');
-      console.log('🎯 A001 lookup result:', testResult);
-      
-      alert(`Scanner database has ${allLookups.length} entries. Check console for details.`);
+      console.log('🔍 Checking scanner data for car type:', selectedCarType);
+      const allLookups = await scanLookupService.getAllLookups(selectedCarType);
+      console.log(`📊 Found ${allLookups.length} scanner entries for ${selectedCarType}:`, allLookups);
+
+      // Test a specific lookup (if A001 exists for this car type)
+      const testResult = await scanLookupService.getLookupBySKU('A001', selectedCarType);
+      console.log(`🎯 A001 lookup result for ${selectedCarType}:`, testResult);
+
+      alert(`Scanner database has ${allLookups.length} entries for car type ${selectedCarType}. Check console for details.`);
     } catch (error) {
       console.error('Failed to check scanner data:', error);
       alert('Failed to check scanner data. Check console for errors.');
@@ -92,11 +123,12 @@ export const ScannerOperationsCard = memo(function ScannerOperationsCard({
       const headerLine = lines[0].toLowerCase();
       const headers = headerLine.split(',').map(h => h.replace(/"/g, '').trim());
       
-      // Find column indices by header names (flexible matching)
+      // Find column indices by header names (flexible matching) - v7.19.0: added perCarQuantity
       const skuIndex = headers.findIndex(h => h.includes('sku') || h.includes('part no') || h.includes('partno'));
       const zoneIndex = headers.findIndex(h => h.includes('zone') || h.includes('target') || h.includes('location'));
       const nameIndex = headers.findIndex(h => h.includes('name') || h.includes('item') || h.includes('part name'));
       const qtyIndex = headers.findIndex(h => h.includes('quantity') || h.includes('qty') || h.includes('expected'));
+      const perCarQtyIndex = headers.findIndex(h => h.includes('per car') || h.includes('percar') || h.includes('per_car'));
 
       if (skuIndex === -1) {
         throw new Error('CSV must have a SKU column (SKU, PART NO, or similar)');
@@ -110,6 +142,7 @@ export const ScannerOperationsCard = memo(function ScannerOperationsCard({
       console.log(`   Zone: Column ${zoneIndex + 1} (${headers[zoneIndex]})`);
       console.log(`   ItemName: Column ${nameIndex + 1} (${nameIndex >= 0 ? headers[nameIndex] : 'not found'})`);
       console.log(`   Quantity: Column ${qtyIndex + 1} (${qtyIndex >= 0 ? headers[qtyIndex] : 'not found'})`);
+      console.log(`   PerCarQty: Column ${perCarQtyIndex + 1} (${perCarQtyIndex >= 0 ? headers[perCarQtyIndex] : 'not found'})`);
 
       const lookups = [];
       let currentZone = ''; // Track current zone for merged cell handling
@@ -128,6 +161,7 @@ export const ScannerOperationsCard = memo(function ScannerOperationsCard({
         let targetZone = parts[zoneIndex]?.trim();
         const itemName = nameIndex >= 0 ? (parts[nameIndex] || '') : '';
         const expectedQuantity = qtyIndex >= 0 && parts[qtyIndex] && parts[qtyIndex].trim() ? parseInt(parts[qtyIndex]) : null;
+        const perCarQuantity = perCarQtyIndex >= 0 && parts[perCarQtyIndex] && parts[perCarQtyIndex].trim() ? parseInt(parts[perCarQtyIndex]) : null;
 
         // Skip invalid SKU entries (empty, "/", or other invalid patterns)
         if (!sku || sku === '/' || sku.startsWith('//') || sku.length === 0) {
@@ -197,6 +231,11 @@ export const ScannerOperationsCard = memo(function ScannerOperationsCard({
           lookupData.expectedQuantity = expectedQuantity;
         }
 
+        // Only add perCarQuantity if it has a valid value (v7.19.0)
+        if (perCarQuantity !== null && !isNaN(perCarQuantity) && perCarQuantity > 0) {
+          lookupData.perCarQuantity = perCarQuantity;
+        }
+
         lookups.push(lookupData);
       }
 
@@ -215,18 +254,21 @@ export const ScannerOperationsCard = memo(function ScannerOperationsCard({
         throw new Error('No valid data found in CSV file');
       }
 
-      console.log(`📥 Importing ${lookups.length} scanner lookups... (Replace mode: ${replaceMode})`);
-      
+      console.log(`📥 Importing ${lookups.length} scanner lookups for car type ${selectedCarType}... (Replace mode: ${replaceMode})`);
+
       let result;
       if (replaceMode) {
-        // Replace mode: clear all existing data first
-        console.log('🗑️ Replace mode: clearing all existing data...');
-        await scanLookupService.clearAllLookups();
-        result = await scanLookupService.bulkImport(lookups, user.email);
+        // Replace mode: clear all existing data for this car type first (v7.19.0)
+        console.log(`🗑️ Replace mode: clearing all existing data for ${selectedCarType}...`);
+        const existingLookups = await scanLookupService.getAllLookups(selectedCarType);
+        for (const lookup of existingLookups) {
+          await scanLookupService.deleteLookup(lookup.sku, lookup.carType, lookup.targetZone);
+        }
+        result = await scanLookupService.bulkImport(lookups, selectedCarType, user.email);
         console.log('✅ CSV replace completed:', result);
       } else {
-        // Update mode: add/update only
-        result = await scanLookupService.bulkImport(lookups, user.email);
+        // Update mode: add/update only (v7.19.0: car-type-specific)
+        result = await scanLookupService.bulkImport(lookups, selectedCarType, user.email);
         console.log('✅ CSV update completed:', result);
       }
       
@@ -252,19 +294,19 @@ export const ScannerOperationsCard = memo(function ScannerOperationsCard({
     }
   };
 
-  // Download current scanner data as CSV
+  // Download current scanner data as CSV (v7.19.0: car-type-filtered, includes perCarQuantity)
   const handleDownloadCSV = async () => {
     try {
-      console.log('📥 Downloading scanner data...');
-      const allLookups = await scanLookupService.getAllLookups();
-      
+      console.log(`📥 Downloading scanner data for car type ${selectedCarType}...`);
+      const allLookups = await scanLookupService.getAllLookups(selectedCarType);
+
       if (allLookups.length === 0) {
-        alert('No scanner data to download');
+        alert(`No scanner data to download for car type ${selectedCarType}`);
         return;
       }
 
-      // Create CSV content with headers
-      const headers = ['SKU', 'Zone', 'ItemName', 'ExpectedQuantity', 'UpdatedBy', 'UpdatedAt'];
+      // Create CSV content with headers (v7.19.0: added CarType and PerCarQuantity)
+      const headers = ['SKU', 'Zone', 'ItemName', 'ExpectedQuantity', 'PerCarQuantity', 'CarType', 'UpdatedBy', 'UpdatedAt'];
       const csvContent = [
         headers.join(','),
         ...allLookups.map(lookup => [
@@ -272,6 +314,8 @@ export const ScannerOperationsCard = memo(function ScannerOperationsCard({
           lookup.targetZone,
           `"${lookup.itemName || ''}"`, // Quote item names in case they have commas
           lookup.expectedQuantity || '',
+          lookup.perCarQuantity || '',
+          lookup.carType,
           lookup.updatedBy,
           lookup.updatedAt.toLocaleDateString()
         ].join(','))
@@ -282,13 +326,13 @@ export const ScannerOperationsCard = memo(function ScannerOperationsCard({
       const link = document.createElement('a');
       const url = URL.createObjectURL(blob);
       link.setAttribute('href', url);
-      link.setAttribute('download', `scanner-data-${new Date().toISOString().split('T')[0]}.csv`);
+      link.setAttribute('download', `scanner-data-${selectedCarType}-${new Date().toISOString().split('T')[0]}.csv`);
       link.style.visibility = 'hidden';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
 
-      console.log(`✅ Downloaded ${allLookups.length} scanner entries as CSV`);
+      console.log(`✅ Downloaded ${allLookups.length} scanner entries for ${selectedCarType} as CSV`);
     } catch (error) {
       console.error('Failed to download CSV:', error);
       alert('Failed to download scanner data');
@@ -303,11 +347,35 @@ export const ScannerOperationsCard = memo(function ScannerOperationsCard({
         <p className="text-sm text-gray-500 mb-4">
           Barcode scanning management and configuration
         </p>
+
+        {/* Car Type Selector (v7.19.0) */}
+        <div className="mb-4 bg-purple-50 border border-purple-300 rounded-lg p-3">
+          <div className="text-sm font-medium text-purple-900 mb-2">🚗 Car Type</div>
+          {carTypesLoading ? (
+            <div className="text-xs text-purple-600">⏳ Loading car types...</div>
+          ) : (
+            <select
+              value={selectedCarType}
+              onChange={(e) => setSelectedCarType(e.target.value)}
+              className="w-full px-3 py-2 border border-purple-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+            >
+              {availableCarTypes.map(carType => (
+                <option key={carType.carCode} value={carType.carCode}>
+                  {carType.name} ({carType.carCode})
+                </option>
+              ))}
+            </select>
+          )}
+          <p className="text-xs text-purple-600 mt-2">
+            All operations apply to this car type only
+          </p>
+        </div>
         <div className="space-y-2 text-xs text-gray-600">
-          <div>✅ Available in v3.2.0</div>
+          <div>✅ Available in v3.2.0 (v7.19.0: Multi-car support)</div>
           <div>🔍 Barcode/QR code scanning</div>
-          <div>📍 SKU to zone lookup</div>
+          <div>📍 SKU to zone lookup (car-type-specific)</div>
           <div>⚡ Real-time item identification</div>
+          <div>🚗 Per-car quantity tracking</div>
         </div>
         
         {/* Scanner Status */}

@@ -116,12 +116,12 @@ export function ScannerView({ user }: ScannerViewProps) {
     
     console.log('✨ Basic cleaned code:', JSON.stringify(cleanedCode));
 
-    // First, always try the exact cleaned code as-is (now supports multiple zones!)
+    // First, always try the exact cleaned code as-is (now supports multiple zones!) (v7.19.0: default to TK1)
     const exactCleanCode = cleanedCode.toUpperCase();
     console.log('🎯 Trying exact cleaned code lookup:', exactCleanCode);
     attemptedLookups.push(exactCleanCode);
     try {
-      const allLookups = await scanLookupService.getAllLookupsBySKU(exactCleanCode);
+      const allLookups = await scanLookupService.getAllLookupsBySKU(exactCleanCode, 'TK1');
       if (allLookups.length > 0) {
         console.log(`✅ SUCCESS! Found ${allLookups.length} zone(s) for:`, exactCleanCode);
         
@@ -188,14 +188,14 @@ export function ScannerView({ user }: ScannerViewProps) {
     console.log('📋 Sorted candidates:', sortedCandidates);
     console.log('📋 Final candidates to test:', candidates);
 
-    // Step 4: Try lookup for each candidate until one succeeds
+    // Step 4: Try lookup for each candidate until one succeeds (v7.19.0: default to TK1)
     for (let i = 0; i < candidates.length; i++) {
       const candidate = candidates[i];
       console.log(`🔍 Testing candidate ${i + 1}/${candidates.length}: ${candidate}`);
       attemptedLookups.push(candidate);
-      
+
       try {
-        const allLookups = await scanLookupService.getAllLookupsBySKU(candidate);
+        const allLookups = await scanLookupService.getAllLookupsBySKU(candidate, 'TK1');
         
         if (allLookups.length > 0) {
           console.log(`✅ SUCCESS! Found ${allLookups.length} zone(s) for:`, candidate);

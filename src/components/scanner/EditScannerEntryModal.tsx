@@ -47,19 +47,20 @@ export function EditScannerEntryModal({ lookup, onSave, onCancel, userEmail }: E
     try {
       setLoading(true);
 
-      // Create updated lookup object
+      // Create updated lookup object (v7.19.0: preserve carType)
       const updatedLookup = {
         sku: formData.sku.toUpperCase(),
+        carType: lookup.carType, // Preserve car type from original lookup
         targetZone: formData.targetZone,
         itemName: formData.itemName.trim() || undefined,
         expectedQuantity: formData.expectedQuantity ? Number(formData.expectedQuantity) : undefined,
         updatedBy: userEmail
       };
 
-      // If zone changed, we need to delete old entry and create new one
+      // If zone changed, we need to delete old entry and create new one (v7.19.0: pass carType)
       if (formData.targetZone !== lookup.targetZone.toString()) {
         // Delete old entry
-        await scanLookupService.deleteLookup(lookup.sku, lookup.targetZone.toString());
+        await scanLookupService.deleteLookup(lookup.sku, lookup.carType, lookup.targetZone.toString());
         // Create new entry
         await scanLookupService.saveLookup(updatedLookup);
       } else {

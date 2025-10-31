@@ -217,10 +217,10 @@ service cloud.firestore {
     
     // Version 5.3 Collections - Batch Management System (Eugene Section 5.3)
     
-    // Car types - Master list of car type definitions
+    // Car types - Master list of car type definitions (v7.19.0: Logistics can manage)
     match /carTypes/{carCode} {
       allow read: if isActiveUser();  // All authenticated users can read car types
-      allow write: if isDevAdmin() || hasRole('manager');  // Only managers can modify car types
+      allow write: if isDevAdmin() || hasRole('manager') || hasRole('logistics');  // Managers and logistics can modify car types
     }
     
     // Batches - Production batch definitions and tracking

@@ -19,16 +19,21 @@ export function LogisticsMonitorDashboard({ userEmail: _userEmail }: LogisticsMo
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const [autoRefresh, setAutoRefresh] = useState(true);
 
+  // Car type selection (v7.19.0)
+  const [availableCarTypes, setAvailableCarTypes] = useState<Array<{carCode: string; name: string}>>([]);
+  const [selectedCarType, setSelectedCarType] = useState<string>('TK1');
+  const [carTypesLoading, setCarTypesLoading] = useState(false);
+
   // Batch-related state
   const [batchAllocations, setBatchAllocations] = useState<BatchAllocation[]>([]);
   const [batchProgress, setBatchProgress] = useState<BatchProgress[]>([]);
 
-  // Load inventory and scanner data
+  // Load inventory and scanner data (v7.19.0: car-type-filtered)
   const loadData = async () => {
     try {
       const [inventoryData, scannerData, batchAllocations, batchProgress] = await Promise.all([
         tableStateService.getExpectedInventory(),
-        scanLookupService.getAllLookups(),
+        scanLookupService.getAllLookups(selectedCarType),
         batchAllocationService.getAllBatchAllocations(),
         batchAllocationService.getBatchProgress()
       ]);
@@ -43,6 +48,32 @@ export function LogisticsMonitorDashboard({ userEmail: _userEmail }: LogisticsMo
       setLoading(false);
     }
   };
+
+  // Load car types on mount (v7.19.0)
+  useEffect(() => {
+    const loadCarTypes = async () => {
+      try {
+        setCarTypesLoading(true);
+        const { batchManagementService } = await import('../../services/batchManagement');
+        await batchManagementService.ensureTK1CarTypeExists();
+        const carTypes = await batchManagementService.getAllCarTypes();
+        setAvailableCarTypes(carTypes.map(ct => ({ carCode: ct.carCode, name: ct.name })));
+
+        // Default to TK1 if available
+        if (carTypes.some(ct => ct.carCode === 'TK1')) {
+          setSelectedCarType('TK1');
+        } else if (carTypes.length > 0) {
+          setSelectedCarType(carTypes[0].carCode);
+        }
+      } catch (error) {
+        logger.error('Failed to load car types:', { error });
+      } finally {
+        setCarTypesLoading(false);
+      }
+    };
+
+    loadCarTypes();
+  }, []);
 
   useEffect(() => {
     // Initial load
@@ -66,7 +97,7 @@ export function LogisticsMonitorDashboard({ userEmail: _userEmail }: LogisticsMo
         clearInterval(refreshInterval);
       }
     };
-  }, [autoRefresh]);
+  }, [autoRefresh, selectedCarType]); // v7.19.0: reload when car type changes
 
   // Get unique zones based on active tab
   const zones = useMemo(() => {
@@ -282,10 +313,29 @@ export function LogisticsMonitorDashboard({ userEmail: _userEmail }: LogisticsMo
           </nav>
         </div>
 
-        {/* Controls */}
+        {/* Controls (v7.19.0: added car type selector) */}
         <div className="p-4">
         <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
           <div className="flex flex-col sm:flex-row gap-4 flex-1">
+            {/* Car Type Selector (v7.19.0) */}
+            <div>
+              {carTypesLoading ? (
+                <div className="text-xs text-purple-600">⏳ Loading car types...</div>
+              ) : (
+                <select
+                  value={selectedCarType}
+                  onChange={(e) => setSelectedCarType(e.target.value)}
+                  className="border border-purple-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                >
+                  {availableCarTypes.map(carType => (
+                    <option key={carType.carCode} value={carType.carCode}>
+                      🚗 {carType.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+
             {/* Search */}
             <div className="flex-1 max-w-md">
               <input

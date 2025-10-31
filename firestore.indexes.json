@@ -9,7 +9,39 @@
           "order": "ASCENDING"
         },
         {
+          "fieldPath": "carType",
+          "order": "ASCENDING"
+        },
+        {
           "fieldPath": "targetZone",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "scanLookups",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "carType",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "sku",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "scanLookups",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "targetZone",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "sku",
           "order": "ASCENDING"
         }
       ]

@@ -37,6 +37,29 @@ export class BatchCoreService {
     }
   }
 
+  // Ensure TK1 default car type exists (v7.19.0)
+  async ensureTK1CarTypeExists(): Promise<void> {
+    try {
+      const tk1Ref = doc(db, 'carTypes', 'TK1');
+      const tk1Doc = await getDoc(tk1Ref);
+
+      if (!tk1Doc.exists()) {
+        logger.info('Creating TK1 default car type...');
+        await this.createCarType({
+          carCode: 'TK1',
+          name: 'TK1 (Legacy)',
+          description: 'Default car type for existing data before multi-car-type system'
+        });
+        logger.info('TK1 car type created successfully');
+      } else {
+        logger.info('TK1 car type already exists');
+      }
+    } catch (error) {
+      logger.error('Failed to ensure TK1 car type:', error);
+      throw error;
+    }
+  }
+
   // ========= Batch Collection =========
   async createBatch(batch: Omit<Batch, 'createdAt' | 'updatedAt'>): Promise<string> {
     try {

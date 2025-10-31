@@ -21,6 +21,11 @@ class BatchManagementService {
     return batchCoreService.getAllCarTypes();
   }
 
+  // Ensure TK1 default car type exists (v7.19.0)
+  async ensureTK1CarTypeExists(): Promise<void> {
+    return batchCoreService.ensureTK1CarTypeExists();
+  }
+
   // ========= CSV Operations - Delegated to batchCSV =========
   
   async uploadCarTypesFromCSV(csvData: string, updatedBy: string): Promise<{

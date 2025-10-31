@@ -37,6 +37,11 @@ export function UnifiedLogisticsMonitor({ userEmail: _userEmail }: UnifiedLogist
   const [availableBatches, setAvailableBatches] = useState<string[]>([]);
   const [selectedBatch, setSelectedBatch] = useState<string>('');
 
+  // Car type selection (v7.19.0)
+  const [availableCarTypes, setAvailableCarTypes] = useState<Array<{carCode: string; name: string}>>([]);
+  const [selectedCarType, setSelectedCarType] = useState<string>('TK1');
+  const [carTypesLoading, setCarTypesLoading] = useState(false);
+
   // Data for selected batch
   const [zoneData, setZoneData] = useState<ZoneData[]>([]);
   const [boxes, setBoxes] = useState<Awaited<ReturnType<typeof packingBoxesService.listBoxes>>>([]);
@@ -48,13 +53,28 @@ export function UnifiedLogisticsMonitor({ userEmail: _userEmail }: UnifiedLogist
   const [sortBy, setSortBy] = useState<'sku' | 'completion'>('completion'); // completion = missing first
   const [boxSortBy, setBoxSortBy] = useState<'caseNo' | 'completion'>('completion'); // completion = incomplete first
 
-  // Load initial data
+  // Load initial data (v7.19.0: includes car types)
   const loadData = async () => {
     try {
       setLoading(true);
+      setCarTypesLoading(true);
+
+      // Load car types (v7.19.0)
+      const { batchManagementService } = await import('../../services/batchManagement');
+      await batchManagementService.ensureTK1CarTypeExists();
+      const carTypes = await batchManagementService.getAllCarTypes();
+      setAvailableCarTypes(carTypes.map(ct => ({ carCode: ct.carCode, name: ct.name })));
+
+      // Default to TK1 if available
+      if (carTypes.some(ct => ct.carCode === 'TK1')) {
+        setSelectedCarType('TK1');
+      } else if (carTypes.length > 0) {
+        setSelectedCarType(carTypes[0].carCode);
+      }
+
+      setCarTypesLoading(false);
 
       // Load ONLY activated batches (status = 'in_progress') from batch management
-      const { batchManagementService } = await import('../../services/batchManagement');
       const allBatches = await batchManagementService.getAllBatches();
       const activatedBatches = allBatches
         .filter(batch => batch.status === 'in_progress')
@@ -97,8 +117,8 @@ export function UnifiedLogisticsMonitor({ userEmail: _userEmail }: UnifiedLogist
 
       logger.debug('Batch totals calculated:', { skuCount: batchTotals.size });
 
-      // Step 2: Get scanner lookup data (Layer 1 - which zone each SKU belongs to)
-      const scannerData = await scanLookupService.getAllLookups();
+      // Step 2: Get scanner lookup data (Layer 1 - which zone each SKU belongs to) (v7.19.0: car-type-filtered)
+      const scannerData = await scanLookupService.getAllLookups(selectedCarType);
 
       // Build SKU -> Zone mapping from scanner lookup
       const skuToZoneMap = new Map<string, string>();
@@ -220,7 +240,7 @@ export function UnifiedLogisticsMonitor({ userEmail: _userEmail }: UnifiedLogist
     loadData();
   }, []);
 
-  // Load batch data when selection changes
+  // Load batch data when selection changes (v7.19.0: also reload when car type changes)
   useEffect(() => {
     if (selectedBatch) {
       if (activeTab === 'zones') {
@@ -229,7 +249,7 @@ export function UnifiedLogisticsMonitor({ userEmail: _userEmail }: UnifiedLogist
         loadBoxesData(selectedBatch);
       }
     }
-  }, [selectedBatch, activeTab]);
+  }, [selectedBatch, activeTab, selectedCarType]);
 
   // Load boxes data and calculate batch-specific unboxed count
   const loadBoxesData = async (batchId: string) => {
@@ -338,50 +358,73 @@ export function UnifiedLogisticsMonitor({ userEmail: _userEmail }: UnifiedLogist
         </div>
       )}
 
-      {/* Batch Selector with Refresh Button */}
+      {/* Car Type and Batch Selector with Refresh Button (v7.19.0) */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="flex items-center space-x-4">
-          <label className="text-lg font-semibold text-gray-900">🎯 Select Batch:</label>
-          <select
-            value={selectedBatch}
-            onChange={(e) => setSelectedBatch(e.target.value)}
-            className="flex-1 max-w-md border border-gray-300 rounded-md px-3 py-2 text-lg font-medium"
-          >
-            <option value="">Choose a batch...</option>
-            {availableBatches.map(batchId => (
-              <option key={batchId} value={batchId}>
-                Batch {batchId}
-              </option>
-            ))}
-          </select>
-          {selectedBatch && (
-            <button
-              onClick={handleRefresh}
-              disabled={refreshing}
-              className={`px-4 py-2 rounded-md font-medium transition-colors ${
-                refreshing
-                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  : 'bg-blue-600 text-white hover:bg-blue-700'
-              }`}
+        <div className="space-y-4">
+          {/* Car Type Selector */}
+          <div className="flex items-center space-x-4">
+            <label className="text-lg font-semibold text-gray-900 whitespace-nowrap">🚗 Car Type:</label>
+            {carTypesLoading ? (
+              <div className="text-sm text-purple-600">⏳ Loading...</div>
+            ) : (
+              <select
+                value={selectedCarType}
+                onChange={(e) => setSelectedCarType(e.target.value)}
+                className="flex-1 max-w-md border border-purple-300 rounded-md px-3 py-2 text-lg font-medium focus:outline-none focus:ring-2 focus:ring-purple-500"
+              >
+                {availableCarTypes.map(carType => (
+                  <option key={carType.carCode} value={carType.carCode}>
+                    {carType.name} ({carType.carCode})
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {/* Batch Selector */}
+          <div className="flex items-center space-x-4">
+            <label className="text-lg font-semibold text-gray-900 whitespace-nowrap">🎯 Select Batch:</label>
+            <select
+              value={selectedBatch}
+              onChange={(e) => setSelectedBatch(e.target.value)}
+              className="flex-1 max-w-md border border-gray-300 rounded-md px-3 py-2 text-lg font-medium"
             >
-              {refreshing ? (
-                <span className="flex items-center space-x-2">
-                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                  </svg>
-                  <span>Refreshing...</span>
-                </span>
-              ) : (
-                <span className="flex items-center space-x-2">
-                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                  <span>Refresh</span>
-                </span>
-              )}
-            </button>
-          )}
+              <option value="">Choose a batch...</option>
+              {availableBatches.map(batchId => (
+                <option key={batchId} value={batchId}>
+                  Batch {batchId}
+                </option>
+              ))}
+            </select>
+            {selectedBatch && (
+              <button
+                onClick={handleRefresh}
+                disabled={refreshing}
+                className={`px-4 py-2 rounded-md font-medium transition-colors ${
+                  refreshing
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                }`}
+              >
+                {refreshing ? (
+                  <span className="flex items-center space-x-2">
+                    <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    <span>Refreshing...</span>
+                  </span>
+                ) : (
+                  <span className="flex items-center space-x-2">
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    <span>Refresh</span>
+                  </span>
+                )}
+              </button>
+            )}
+          </div>
         </div>
       </div>
 

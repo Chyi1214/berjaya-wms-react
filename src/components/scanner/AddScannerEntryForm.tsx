@@ -26,8 +26,8 @@ export function AddScannerEntryForm({ onAdd, userEmail, existingSKUs: _existingS
     if (!formData.sku.trim()) {
       newErrors.sku = 'SKU is required';
     } else {
-      // Check for duplicate SKU+Zone combination
-      const existingLookups = await scanLookupService.getAllLookupsBySKU(formData.sku.toUpperCase());
+      // Check for duplicate SKU+Zone combination (v7.19.0: default to TK1 for legacy forms)
+      const existingLookups = await scanLookupService.getAllLookupsBySKU(formData.sku.toUpperCase(), 'TK1');
       const duplicateExists = existingLookups.some(lookup =>
         lookup.targetZone.toString() === formData.targetZone
       );
@@ -59,6 +59,7 @@ export function AddScannerEntryForm({ onAdd, userEmail, existingSKUs: _existingS
 
       const newLookup = {
         sku: formData.sku.toUpperCase(),
+        carType: 'TK1', // v7.19.0: Default to TK1 for legacy forms
         targetZone: formData.targetZone,
         itemName: formData.itemName.trim() || undefined,
         expectedQuantity: formData.expectedQuantity ? Number(formData.expectedQuantity) : undefined,

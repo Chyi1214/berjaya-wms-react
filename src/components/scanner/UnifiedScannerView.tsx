@@ -8,6 +8,7 @@ import { transactionService } from '../../services/transactions';
 import { tableStateService } from '../../services/tableState';
 import { itemMasterService } from '../../services/itemMaster';
 import { batchAllocationService } from '../../services/batchAllocationService';
+import { batchManagementService } from '../../services/batchManagement';
 import { packingBoxesService } from '../../services/packingBoxesService';
 import { supplierBoxScanService } from '../../services/supplierBoxScanService';
 import { SearchAutocomplete } from '../common/SearchAutocomplete';
@@ -23,6 +24,7 @@ interface UnifiedScanResult {
     zone: string;
     itemName?: string;
     expectedQuantity?: number;
+    perCarQuantity?: number; // v7.19.0
   }>;
   item?: ItemMaster;
   timestamp: Date;
@@ -41,6 +43,11 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
   const [selectedSearchResult, setSelectedSearchResult] = useState<any>(null);
   const [rawQRCode, setRawQRCode] = useState<string>(''); // Track raw QR code for supplier box tracking
 
+  // Car type selection (v7.19.0)
+  const [availableCarTypes, setAvailableCarTypes] = useState<Array<{carCode: string; name: string}>>([]);
+  const [selectedCarType, setSelectedCarType] = useState<string>('TK1'); // Default to TK1
+  const [carTypesLoading, setCarTypesLoading] = useState(false);
+
   // Batch allocation states
   const [availableBatches, setAvailableBatches] = useState<string[]>([]);
   const [selectedBatch, setSelectedBatch] = useState<string>('');
@@ -49,8 +56,9 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
   const [availableBoxes, setAvailableBoxes] = useState<string[]>([]);
   const [selectedBox, setSelectedBox] = useState<string>('');
 
-  // Load batch configuration on mount
+  // Load car types and batch configuration on mount (v7.19.0)
   useEffect(() => {
+    loadCarTypes();
     loadBatchConfig();
   }, []);
 
@@ -67,6 +75,33 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
     const isAvailable = await scannerService.isCameraAvailable();
     if (!isAvailable) {
       setError(t('scanner.cameraNotAvailable'));
+    }
+  };
+
+  // Load available car types (v7.19.0)
+  const loadCarTypes = async () => {
+    try {
+      setCarTypesLoading(true);
+
+      // Ensure TK1 exists
+      await batchManagementService.ensureTK1CarTypeExists();
+
+      // Load all car types
+      const carTypes = await batchManagementService.getAllCarTypes();
+      setAvailableCarTypes(carTypes.map(ct => ({ carCode: ct.carCode, name: ct.name })));
+
+      // Restore last selected car type from localStorage, default to TK1
+      const lastCarType = localStorage.getItem('wms-scanner-car-type') || 'TK1';
+      if (carTypes.some(ct => ct.carCode === lastCarType)) {
+        setSelectedCarType(lastCarType);
+      } else {
+        setSelectedCarType('TK1');
+      }
+    } catch (error) {
+      console.error('Failed to load car types:', error);
+      setError('Failed to load car types');
+    } finally {
+      setCarTypesLoading(false);
     }
   };
 
@@ -215,8 +250,8 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
       attemptedLookups.push(candidate);
 
       try {
-        // Step 1: Try zone lookup
-        const allLookups = await scanLookupService.getAllLookupsBySKU(candidate);
+        // Step 1: Try zone lookup (v7.19.0: car-type-specific)
+        const allLookups = await scanLookupService.getAllLookupsBySKU(candidate, selectedCarType);
 
         // Step 2: Try item master lookup
         let masterItem: ItemMaster | undefined;
@@ -233,11 +268,12 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
           console.log(`✅ SUCCESS! Found data for: ${candidate}`);
           console.log(`📍 Zones: ${allLookups.length}, Item Master: ${masterItem ? 'Yes' : 'No'}`);
 
-          // Prepare zone information
+          // Prepare zone information (v7.19.0: include perCarQuantity)
           const zones = allLookups.map(lookup => ({
             zone: lookup.targetZone.toString(),
             itemName: lookup.itemName,
-            expectedQuantity: lookup.expectedQuantity
+            expectedQuantity: lookup.expectedQuantity,
+            perCarQuantity: lookup.perCarQuantity
           }));
 
           // If no zones but we have item master, show that we found the item
@@ -245,7 +281,8 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
             zones.push({
               zone: 'Unknown',
               itemName: masterItem.name,
-              expectedQuantity: undefined
+              expectedQuantity: undefined,
+              perCarQuantity: undefined // v7.19.0: Add missing field
             });
           }
 
@@ -539,6 +576,64 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
       {/* Main Content */}
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
+        {/* Car Type Selector (v7.19.0) */}
+        <div className="mb-4 bg-white border-2 border-purple-300 rounded-lg p-4 shadow-sm">
+          <div className="text-center">
+            <div className="text-3xl mb-2">🚗</div>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4">
+              <div className="text-center">
+                <p className="text-xs sm:text-sm text-gray-500 mb-1">Car Type</p>
+                <div className="text-xl sm:text-2xl font-bold text-purple-600">
+                  {carTypesLoading ? '⏳ Loading...' : selectedCarType || 'Not Set'}
+                </div>
+              </div>
+
+              {!carTypesLoading && availableCarTypes.length > 1 && (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      const dropdown = document.getElementById('car-type-selector');
+                      if (dropdown) {
+                        (dropdown as HTMLSelectElement).focus();
+                      }
+                    }}
+                    className="text-xs sm:text-sm text-purple-600 hover:text-purple-700 underline"
+                  >
+                    Change
+                  </button>
+                  <select
+                    id="car-type-selector"
+                    value={selectedCarType}
+                    onChange={(e) => {
+                      const newCarType = e.target.value;
+                      setSelectedCarType(newCarType);
+                      // Save to localStorage
+                      try {
+                        localStorage.setItem('wms-scanner-car-type', newCarType);
+                      } catch (err) {
+                        console.error('Failed to save car type to localStorage:', err);
+                      }
+                    }}
+                    className="text-xs sm:text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  >
+                    {availableCarTypes.map(carType => (
+                      <option key={carType.carCode} value={carType.carCode}>
+                        {carType.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+
+            {!carTypesLoading && (
+              <p className="text-xs text-gray-500 mt-2">
+                Zone lookups will be specific to this car type
+              </p>
+            )}
+          </div>
+        </div>
+
         {/* Batch Display Section */}
         <div className="mb-4 bg-white border-2 border-orange-300 rounded-lg p-4 shadow-sm">
           <div className="text-center">
@@ -691,6 +786,9 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
                       )}
                       {zoneInfo.expectedQuantity && (
                         <div className="text-xs text-blue-600">Expected: {zoneInfo.expectedQuantity}</div>
+                      )}
+                      {zoneInfo.perCarQuantity && (
+                        <div className="text-xs text-purple-600">Per Car: {zoneInfo.perCarQuantity}</div>
                       )}
                     </div>
                   ))}
