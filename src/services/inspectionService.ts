@@ -436,13 +436,25 @@ export const inspectionService = {
       const sanitizedItemName = sanitizeFieldName(itemName);
 
       // Don't spread result - build the object manually to ensure only Firestore-safe values
+      const resultData: any = {
+        defectType: result.defectType,
+        notes: result.notes || null,
+        checkedBy: result.checkedBy,
+        checkedAt: Timestamp.now(),
+      };
+
+      // Include defect location if provided
+      if (result.defectLocation) {
+        resultData.defectLocation = {
+          x: result.defectLocation.x,
+          y: result.defectLocation.y,
+          imageId: result.defectLocation.imageId,
+          dotNumber: result.defectLocation.dotNumber,
+        };
+      }
+
       await updateDoc(docRef, {
-        [`sections.${section}.results.${sanitizedItemName}`]: {
-          defectType: result.defectType,
-          notes: result.notes || null,
-          checkedBy: result.checkedBy,
-          checkedAt: Timestamp.now(),
-        },
+        [`sections.${section}.results.${sanitizedItemName}`]: resultData,
         updatedAt: Timestamp.now(),
       });
     } catch (error) {

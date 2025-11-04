@@ -6,10 +6,13 @@ import type {
   InspectionItem,
   InspectionSection,
   DefectType,
+  SectionImage,
 } from '../../../types/inspection';
 import { createModuleLogger } from '../../../services/logger';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { getLocalizedText } from '../../../utils/multilingualHelper';
+import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { compressImageIfNeeded } from '../../../utils/imageCompression';
 
 const logger = createModuleLogger('VisualTemplateEditor');
 
@@ -23,6 +26,7 @@ export default function VisualTemplateEditor() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [expandedSection, setExpandedSection] = useState<InspectionSection | null>(null);
   const [expandedItem, setExpandedItem] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState<Record<string, boolean>>({});
 
   // Load template
   useEffect(() => {
@@ -599,6 +603,136 @@ export default function VisualTemplateEditor() {
     });
   };
 
+  // ===== SECTION IMAGE MANAGEMENT =====
+
+  const uploadSectionImage = async (sectionId: InspectionSection, file: File) => {
+    if (!template) return;
+
+    try {
+      setUploadingImage({ ...uploadingImage, [sectionId]: true });
+
+      // Compress image if needed (only if > 1MB)
+      const { file: processedFile, wasCompressed, originalSize, finalSize } = await compressImageIfNeeded(file, {
+        maxSizeMB: 1,      // Only compress if larger than 1MB
+        maxWidthOrHeight: 1920, // Max 1920px on longest side
+        quality: 0.85,     // 85% JPEG quality
+      });
+
+      if (wasCompressed) {
+        logger.info('Image compressed:', {
+          original: `${(originalSize / 1024 / 1024).toFixed(2)} MB`,
+          final: `${(finalSize / 1024 / 1024).toFixed(2)} MB`,
+          saved: `${(((originalSize - finalSize) / originalSize) * 100).toFixed(1)}%`,
+        });
+      }
+
+      // Generate unique image ID
+      const imageId = `${Date.now()}_${Math.random().toString(36).substring(7)}`;
+      const storagePath = `inspection-templates/${template.templateId}/sections/${sectionId}/${imageId}`;
+
+      // Upload to Firebase Storage
+      const storage = getStorage();
+      const storageRef = ref(storage, storagePath);
+      await uploadBytes(storageRef, processedFile);
+      const downloadURL = await getDownloadURL(storageRef);
+
+      // Create SectionImage object
+      const newImage: SectionImage = {
+        imageId,
+        imageUrl: downloadURL,
+        imageName: file.name,
+        size: finalSize, // Store file size for duplicate detection
+        uploadedAt: new Date(),
+      };
+
+      // Add image to section
+      const section = template.sections[sectionId];
+      const currentImages = section.images || [];
+
+      const newSections = {
+        ...template.sections,
+        [sectionId]: {
+          ...section,
+          images: [...currentImages, newImage],
+        },
+      };
+
+      setTemplate({
+        ...template,
+        sections: newSections,
+      });
+
+      setMessage({ type: 'success', text: `✅ Image uploaded successfully!` });
+      setTimeout(() => setMessage(null), 3000);
+    } catch (error) {
+      logger.error('Failed to upload image:', error);
+      setMessage({ type: 'error', text: '❌ Failed to upload image' });
+    } finally {
+      setUploadingImage({ ...uploadingImage, [sectionId]: false });
+    }
+  };
+
+  const deleteSectionImage = async (sectionId: InspectionSection, imageId: string) => {
+    if (!template) return;
+
+    const confirm = window.confirm('Delete this image? This cannot be undone.');
+    if (!confirm) return;
+
+    try {
+      const section = template.sections[sectionId];
+      const image = section.images?.find(img => img.imageId === imageId);
+
+      if (image) {
+        // Delete from Firebase Storage
+        const storage = getStorage();
+        const storagePath = `inspection-templates/${template.templateId}/sections/${sectionId}/${imageId}`;
+        const storageRef = ref(storage, storagePath);
+        await deleteObject(storageRef);
+      }
+
+      // Remove from section
+      const newImages = (section.images || []).filter(img => img.imageId !== imageId);
+
+      const newSections = {
+        ...template.sections,
+        [sectionId]: {
+          ...section,
+          images: newImages.length > 0 ? newImages : undefined,
+        },
+      };
+
+      setTemplate({
+        ...template,
+        sections: newSections,
+      });
+
+      setMessage({ type: 'success', text: `✅ Image deleted successfully!` });
+      setTimeout(() => setMessage(null), 3000);
+    } catch (error) {
+      logger.error('Failed to delete image:', error);
+      setMessage({ type: 'error', text: '❌ Failed to delete image' });
+    }
+  };
+
+  const handleImageFileSelect = (sectionId: InspectionSection, event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      setMessage({ type: 'error', text: '❌ Please select an image file' });
+      return;
+    }
+
+    // Validate file size (max 20MB raw - we'll compress it automatically)
+    if (file.size > 20 * 1024 * 1024) {
+      setMessage({ type: 'error', text: '❌ Image size must be less than 20MB' });
+      return;
+    }
+
+    uploadSectionImage(sectionId, file);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -799,7 +933,61 @@ export default function VisualTemplateEditor() {
 
                 {/* Section Items */}
                 {isExpanded && (
-                  <div className="p-4 space-y-3 bg-white">
+                  <div className="p-4 space-y-4 bg-white">
+                    {/* Section Images */}
+                    <div className="border-2 border-blue-200 rounded-lg p-4 bg-blue-50">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-semibold text-gray-900">🖼️ Section Images for Defect Marking</h4>
+                        <label className={`px-3 py-2 rounded-lg text-sm font-medium cursor-pointer ${
+                          uploadingImage[sectionId]
+                            ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                            : 'bg-blue-600 text-white hover:bg-blue-700'
+                        }`}>
+                          {uploadingImage[sectionId] ? 'Uploading...' : '📤 Upload Image'}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            disabled={uploadingImage[sectionId]}
+                            onChange={(e) => handleImageFileSelect(sectionId as InspectionSection, e)}
+                          />
+                        </label>
+                      </div>
+
+                      <p className="text-sm text-gray-700 mb-3">
+                        Upload images where workers will mark defect locations. Multiple images are allowed per section.
+                      </p>
+
+                      {/* Image Grid */}
+                      {section.images && section.images.length > 0 ? (
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                          {section.images.map((image) => (
+                            <div key={image.imageId} className="relative group">
+                              <img
+                                src={image.imageUrl}
+                                alt={image.imageName}
+                                className="w-full h-32 object-cover rounded-lg border-2 border-gray-300"
+                              />
+                              <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-opacity rounded-lg flex items-center justify-center">
+                                <button
+                                  onClick={() => deleteSectionImage(sectionId as InspectionSection, image.imageId)}
+                                  className="opacity-0 group-hover:opacity-100 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium"
+                                >
+                                  🗑️ Delete
+                                </button>
+                              </div>
+                              <p className="text-xs text-gray-600 mt-1 truncate">{image.imageName}</p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-6 text-gray-500 bg-white rounded-lg border-2 border-dashed border-gray-300">
+                          No images uploaded yet. Click "Upload Image" to add section images.
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Items List */}
                     {section.items.map((item, itemIndex) => {
                       const itemName =
                         typeof item.itemName === 'string'

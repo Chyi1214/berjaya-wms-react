@@ -31,6 +31,24 @@ export interface InspectionItem {
   defectTypes?: (string | MultilingualText)[];  // Optional custom defect types per item
 }
 
+// Defect location on section image
+export interface DefectLocation {
+  x: number;          // Percentage position (0-100) on image width
+  y: number;          // Percentage position (0-100) on image height
+  imageId: string;    // Which section image the dot is placed on
+  dotNumber: number;  // Sequential number for matching to defect in report (1, 2, 3...)
+}
+
+// Section image for defect location marking
+export interface SectionImage {
+  imageId: string;
+  imageUrl: string;
+  imageName: string;
+  size?: number;      // File size in bytes (for matching duplicate images)
+  uploadedAt: Date;
+  uploadedBy?: string;
+}
+
 // Result for a single inspection item
 export interface InspectionItemResult {
   defectType: string;  // Stored as English key for consistency
@@ -39,6 +57,7 @@ export interface InspectionItemResult {
   checkedAt?: Date;
   checkedBy?: string;
   status?: string;  // Track defect resolution status (e.g., "Pending", "Fixed", "Acknowledged")
+  defectLocation?: DefectLocation;  // Location marked on section image (required for defects, not for "Ok")
 }
 
 // Section configuration in template
@@ -46,6 +65,7 @@ export interface InspectionSectionTemplate {
   sectionId: string;
   sectionName: string | MultilingualText;  // Support both legacy and new format
   items: InspectionItem[];
+  images?: SectionImage[];  // Section images for defect location marking
 }
 
 // Translation status for a specific language

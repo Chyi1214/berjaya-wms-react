@@ -1,5 +1,7 @@
 // Inspection Checklist View - Worker interface for inspecting a section
 import React, { useState, useEffect } from 'react';
+import { doc, updateDoc, Timestamp } from 'firebase/firestore';
+import { db } from '../../../services/firebase';
 import { inspectionService } from '../../../services/inspectionService';
 import type {
   CarInspection,
@@ -7,10 +9,12 @@ import type {
   InspectionTemplate,
   DefectType,
   InspectionItem,
+  DefectLocation,
 } from '../../../types/inspection';
 import { createModuleLogger } from '../../../services/logger';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { getLocalizedText, getLocalizedTextSafe } from '../../../utils/multilingualHelper';
+import { DefectLocationMarker } from './DefectLocationMarker';
 
 const logger = createModuleLogger('InspectionChecklistView');
 
@@ -52,9 +56,29 @@ const InspectionChecklistView: React.FC<InspectionChecklistViewProps> = ({
   const [saving, setSaving] = useState(false);
   const [selectedItem, setSelectedItem] = useState<string | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({});
+  const [showLocationMarker, setShowLocationMarker] = useState(false);
+  const [pendingDefect, setPendingDefect] = useState<{
+    itemName: string;
+    defectType: DefectType;
+    itemDisplayName: string;
+  } | null>(null);
+  const [nextDotNumber, setNextDotNumber] = useState(1);
 
   // Map language context to multilingual helper language code
   const langCode = currentLanguage as 'en' | 'ms' | 'zh' | 'my' | 'bn';
+
+  // Calculate next dot number based on existing defects in this section
+  useEffect(() => {
+    if (!inspection) return;
+
+    const sectionResult = inspection.sections[section];
+    const defectsWithLocations = Object.values(sectionResult.results)
+      .filter(result => result.defectType !== 'Ok' && result.defectLocation)
+      .map(result => result.defectLocation!.dotNumber);
+
+    const maxDotNumber = defectsWithLocations.length > 0 ? Math.max(...defectsWithLocations) : 0;
+    setNextDotNumber(maxDotNumber + 1);
+  }, [inspection, section]);
 
   useEffect(() => {
     let templateUnsubscribe: (() => void) | null = null;
@@ -130,16 +154,173 @@ const InspectionChecklistView: React.FC<InspectionChecklistViewProps> = ({
     };
   }, [inspectionId, section, userEmail, userName]);
 
-  const handleDefectSelect = async (itemName: string, defectType: DefectType) => {
-    if (!inspection) return;
+  const handleDefectSelect = async (itemName: string, defectType: DefectType, itemDisplayName: string) => {
+    if (!inspection || !template) return;
+
+    const sectionTemplate = template.sections[section];
+
+    // Find all items with the same display name (duplicates)
+    const duplicateItems = sectionTemplate.items.filter(item => {
+      const itemDisplayText = typeof item.itemName === 'string'
+        ? item.itemName
+        : getLocalizedTextSafe(item.itemName, langCode, template);
+      return itemDisplayText === itemDisplayName;
+    });
+
+    // If defect is "Ok", no location needed - save immediately for all duplicates
+    if (defectType === 'Ok') {
+      try {
+        setSaving(true);
+
+        // Apply to all duplicate items
+        for (const item of duplicateItems) {
+          const key = sanitizeFieldName(item.itemName);
+          await inspectionService.recordDefect(inspectionId, section, key, {
+            defectType,
+            notes: notes[key] || undefined,
+            checkedBy: userEmail,
+          });
+        }
+
+        const updated = await inspectionService.getInspectionById(inspectionId);
+        if (updated) {
+          setInspection(updated);
+        } else {
+          setError('Failed to reload inspection after save');
+        }
+
+        logger.info('OK recorded for all duplicates:', {
+          itemDisplayName,
+          count: duplicateItems.length,
+          defectType
+        });
+      } catch (err) {
+        logger.error('Failed to record defect:', err);
+        setError('Failed to save. Please try again.');
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
+    // For actual defects, check if section has images
+    const hasImages = sectionTemplate.images && sectionTemplate.images.length > 0;
+
+    if (!hasImages) {
+      // No images available - save defect without location
+      try {
+        setSaving(true);
+
+        // Apply to all duplicate items
+        for (const item of duplicateItems) {
+          const key = sanitizeFieldName(item.itemName);
+          await inspectionService.recordDefect(inspectionId, section, key, {
+            defectType,
+            notes: notes[key] || undefined,
+            checkedBy: userEmail,
+            // No defectLocation since there are no images
+          });
+        }
+
+        const updated = await inspectionService.getInspectionById(inspectionId);
+        if (updated) {
+          setInspection(updated);
+        } else {
+          setError('Failed to reload inspection after save');
+        }
+
+        logger.info('Defect recorded without location (no images):', {
+          itemDisplayName,
+          count: duplicateItems.length,
+          defectType
+        });
+      } catch (err) {
+        logger.error('Failed to record defect:', err);
+        setError('Failed to save. Please try again.');
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
+    // Has images - proceed with location marking
+    // If multiple duplicates, show confirmation
+    if (duplicateItems.length > 1) {
+      const confirm = window.confirm(
+        `Found ${duplicateItems.length} items with name "${itemDisplayName}". Apply defect "${defectType}" to all of them?`
+      );
+      if (!confirm) {
+        // Apply only to the selected item
+        setPendingDefect({ itemName, defectType, itemDisplayName });
+        setShowLocationMarker(true);
+        return;
+      }
+
+      // User confirmed - mark all duplicates
+      // For defects, we need to ask for location for the first one, then apply to all
+      setPendingDefect({
+        itemName: 'ALL_DUPLICATES',
+        defectType,
+        itemDisplayName,
+      });
+      setShowLocationMarker(true);
+      return;
+    }
+
+    // Single item - show location marker for defects
+    setPendingDefect({ itemName, defectType, itemDisplayName });
+    setShowLocationMarker(true);
+  };
+
+  const handleLocationSet = async (location: DefectLocation) => {
+    if (!inspection || !pendingDefect || !template) return;
 
     try {
       setSaving(true);
-      await inspectionService.recordDefect(inspectionId, section, itemName, {
-        defectType,
-        notes: notes[itemName] || undefined,
-        checkedBy: userEmail,
-      });
+      setShowLocationMarker(false);
+
+      // Check if applying to all duplicates
+      if (pendingDefect.itemName === 'ALL_DUPLICATES') {
+        const sectionTemplate = template.sections[section];
+        const duplicateItems = sectionTemplate.items.filter(item => {
+          const itemDisplayText = typeof item.itemName === 'string'
+            ? item.itemName
+            : getLocalizedTextSafe(item.itemName, langCode, template);
+          return itemDisplayText === pendingDefect.itemDisplayName;
+        });
+
+        // Apply to all duplicate items with same location
+        for (const item of duplicateItems) {
+          const key = sanitizeFieldName(item.itemName);
+          await inspectionService.recordDefect(inspectionId, section, key, {
+            defectType: pendingDefect.defectType,
+            notes: notes[key] || undefined,
+            checkedBy: userEmail,
+            defectLocation: location,
+          });
+        }
+
+        logger.info('Defect with location recorded for all duplicates:', {
+          itemDisplayName: pendingDefect.itemDisplayName,
+          count: duplicateItems.length,
+          defectType: pendingDefect.defectType,
+          location,
+        });
+      } else {
+        // Single item
+        await inspectionService.recordDefect(inspectionId, section, pendingDefect.itemName, {
+          defectType: pendingDefect.defectType,
+          notes: notes[pendingDefect.itemName] || undefined,
+          checkedBy: userEmail,
+          defectLocation: location,
+        });
+
+        logger.info('Defect with location recorded:', {
+          itemName: pendingDefect.itemName,
+          defectType: pendingDefect.defectType,
+          location,
+        });
+      }
 
       const updated = await inspectionService.getInspectionById(inspectionId);
       if (updated) {
@@ -148,13 +329,18 @@ const InspectionChecklistView: React.FC<InspectionChecklistViewProps> = ({
         setError('Failed to reload inspection after save');
       }
 
-      logger.info('Defect recorded:', { itemName, defectType });
+      setPendingDefect(null);
     } catch (err) {
       logger.error('Failed to record defect:', err);
       setError('Failed to save. Please try again.');
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleLocationCancel = () => {
+    setShowLocationMarker(false);
+    setPendingDefect(null);
   };
 
   const handleCompleteSection = async () => {
@@ -179,6 +365,40 @@ const InspectionChecklistView: React.FC<InspectionChecklistViewProps> = ({
     } catch (err) {
       logger.error('Failed to complete section:', err);
       setError('Failed to complete section. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleReopenSection = async () => {
+    if (!inspection) return;
+
+    const confirm = window.confirm(
+      'Reopen this section to finish checking the remaining items?'
+    );
+    if (!confirm) return;
+
+    try {
+      setSaving(true);
+
+      // Update section status back to in_progress
+      const docRef = doc(db, 'carInspections', inspectionId);
+      await updateDoc(docRef, {
+        [`sections.${section}.status`]: 'in_progress',
+        [`sections.${section}.completedAt`]: null,
+        updatedAt: Timestamp.now(),
+      });
+
+      // Reload inspection
+      const updated = await inspectionService.getInspectionById(inspectionId);
+      if (updated) {
+        setInspection(updated);
+      }
+
+      logger.info('Section reopened:', { inspectionId, section });
+    } catch (err) {
+      logger.error('Failed to reopen section:', err);
+      setError('Failed to reopen section. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -352,6 +572,11 @@ const InspectionChecklistView: React.FC<InspectionChecklistViewProps> = ({
                               }`}
                             >
                               {result.defectType}
+                              {result.defectLocation && (
+                                <span className="ml-1 px-1.5 py-0.5 bg-red-600 text-white rounded-full text-xs font-bold">
+                                  #{result.defectLocation.dotNumber}
+                                </span>
+                              )}
                             </span>
                             {result.notes && (
                               <span className="ml-2 text-gray-500">
@@ -388,7 +613,7 @@ const InspectionChecklistView: React.FC<InspectionChecklistViewProps> = ({
                             <button
                               key={defectKey}
                               onClick={() =>
-                                handleDefectSelect(itemKey, defectKey)
+                                handleDefectSelect(itemKey, defectKey, itemName)
                               }
                               disabled={saving}
                               className={`px-4 py-3 border-2 rounded-lg font-medium transition-all ${getDefectButtonColor(
@@ -417,7 +642,7 @@ const InspectionChecklistView: React.FC<InspectionChecklistViewProps> = ({
                           }
                           onBlur={() => {
                             if (notes[itemKey] !== result.notes) {
-                              handleDefectSelect(itemKey, result.defectType);
+                              handleDefectSelect(itemKey, result.defectType, itemName);
                             }
                           }}
                           placeholder={t('qa.addNotes')}
@@ -435,17 +660,96 @@ const InspectionChecklistView: React.FC<InspectionChecklistViewProps> = ({
 
         {/* Complete Button - Normal button at the bottom */}
         <div className="mt-6">
-          <button
-            onClick={handleCompleteSection}
-            disabled={saving || sectionResult.status === 'completed'}
-            className="w-full py-4 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors text-lg shadow-lg"
-          >
-            {sectionResult.status === 'completed'
-              ? `✓ ${t('qa.status.completed')}`
-              : `${t('qa.completeSection')} (${checkedItems}/${totalItems})`}
-          </button>
+          {sectionResult.status === 'completed' && checkedItems < totalItems ? (
+            // Show Reopen button if completed but items are missing
+            <button
+              onClick={handleReopenSection}
+              disabled={saving}
+              className="w-full py-4 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors text-lg shadow-lg"
+            >
+              🔓 Reopen Section to Finish ({checkedItems}/{totalItems})
+            </button>
+          ) : (
+            // Show normal Complete button
+            <button
+              onClick={handleCompleteSection}
+              disabled={saving || sectionResult.status === 'completed'}
+              className="w-full py-4 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors text-lg shadow-lg"
+            >
+              {sectionResult.status === 'completed'
+                ? `✓ ${t('qa.status.completed')}`
+                : `${t('qa.completeSection')} (${checkedItems}/${totalItems})`}
+            </button>
+          )}
+
+          {/* Show unchecked items if any */}
+          {checkedItems < totalItems && (
+            <div className={`mt-3 p-3 rounded-lg ${
+              sectionResult.status === 'completed'
+                ? 'bg-red-50 border border-red-200'
+                : 'bg-yellow-50 border border-yellow-200'
+            }`}>
+              <div className={`text-sm font-medium mb-2 ${
+                sectionResult.status === 'completed' ? 'text-red-800' : 'text-yellow-800'
+              }`}>
+                {sectionResult.status === 'completed' ? '❌' : '⚠️'} {totalItems - checkedItems} item(s) left to check:
+              </div>
+              <ul className={`text-sm space-y-1 ${
+                sectionResult.status === 'completed' ? 'text-red-700' : 'text-yellow-700'
+              }`}>
+                {items.map((item) => {
+                  const itemKey = sanitizeFieldName(item.itemName);
+                  const result = sectionResult.results[itemKey];
+                  if (!result) {
+                    const itemName = typeof item.itemName === 'string'
+                      ? item.itemName
+                      : getLocalizedTextSafe(item.itemName, langCode, template);
+                    return (
+                      <li key={itemKey} className="flex items-center gap-2">
+                        <span className={sectionResult.status === 'completed' ? 'text-red-600' : 'text-yellow-600'}>•</span>
+                        <span className="font-medium">{item.itemNumber}.</span>
+                        <span>{itemName}</span>
+                      </li>
+                    );
+                  }
+                  return null;
+                })}
+              </ul>
+              {sectionResult.status === 'completed' ? (
+                <div className="mt-3 text-xs text-red-600 bg-red-100 p-2 rounded">
+                  ⚠️ This section was marked as complete but some items were not checked!
+                </div>
+              ) : (
+                <div className="mt-2 text-xs text-yellow-600">
+                  💡 You can still complete the section, but a confirmation will be required.
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Show saving indicator */}
+          {saving && (
+            <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg text-center">
+              <div className="text-sm font-medium text-blue-800">
+                💾 Saving...
+              </div>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Defect Location Marker Modal */}
+      {showLocationMarker && pendingDefect && template && template.sections[section].images && (
+        <DefectLocationMarker
+          images={template.sections[section].images!}
+          existingLocation={undefined}
+          dotNumber={nextDotNumber}
+          itemName={pendingDefect.itemDisplayName}
+          defectType={pendingDefect.defectType}
+          onLocationSet={handleLocationSet}
+          onCancel={handleLocationCancel}
+        />
+      )}
     </div>
   );
 };
