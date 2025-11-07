@@ -11,7 +11,7 @@ import {
   orderBy,
   Timestamp,
   deleteDoc
-} from 'firebase/firestore';
+} from './costTracking/firestoreWrapper';
 import { db } from './firebase';
 import { InventoryCountEntry } from '../types';
 

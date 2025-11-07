@@ -31,6 +31,10 @@ export function ExpectedItemTab(_props: ExpectedItemTabProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isReconciling, setIsReconciling] = useState(false);
 
+  // Track when both data sources have loaded to prevent false divergence flash
+  const [batchAllocationsLoaded, setBatchAllocationsLoaded] = useState(false);
+  const [expectedInventoryLoaded, setExpectedInventoryLoaded] = useState(false);
+
   // Batch actions modal state
   const [showBatchActionsModal, setShowBatchActionsModal] = useState(false);
 
@@ -48,15 +52,14 @@ export function ExpectedItemTab(_props: ExpectedItemTabProps) {
 
       allocations.forEach(allocation => {
         Object.keys(allocation.allocations).forEach(batchId => {
-          if (batchId !== 'DEFAULT') {
-            batches.add(batchId);
-          }
+          batches.add(batchId);
         });
         locations.add(allocation.location);
       });
 
       setAvailableBatches(Array.from(batches).sort());
       setAvailableLocations(Array.from(locations).sort());
+      setBatchAllocationsLoaded(true);
       setIsLoading(false);
     });
 
@@ -69,6 +72,7 @@ export function ExpectedItemTab(_props: ExpectedItemTabProps) {
     // Set up real-time listener for expected_inventory
     const unsubscribe = tableStateService.onExpectedInventoryChange((inventory) => {
       setExpectedInventory(inventory);
+      setExpectedInventoryLoaded(true);
     });
 
     // Cleanup listener on unmount
@@ -134,7 +138,13 @@ export function ExpectedItemTab(_props: ExpectedItemTabProps) {
   }, [filteredData]);
 
   // Calculate divergences between Layer 1 (expected_inventory) and Layer 2 (batch_allocations)
+  // Only calculate after BOTH data sources have loaded to prevent false flash
   const divergences = useMemo<DivergenceInfo[]>(() => {
+    // Don't calculate divergences until both data sources are loaded
+    if (!batchAllocationsLoaded || !expectedInventoryLoaded) {
+      return [];
+    }
+
     const divergenceMap = new Map<string, DivergenceInfo>();
 
     // Build Layer 1 map (expected_inventory)
@@ -178,7 +188,7 @@ export function ExpectedItemTab(_props: ExpectedItemTabProps) {
     });
 
     return Array.from(divergenceMap.values()).filter(d => d.divergence !== 0);
-  }, [batchAllocations, expectedInventory]);
+  }, [batchAllocations, expectedInventory, batchAllocationsLoaded, expectedInventoryLoaded]);
 
   // Calculate divergence summary
   const divergenceSummary = useMemo(() => {
@@ -449,8 +459,8 @@ export function ExpectedItemTab(_props: ExpectedItemTabProps) {
         </div>
       )}
 
-      {/* Success - All Synced (compact badge) */}
-      {divergences.length === 0 && batchAllocations.length > 0 && expectedInventory.length > 0 && (
+      {/* Success - All Synced (compact badge) - only show after both sources loaded */}
+      {divergences.length === 0 && batchAllocationsLoaded && expectedInventoryLoaded && batchAllocations.length > 0 && expectedInventory.length > 0 && (
         <div className="bg-green-50 border border-green-300 rounded-lg p-2.5 inline-flex items-center gap-2">
           <span className="text-sm">✅</span>
           <span className="text-sm font-medium text-green-900">All Layers Synced</span>
@@ -483,11 +493,13 @@ export function ExpectedItemTab(_props: ExpectedItemTabProps) {
       {/* Batch Actions Modal */}
       {showBatchActionsModal && (
         <DeleteBatchModal
-          batch={null}
+          batch={null} // Always show batch selector to allow choosing which batch to manage
           boxCount={0}
           mode="inventory-only"
           onConfirm={() => {
             setShowBatchActionsModal(false);
+            // Reload data after batch action completes
+            window.location.reload();
           }}
           onCancel={() => setShowBatchActionsModal(false)}
         />

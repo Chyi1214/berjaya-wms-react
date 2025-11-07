@@ -6,12 +6,13 @@ import type { InspectionTemplate } from '../../../types/inspection';
 import { createModuleLogger } from '../../../services/logger';
 import VisualTemplateEditor from './VisualTemplateEditor';
 import TranslationManagement from './TranslationManagement';
+import GatesConfiguration from './GatesConfiguration';
 
 const logger = createModuleLogger('ChecklistConfiguration');
 
 const LANGUAGES: LanguageCode[] = ['en', 'ms', 'zh', 'my', 'bn'];
 
-type ConfigTab = 'visual' | 'translation' | 'csv';
+type ConfigTab = 'visual' | 'translation' | 'gates' | 'csv';
 
 export default function ChecklistConfiguration() {
   const [activeTab, setActiveTab] = useState<ConfigTab>('visual');
@@ -156,6 +157,16 @@ export default function ChecklistConfiguration() {
           🌐 Translations
         </button>
         <button
+          onClick={() => setActiveTab('gates')}
+          className={`px-6 py-3 font-medium transition-colors ${
+            activeTab === 'gates'
+              ? 'border-b-2 border-blue-600 text-blue-600'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          🚪 Gates
+        </button>
+        <button
           onClick={() => setActiveTab('csv')}
           className={`px-6 py-3 font-medium transition-colors ${
             activeTab === 'csv'
@@ -172,6 +183,8 @@ export default function ChecklistConfiguration() {
         <VisualTemplateEditor />
       ) : activeTab === 'translation' ? (
         <TranslationManagement />
+      ) : activeTab === 'gates' ? (
+        <GatesConfiguration />
       ) : (
         <div>
 

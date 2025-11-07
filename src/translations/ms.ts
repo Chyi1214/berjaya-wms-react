@@ -162,7 +162,22 @@ const malayTranslations: Translation = {
     enterBarcodeOrQRPlaceholder: 'Masukkan kandungan barcode atau kod QR...',
     processEntry: 'Proses Kemasukan',
     smartSearch: 'Carian Pintar',
-    searchItemsNotAvailable: 'Cari item apabila pengimbasan tidak tersedia'
+    searchItemsNotAvailable: 'Cari item apabila pengimbasan tidak tersedia',
+    // New scanner translations
+    actionRequired: 'Tindakan Diperlukan!',
+    scanNotComplete: 'Imbasan berjaya, tetapi TIDAK lengkap. Sila masukkan kuantiti dan klik "Tambah ke Batch" di bawah.',
+    sku: 'SKU:',
+    name: 'Nama:',
+    category: 'Kategori:',
+    zoneInformation: 'Maklumat Zon:',
+    noZoneInfo: 'Tiada maklumat zon tersedia',
+    addToInventory: 'Tambah ke Inventori',
+    enterQuantityToAdd: 'Masukkan Kuantiti untuk Ditambah:',
+    targetBatch: 'Batch Sasaran:',
+    addToBatch: 'Tambah ke Batch',
+    adding: 'Menambah...',
+    newScan: 'Imbasan Baharu',
+    startScanning: 'Mula Mengimbas'
   },
 
   // Production
@@ -324,7 +339,21 @@ const malayTranslations: Translation = {
     pleaseEnterOTP: 'Sila masukkan OTP',
     pleaseProvideReason: 'Sila berikan sebab penolakan',
     failedToConfirm: 'Gagal mengesahkan transaksi',
-    failedToReject: 'Gagal menolak transaksi. Sila cuba lagi.'
+    failedToReject: 'Gagal menolak transaksi. Sila cuba lagi.',
+
+    // Transaction types (missing keys)
+    count: 'Kira',
+    adjustment: 'Pelarasan',
+    transferIn: 'Pemindahan Masuk',
+    transferOut: 'Pemindahan Keluar',
+    initialStock: 'Stok Awal',
+
+    // Additional actions
+    filterTransactions: 'Tapis Transaksi',
+    createTransaction: 'Cipta Transaksi',
+    viewDetails: 'Lihat Butiran',
+    approve: 'Luluskan',
+    cancel: 'Batal'
   },
 
   // Translation Chat System
@@ -439,6 +468,12 @@ const malayTranslations: Translation = {
     takePhoto: 'Ambil Gambar',
     removePhoto: 'Buang Gambar',
 
+    // Additional defects feature
+    markExtraIssues: 'Tandai Isu Tambahan',
+    tapDefectLocation: 'Tekan tempat anda lihat kecacatan',
+    selectRelatedItem: 'Item mana kecacatan ini berkaitan?',
+    additionalDefectsAdded: '{count} kecacatan tambahan ditambah',
+
     // Defect types (common defaults - can be customized via CSV)
     defects: {
       notInstalled: 'Tidak dipasang dengan betul',
@@ -480,6 +515,108 @@ const malayTranslations: Translation = {
   footer: {
     copyright: '© 2025 Berjaya Autotech - Sistem Pengurusan Gudang',
     version: 'v{version} - {feature}'
+  },
+
+  // Laporan Buangan/Hilang/Kecacatan
+  wasteLostDefectReport: {
+    title: 'Laporkan Item',
+    itemStatus: 'Status Item',
+    waste: 'Buangan',
+    lost: 'Hilang',
+    defect: 'Kecacatan',
+    unplanned_usage: 'Penggunaan Tidak Dirancang',
+    searchForItem: 'Cari Item',
+    searchPlaceholder: 'Taip SKU atau nama item...',
+    quantity: 'Kuantiti',
+    currentStock: 'Stok Semasa',
+    quantityExceedsStock: 'Kuantiti melebihi stok yang ada!',
+    basicReason: 'Sebab Asas',
+    reasonPlaceholder: 'Keterangan ringkas...',
+
+    // Bukti Foto
+    photoEvidence: 'Bukti Foto',
+    photoEvidenceRequired: 'Diperlukan sebelum menghantar',
+    photoInstructions: 'Muat naik foto sekali sahaja - ia akan dilampirkan pada semua item dalam penyerahan kumpulan ini.',
+    labelPhoto: 'Foto Label',
+    damagePhoto: 'Foto Kerosakan',
+    takePhotoOrUpload: 'Ambil foto atau muat naik gambar',
+    labelPhotoHelp: 'label item/nombor bahagian',
+    damagePhotoHelp: 'kerosakan/kecacatan sebenar',
+    imageCompressed: 'Imej dimampatkan dan sedia',
+    compressingImage: 'Memampatkan imej...',
+
+    // Pemilihan Kumpulan
+    selectBatch: 'Pilih Kumpulan',
+    selectBatchPrompt: '-- Pilih kumpulan --',
+    batchDefault: 'DEFAULT',
+    unitsAvailable: 'unit tersedia',
+    validBatch: 'Sah - Kumpulan ada',
+    units: 'unit',
+    quantityExceedsBatch: 'Kuantiti melebihi peruntukan kumpulan!',
+
+    // Butiran Kecacatan
+    claimReportDetails: 'Butiran Laporan Tuntutan',
+    totalLotQuantity: 'Jumlah Kuantiti Lot',
+    totalReceived: 'Jumlah diterima',
+    shift: 'Syif',
+    shiftPlaceholder: 'cth., Pagi, Syif-A',
+    reasonForRejection: 'Sebab Penolakan',
+    rejectionReasons: {
+      defect: 'Kecacatan (calar, kemek, retak, dll.)',
+      wrongDimension: 'Dimensi salah / di luar spesifikasi',
+      missingComponent: 'Komponen hilang',
+      contamination: 'Pencemaran (minyak, kotoran, karat, dll.)'
+    },
+    others: 'Lain-lain',
+    specifyOtherReason: 'Nyatakan sebab lain...',
+    detectedBy: 'Dikesan Oleh',
+    detectedByPlaceholder: 'Nama / Jabatan',
+    actionTaken: 'Tindakan Diambil',
+    selectAction: 'Pilih tindakan...',
+    actions: {
+      rework: 'Kerja Semula',
+      scrap: 'Buang',
+      returnToSupplier: 'Pulangkan kepada pembekal',
+      holdForInspection: 'Tahan untuk pemeriksaan lanjut'
+    },
+
+    // Butang
+    addWasteItem: 'Tambah Item Buangan',
+    addLostItem: 'Tambah Item Hilang',
+    addDefectItem: 'Tambah Item Kecacatan',
+    reportItems: 'Laporkan {count} Item',
+    cancel: 'Batal',
+    backTo: 'Kembali ke {location}',
+
+    // Senarai Item
+    itemsToReport: 'Item untuk Dilaporkan',
+
+    // Mesej Pengesahan
+    pleaseAddItem: 'Sila tambah sekurang-kurangnya satu item',
+    missingFields: 'Sila isi medan yang diperlukan berikut:',
+    itemSelection: 'Pemilihan item',
+    validQuantity: 'Kuantiti yang sah (mesti lebih besar daripada 0)',
+    reason: 'Sebab',
+    labelPhotoRequired: 'Foto Label (diperlukan)',
+    damagePhotoRequired: 'Foto Kerosakan (diperlukan)',
+    bothPhotosRequired: 'Kedua-dua Foto Label dan Foto Kerosakan diperlukan sebelum menghantar.',
+    batchSelection: 'Pemilihan kumpulan',
+    atLeastOneRejectionReason: 'Sekurang-kurangnya satu sebab penolakan (kotak semak atau sebab tersuai)',
+    insufficientStock: 'Stok tidak mencukupi untuk {sku} - {itemName}. Tersedia: {available} unit, Cuba melaporkan: {quantity} unit. Sila laraskan kuantiti atau sahkan tahap stok.',
+    insufficientBatchStock: 'Stok tidak mencukupi dalam {batch}. Tersedia: {available}, Cuba melaporkan: {quantity}',
+
+    // Mesej Kejayaan
+    successfullyReported: 'Berjaya dilaporkan dari {location}:',
+    wasteItems: '{count} buangan',
+    lostItems: '{count} hilang',
+    defectItems: '{count} item kecacatan',
+
+    // Mesej Ralat
+    failedToSubmit: 'Gagal menghantar',
+    failedToUploadImages: 'Gagal memuat naik gambar. Sila cuba lagi.',
+    invalidImage: 'Imej tidak sah',
+    fileMustBeImage: 'Fail mestilah imej',
+    imageTooLarge: 'Imej mestilah lebih kecil daripada 20 MB'
   }
 };
 

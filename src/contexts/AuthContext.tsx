@@ -2,6 +2,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { authService } from '../services/firebase';
 import { userManagementService } from '../services/userManagement';
+import { getDisplayName } from '../utils/displayName';
 import type { User, AuthState, UserRecord, AuthenticatedUser } from '../types';
 
 // Enhanced Auth Context with User Management
@@ -14,6 +15,7 @@ const AuthContext = createContext<AuthState & {
   isDevAdmin: boolean;
   hasPermission: (permission: string) => boolean;
   refreshUserRecord: () => Promise<void>;
+  getUserDisplayName: () => string; // Get display name for transactions
 } | undefined>(undefined);
 
 // Auth Provider Props
@@ -101,8 +103,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // Refresh user record from database
   const refreshUserRecord = async (): Promise<void> => {
     if (user) {
+      console.log('🔄 Refreshing user record for:', user.email);
       const record = await loadUserRecord(user);
+      console.log('📥 Loaded user record:', {
+        displayName: record?.displayName,
+        useDisplayName: record?.useDisplayName
+      });
       setUserRecord(record);
+      console.log('✅ User record state updated');
     }
   };
 
@@ -233,6 +241,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, [user]);
 
+  // Get user's display name for transactions
+  const getUserDisplayName = (): string => {
+    if (!user) return 'Unknown User';
+    return getDisplayName(user, userRecord);
+  };
+
   // Context value
   const value = {
     user,
@@ -245,7 +259,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     userRecord,
     isDevAdmin,
     hasPermission,
-    refreshUserRecord
+    refreshUserRecord,
+    getUserDisplayName
   };
 
   return (

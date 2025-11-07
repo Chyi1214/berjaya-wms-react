@@ -12,6 +12,7 @@ import {
   Auth
 } from 'firebase/auth';
 import { getFirestore, Firestore } from 'firebase/firestore';
+import { getStorage, FirebaseStorage } from 'firebase/storage';
 import type { User, FirebaseError } from '../types';
 import { createModuleLogger } from './logger';
 
@@ -47,12 +48,14 @@ const validateFirebaseConfig = () => {
 let app: FirebaseApp;
 let auth: Auth;
 let db: Firestore;
+let storage: FirebaseStorage;
 
 try {
   validateFirebaseConfig();
   app = initializeApp(firebaseConfig);
   auth = getAuth(app);
   db = getFirestore(app);
+  storage = getStorage(app);
   logger.info('Firebase initialized successfully');
 } catch (error) {
   logger.error('Firebase initialization failed', error);
@@ -154,5 +157,5 @@ export const authService = {
 };
 
 // Export Firebase instances for other services
-export { auth, db };
+export { auth, db, storage };
 export default app;

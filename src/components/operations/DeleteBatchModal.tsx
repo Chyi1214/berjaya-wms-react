@@ -54,37 +54,79 @@ export function DeleteBatchModal({ batch: batchProp, boxCount: boxCountProp, onC
 
   // Load selected batch info when batch ID changes (in selector mode)
   useEffect(() => {
-    if (selectedBatchId && batchProp === null) {
-      loadBatchInfo(selectedBatchId);
+    if (selectedBatchId && batchProp === null && availableBatches.length > 0) {
+      // Use the batch from availableBatches directly (it already has all the info we created)
+      const batch = availableBatches.find(b => b.batchId === selectedBatchId);
+      if (batch) {
+        console.log('✅ Setting selected batch:', batch.batchId);
+        setSelectedBatch(batch);
+      } else {
+        console.warn('⚠️ Batch not found in availableBatches:', selectedBatchId);
+      }
     }
-  }, [selectedBatchId]);
+  }, [selectedBatchId, availableBatches, batchProp]);
 
   const loadAvailableBatches = async () => {
     setIsLoadingBatches(true);
     try {
+      // Get batches from batch metadata
       const batches = await batchManagementService.getAllBatches();
-      const filtered = batches.filter(b => b.batchId !== 'DEFAULT');
-      setAvailableBatches(filtered);
-      if (filtered.length > 0) {
-        setSelectedBatchId(filtered[0].batchId);
+
+      // ALSO get all batches that exist in batch allocations
+      const allocations = await batchAllocationService.getAllBatchAllocations();
+      const batchesFromAllocations = new Set<string>();
+
+      allocations.forEach(allocation => {
+        if (allocation.allocations) {
+          Object.keys(allocation.allocations).forEach(batchId => {
+            if (allocation.allocations[batchId] > 0) {
+              batchesFromAllocations.add(batchId);
+            }
+          });
+        }
+      });
+
+      // Create batch objects for batches that exist only in allocations
+      const allBatches = [...batches];
+      const existingBatchIds = new Set(batches.map(b => b.batchId));
+
+      batchesFromAllocations.forEach(batchId => {
+        if (!existingBatchIds.has(batchId)) {
+          // Create a minimal batch object for inventory-only batches
+          allBatches.push({
+            batchId,
+            name: batchId,
+            items: [],
+            carVins: [],
+            carType: 'Not set',
+            totalCars: 0,
+            status: 'planning' as const,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          });
+        }
+      });
+
+      // Sort by batchId
+      allBatches.sort((a, b) => a.batchId.localeCompare(b.batchId));
+
+      console.log(`📦 Found ${allBatches.length} total batches (${batches.length} with metadata, ${batchesFromAllocations.size} with allocations)`);
+
+      setAvailableBatches(allBatches);
+      if (allBatches.length > 0) {
+        setSelectedBatchId(allBatches[0].batchId);
+      } else {
+        console.warn('⚠️ No batches found in either metadata or allocations');
       }
     } catch (error) {
-      console.error('Failed to load batches:', error);
+      console.error('❌ Failed to load batches:', error);
       setAvailableBatches([]);
     } finally {
       setIsLoadingBatches(false);
     }
   };
 
-  const loadBatchInfo = async (batchId: string) => {
-    try {
-      const batch = await batchManagementService.getBatchById(batchId);
-      setSelectedBatch(batch);
-    } catch (error) {
-      console.error('Failed to load batch info:', error);
-      setSelectedBatch(null);
-    }
-  };
+  // Removed loadBatchInfo - we now use batches from availableBatches directly
 
   const loadBoxCount = async (batchId: string) => {
     try {
@@ -100,12 +142,19 @@ export function DeleteBatchModal({ batch: batchProp, boxCount: boxCountProp, onC
   const loadBatchStock = async (batchId: string) => {
     setIsLoadingStock(true);
     try {
+      // Get batch allocations
       const allocations = await batchAllocationService.getAllBatchAllocations();
+
+      // ALSO get actual inventory counts to compare
+      const { collection, getDocs, getFirestore } = await import('firebase/firestore');
+      const db = getFirestore();
+      const inventorySnapshot = await getDocs(collection(db, 'inventory_counts'));
 
       let totalStock = 0;
       const locationMap = new Map<string, number>();
       const skusSet = new Set<string>();
 
+      // Method 1: Count from batch allocations
       allocations.forEach(allocation => {
         if (allocation.allocations && allocation.allocations[batchId]) {
           const qty = allocation.allocations[batchId];
@@ -118,9 +167,42 @@ export function DeleteBatchModal({ batch: batchProp, boxCount: boxCountProp, onC
         }
       });
 
+      // Method 2: Also check actual inventory_counts for this batch
+      // Some inventory might be in inventory_counts but not in batch allocations
+      inventorySnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        // Check if this inventory entry is for our batch
+        if (data.batchId === batchId && data.amount > 0) {
+          const sku = data.sku;
+          const location = data.location;
+          const amount = data.amount;
+
+          // Add to totals (checking if not already counted from batch allocations)
+          const existingQty = locationMap.get(location) || 0;
+
+          // Only add if this location wasn't already fully counted from batch allocations
+          // This prevents double-counting
+          const allocationQty = allocations.find(a => a.sku === sku && a.location === location)?.allocations?.[batchId] || 0;
+
+          if (amount > allocationQty) {
+            // There's more actual inventory than allocation shows
+            const difference = amount - allocationQty;
+            totalStock += difference;
+            locationMap.set(location, existingQty + difference);
+            skusSet.add(sku);
+          }
+        }
+      });
+
       const locationBreakdown = Array.from(locationMap.entries())
         .map(([location, quantity]) => ({ location, quantity }))
         .sort((a, b) => b.quantity - a.quantity);
+
+      console.log(`📊 Batch ${batchId} inventory summary:`, {
+        totalStock,
+        skuCount: skusSet.size,
+        locationBreakdown
+      });
 
       setStockSummary({
         totalStock,
@@ -152,9 +234,14 @@ export function DeleteBatchModal({ batch: batchProp, boxCount: boxCountProp, onC
 
         // Optionally delete batch metadata if requested and allowed
         if (deleteMetadataToo && canDeleteMetadata()) {
-          console.log(`🗑️ Also deleting batch metadata for ${selectedBatch.batchId}...`);
-          await batchManagementService.deleteBatch(selectedBatch.batchId);
-          message += `\n\n🗑️ Batch metadata also deleted`;
+          try {
+            console.log(`🗑️ Also deleting batch metadata for ${selectedBatch.batchId}...`);
+            await batchManagementService.deleteBatch(selectedBatch.batchId);
+            message += `\n\n🗑️ Batch metadata also deleted`;
+          } catch (metadataError) {
+            console.warn(`⚠️ Batch metadata not found (batch only exists in allocations):`, metadataError);
+            message += `\n\n⚠️ Note: This batch had no metadata to delete (inventory-only batch)`;
+          }
         }
 
         alert(message);

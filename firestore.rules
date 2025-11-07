@@ -128,11 +128,11 @@ service cloud.firestore {
     match /cars/{vin} {
       allow read: if isActiveUser();  // All authenticated users can read car data
       allow create: if isActiveUser() && (
-        hasRole('production') || hasRole('logistics') || 
+        hasRole('production') || hasRole('logistics') ||
         hasRole('supervisor') || hasRole('manager')
       );
       allow update: if isActiveUser() && (
-        hasRole('production') || hasRole('logistics') || 
+        hasRole('production') || hasRole('logistics') || hasRole('qa') ||
         hasRole('supervisor') || hasRole('manager')
       );
       allow delete: if isDevAdmin() || hasRole('manager');
@@ -417,6 +417,30 @@ service cloud.firestore {
         allow create: if isActiveUser() && hasRole('qa');
         allow delete: if isDevAdmin() || hasRole('manager');
       }
+    }
+
+    // QA Gates - Quality gate configuration (Version 7.29.0)
+    match /qa_gates/{gateId} {
+      allow read: if isActiveUser();  // All authenticated users can read gates
+      allow write: if isDevAdmin() || hasRole('manager');  // Only managers can create/modify gates
+    }
+
+    // QA Locations - Physical QA bay/zone configurations (Version 7.39.0)
+    match /qaLocations/{locationId} {
+      allow read: if isActiveUser();  // All authenticated users can read locations
+      allow write: if isDevAdmin() || hasRole('manager');  // Only managers can create/modify locations
+    }
+
+    // QA Location Assignments - Car to location assignment history (Version 7.39.0)
+    match /qaLocationAssignments/{assignmentId} {
+      allow read: if isActiveUser();  // All authenticated users can read assignments
+      allow create: if isActiveUser() && (
+        hasRole('qa') || hasRole('supervisor') || hasRole('manager')
+      );
+      allow update: if isActiveUser() && (
+        hasRole('qa') || hasRole('supervisor') || hasRole('manager')
+      );
+      allow delete: if isDevAdmin() || hasRole('manager');
     }
 
     // ========================================

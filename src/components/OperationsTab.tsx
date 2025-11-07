@@ -4,8 +4,10 @@ import { useAuth } from '../contexts/AuthContext';
 import { OperationsTabs } from './operations/OperationsTabs';
 import { VinMonitorPanel } from './operations/VinMonitorPanel';
 import { EnhancedBatchManagement } from './operations/EnhancedBatchManagement';
-import { BatchSetupPage } from './operations/BatchSetupPage';
+import { LogisticsSetupPage } from './operations/LogisticsSetupPage';
+import { ProductionSetupPage } from './operations/ProductionSetupPage';
 import { GhostCarCleanupCard } from './operations/GhostCarCleanupCard';
+import { CostTrackingDashboard } from './operations/CostTrackingDashboard';
 
 interface OperationsTabProps {
   onRefresh?: () => void;
@@ -13,7 +15,7 @@ interface OperationsTabProps {
 
 export function OperationsTab({ onRefresh }: OperationsTabProps) {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'batches' | 'vins' | 'setup' | 'system'>('batches');
+  const [activeTab, setActiveTab] = useState<'batches' | 'vins' | 'logistics_setup' | 'production_setup' | 'system' | 'cost_tracking'>('batches');
 
   return (
     <div className="space-y-6">
@@ -37,14 +39,22 @@ export function OperationsTab({ onRefresh }: OperationsTabProps) {
         <VinMonitorPanel />
       )}
 
-      {activeTab === 'setup' && (
-        <BatchSetupPage user={user} />
+      {activeTab === 'logistics_setup' && (
+        <LogisticsSetupPage user={user} />
+      )}
+
+      {activeTab === 'production_setup' && (
+        <ProductionSetupPage user={user} />
       )}
 
       {activeTab === 'system' && (
         <div className="space-y-6">
           <GhostCarCleanupCard user={user} onRefresh={onRefresh} />
         </div>
+      )}
+
+      {activeTab === 'cost_tracking' && (
+        <CostTrackingDashboard />
       )}
     </div>
   );

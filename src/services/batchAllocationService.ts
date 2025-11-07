@@ -11,7 +11,7 @@ import {
   Timestamp,
   updateDoc,
   onSnapshot
-} from 'firebase/firestore';
+} from './costTracking/firestoreWrapper';
 import { db } from './firebase';
 import { BatchAllocation, BatchConfig, BatchProgress } from '../types/inventory';
 import { createModuleLogger } from './logger';
@@ -225,6 +225,33 @@ class BatchAllocationService {
     });
 
     return unsubscribe;
+  }
+
+  /**
+   * Get inventory quantities for a specific batch across all SKUs
+   * Returns a map of SKU -> quantity allocated to that batch
+   */
+  async getBatchInventoryByBatch(batchId: string, location: string = 'logistics'): Promise<Record<string, number>> {
+    try {
+      const allAllocations = await this.getAllBatchAllocations();
+      const batchInventory: Record<string, number> = {};
+
+      allAllocations.forEach(allocation => {
+        // Only include allocations for the specified location
+        if (allocation.location === location) {
+          const qtyForBatch = allocation.allocations[batchId] || 0;
+          if (qtyForBatch > 0) {
+            batchInventory[allocation.sku] = qtyForBatch;
+          }
+        }
+      });
+
+      logger.debug('Retrieved batch inventory:', { batchId, location, skuCount: Object.keys(batchInventory).length });
+      return batchInventory;
+    } catch (error) {
+      logger.error('Error getting batch inventory:', error);
+      throw new Error('Failed to get batch inventory');
+    }
   }
 
   async addToBatchAllocation(

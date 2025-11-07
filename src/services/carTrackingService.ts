@@ -10,9 +10,9 @@ import {
   orderBy,
   where,
   Timestamp,
-  addDoc,
-  runTransaction
-} from 'firebase/firestore';
+  addDoc
+} from './costTracking/firestoreWrapper';
+import { runTransaction } from 'firebase/firestore';
 import { db } from './firebase';
 import { prepareForFirestore } from '../utils/firestore';
 import { Car, CarStatus, ZoneEntry, CarMovement } from '../types';

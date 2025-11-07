@@ -1,15 +1,15 @@
 // Work Station Service - Version 4.0 Zone Status Management
-import { 
-  collection, 
-  doc, 
-  getDoc, 
-  setDoc, 
-  updateDoc, 
-  getDocs, 
-  query, 
+import {
+  collection,
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  getDocs,
+  query,
   where,
   Timestamp
-} from 'firebase/firestore';
+} from './costTracking/firestoreWrapper';
 import { db } from './firebase';
 import { prepareForFirestore } from '../utils/firestore';
 import { WorkStation } from '../types';

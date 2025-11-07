@@ -1,15 +1,15 @@
 // Worker Activity Service - Version 4.0 Clock In/Out Management
-import { 
-  collection, 
-  doc, 
-  updateDoc, 
-  getDocs, 
-  query, 
-  orderBy, 
+import {
+  collection,
+  doc,
+  updateDoc,
+  getDocs,
+  query,
+  orderBy,
   where,
   Timestamp,
   addDoc
-} from 'firebase/firestore';
+} from './costTracking/firestoreWrapper';
 import { db } from './firebase';
 import { prepareForFirestore } from '../utils/firestore';
 import { WorkerActivity } from '../types';

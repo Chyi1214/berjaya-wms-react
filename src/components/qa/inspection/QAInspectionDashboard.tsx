@@ -1,7 +1,9 @@
 // QA Inspection Dashboard - Main entry point for car inspection
 import React, { useState, useEffect } from 'react';
 import { inspectionService } from '../../../services/inspectionService';
+import { gateService } from '../../../services/gateService';
 import type { InspectionSection } from '../../../types/inspection';
+import type { QAGate } from '../../../types/gate';
 import { createModuleLogger } from '../../../services/logger';
 import { BarcodeScanner } from '../../common/BarcodeScanner';
 import { useLanguage } from '../../../contexts/LanguageContext';
@@ -10,17 +12,17 @@ const logger = createModuleLogger('QAInspectionDashboard');
 
 interface QAInspectionDashboardProps {
   userEmail: string;
-  userName: string;
   onStartInspection: (inspectionId: string, vin: string, section: InspectionSection) => void;
 }
 
 const QAInspectionDashboard: React.FC<QAInspectionDashboardProps> = ({
   userEmail,
-  userName: _userName, // Prefix with _ to indicate intentionally unused
   onStartInspection,
 }) => {
   const { t } = useLanguage();
   const [selectedSection, setSelectedSection] = useState<InspectionSection | null>(null);
+  const [selectedGate, setSelectedGate] = useState<QAGate | null>(null);
+  const [gates, setGates] = useState<QAGate[]>([]);
   const [vinInput, setVinInput] = useState('');
   const [scanning, setScanning] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
@@ -35,8 +37,17 @@ const QAInspectionDashboard: React.FC<QAInspectionDashboardProps> = ({
     try {
       setLoading(true);
       setError(null);
-      // No data needs to be preloaded - just mark as ready
-      logger.info('Dashboard ready');
+
+      // Load active gates
+      const activeGates = await gateService.getActiveGates();
+      setGates(activeGates);
+
+      // Auto-select if only one gate exists
+      if (activeGates.length === 1) {
+        setSelectedGate(activeGates[0]);
+      }
+
+      logger.info('Dashboard ready', { gatesCount: activeGates.length });
     } catch (err) {
       logger.error('Failed to initialize:', err);
       setError('Failed to initialize. Please try again.');
@@ -47,6 +58,11 @@ const QAInspectionDashboard: React.FC<QAInspectionDashboardProps> = ({
 
   const handleSectionSelect = (section: InspectionSection) => {
     setSelectedSection(section);
+    setError(null);
+  };
+
+  const handleGateSelect = (gate: QAGate) => {
+    setSelectedGate(gate);
     setError(null);
   };
 
@@ -108,25 +124,42 @@ const QAInspectionDashboard: React.FC<QAInspectionDashboardProps> = ({
       return;
     }
 
+    if (!selectedGate) {
+      setError('Please select a gate first');
+      return;
+    }
+
     try {
       setScanning(true);
       setError(null);
 
       const vinUpper = vinToScan.toUpperCase();
-      logger.info('Scanning VIN:', { vin: vinUpper, section: selectedSection, user: userEmail });
+      logger.info('Scanning VIN:', {
+        vin: vinUpper,
+        section: selectedSection,
+        gate: selectedGate.gateName,
+        user: userEmail,
+      });
 
       // Ensure template exists (auto-create if needed)
       const { loadDefaultTemplate } = await import('../../../services/inspectionTemplateLoader');
       await loadDefaultTemplate();
 
-      // Check if inspection already exists
-      let inspection = await inspectionService.getInspectionByVIN(vinUpper);
+      // Check if inspection already exists for this VIN+Gate combination
+      // Each gate has independent inspections for the same car
+      let inspection = await inspectionService.getInspectionByVINAndGate(vinUpper, selectedGate.gateId);
 
       if (!inspection) {
-        // Create new inspection
+        // Create new inspection with gate info
         const inspectionId = await inspectionService.createInspection(
           vinUpper,
-          'vehicle_inspection_v1'
+          'vehicle_inspection_v1',
+          undefined, // batchId - will be added later
+          {
+            gateId: selectedGate.gateId,
+            gateIndex: selectedGate.gateIndex,
+            gateName: selectedGate.gateName,
+          }
         );
         inspection = await inspectionService.getInspectionById(inspectionId);
       }
@@ -195,50 +228,95 @@ const QAInspectionDashboard: React.FC<QAInspectionDashboardProps> = ({
         </p>
       </div>
 
-      {/* Step 1: Select Position */}
+      {/* Step 1: Select Gate */}
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">
-          {t('qa.step')} 1: {t('qa.selectYourPosition')}
+          {t('qa.step')} 1: Select QA Gate
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {sections.map((section) => (
-            <button
-              key={section}
-              onClick={() => handleSectionSelect(section)}
-              className={`p-4 rounded-lg border-2 transition-all ${
-                selectedSection === section
-                  ? 'border-blue-500 bg-blue-50 text-blue-900'
-                  : 'border-gray-300 bg-white hover:border-blue-300 hover:bg-blue-50'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <div className="text-3xl">{getSectionIcon(section)}</div>
-                <div className="text-left">
-                  <div className="font-semibold">{getSectionName(section)}</div>
-                  <div className="text-sm text-gray-600">
-                    {section === 'right_outside' || section === 'left_outside'
-                      ? `28 ${t('qa.points')}`
-                      : section === 'front_back'
-                      ? `28 ${t('qa.points')}`
-                      : `~27 ${t('qa.points')}`}
+        {gates.length === 0 ? (
+          <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-800">
+            ⚠️ No gates configured. Please ask your manager to configure gates first.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {gates.map((gate) => (
+              <button
+                key={gate.gateId}
+                onClick={() => handleGateSelect(gate)}
+                className={`p-4 rounded-lg border-2 transition-all ${
+                  selectedGate?.gateId === gate.gateId
+                    ? 'border-purple-500 bg-purple-50 text-purple-900'
+                    : 'border-gray-300 bg-white hover:border-purple-300 hover:bg-purple-50'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="text-3xl">🚪</div>
+                  <div className="text-left flex-1">
+                    <div className="font-semibold">{gate.gateName}</div>
+                    <div className="text-xs text-gray-500">Gate {gate.gateIndex}</div>
+                    {gate.description && (
+                      <div className="text-xs text-gray-600 mt-1">{gate.description}</div>
+                    )}
                   </div>
+                  {selectedGate?.gateId === gate.gateId && (
+                    <div className="text-purple-600 text-xl">✓</div>
+                  )}
                 </div>
-                {selectedSection === section && (
-                  <div className="ml-auto text-blue-600 text-xl">✓</div>
-                )}
-              </div>
-            </button>
-          ))}
-        </div>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Step 2: Scan VIN */}
-      {selectedSection && (
+      {/* Step 2: Select Position */}
+      {selectedGate && (
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
-            {t('qa.step')} 2: {t('qa.scanVINNumber')}
+            {t('qa.step')} 2: {t('qa.selectYourPosition')}
           </h2>
-          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {sections.map((section) => (
+              <button
+                key={section}
+                onClick={() => handleSectionSelect(section)}
+                className={`p-4 rounded-lg border-2 transition-all ${
+                  selectedSection === section
+                    ? 'border-blue-500 bg-blue-50 text-blue-900'
+                    : 'border-gray-300 bg-white hover:border-blue-300 hover:bg-blue-50'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="text-3xl">{getSectionIcon(section)}</div>
+                  <div className="text-left">
+                    <div className="font-semibold">{getSectionName(section)}</div>
+                    <div className="text-sm text-gray-600">
+                      {section === 'right_outside' || section === 'left_outside'
+                        ? `28 ${t('qa.points')}`
+                        : section === 'front_back'
+                        ? `28 ${t('qa.points')}`
+                        : `~27 ${t('qa.points')}`}
+                    </div>
+                  </div>
+                  {selectedSection === section && (
+                    <div className="ml-auto text-blue-600 text-xl">✓</div>
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Step 3: Scan VIN */}
+      {selectedSection && selectedGate && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">
+            {t('qa.step')} 3: {t('qa.scanVINNumber')}
+          </h2>
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg space-y-1">
+            <div className="text-sm text-blue-800">
+              <strong>Gate:</strong> 🚪 {selectedGate.gateName} (Gate {selectedGate.gateIndex})
+            </div>
             <div className="text-sm text-blue-800">
               <strong>{t('qa.position')}:</strong> {getSectionName(selectedSection)} {getSectionIcon(selectedSection)}
             </div>

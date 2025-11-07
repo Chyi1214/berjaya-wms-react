@@ -1,24 +1,23 @@
 // Transaction Service - Firebase operations for transactions
-import { 
-  collection, 
-  addDoc, 
-  updateDoc, 
-  doc, 
-  onSnapshot, 
-  query, 
+// Using cost-tracking wrappers to monitor Firebase costs
+import {
+  collection,
+  addDoc,
+  updateDoc,
+  doc,
+  onSnapshot,
+  query,
   orderBy,
-  getFirestore,
   Timestamp,
   deleteDoc,
   getDocs
-} from 'firebase/firestore';
+} from './costTracking/firestoreWrapper';
+import { db } from './firebase';
 import { Transaction, TransactionStatus } from '../types';
 import { createModuleLogger } from './logger';
 import { applyRectificationEffects } from './transferEffects';
 
 const logger = createModuleLogger('TransactionService');
-
-const db = getFirestore();
 const TRANSACTIONS_COLLECTION = 'transactions';
 const OTPS_COLLECTION = 'transaction_otps';
 

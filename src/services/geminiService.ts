@@ -1,5 +1,6 @@
 // Gemini AI Service - Phase 2: Real AI responses using Google Gemini API
 import { createModuleLogger } from './logger';
+import { trackGeminiCall } from './costTracking/geminiWrapper';
 
 const logger = createModuleLogger('GeminiService');
 
@@ -133,7 +134,10 @@ Just listen and chat naturally about work problems. Don't be too structured or c
 
       const aiResponse = data.candidates[0].content.parts[0].text;
       logger.info('Generated Gemini response successfully', { responseLength: aiResponse.length });
-      
+
+      // Track API call for cost monitoring
+      trackGeminiCall('GeminiService', 'generateResponse', userMessage, aiResponse);
+
       return aiResponse;
 
     } catch (error) {
@@ -204,7 +208,11 @@ Summary:`;
 
       const summary = data.candidates[0].content.parts[0].text.trim();
       logger.info('Generated AI summary successfully', { summaryLength: summary.length });
-      
+
+      // Track API call for cost monitoring
+      const inputText = messages.map(m => m.content).join(' ');
+      trackGeminiCall('GeminiService', 'generateSummary', inputText, summary);
+
       return summary;
 
     } catch (error) {

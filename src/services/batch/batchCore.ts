@@ -1,5 +1,5 @@
 // Batch Core Service - Basic CRUD Operations
-import { collection, getDocs, query, where, doc, setDoc, orderBy, deleteDoc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, query, where, doc, setDoc, orderBy, deleteDoc, getDoc } from '../costTracking/firestoreWrapper';
 import { db } from '../firebase';
 import { CarType, Batch, ZoneBOMMapping } from '../../types/inventory';
 import { createModuleLogger } from '../logger';
@@ -56,6 +56,18 @@ export class BatchCoreService {
       }
     } catch (error) {
       logger.error('Failed to ensure TK1 car type:', error);
+      throw error;
+    }
+  }
+
+  // Delete car type
+  async deleteCarType(carCode: string): Promise<void> {
+    try {
+      logger.info('Deleting car type:', carCode);
+      await deleteDoc(doc(db, 'carTypes', carCode));
+      logger.info('Car type deleted successfully:', carCode);
+    } catch (error) {
+      logger.error('Failed to delete car type:', error);
       throw error;
     }
   }

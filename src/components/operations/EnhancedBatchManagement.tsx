@@ -4,6 +4,7 @@ import { Batch } from '../../types/inventory';
 import { ColumnPreview, ColumnMapping, packingBoxesService, SkippedRowDetail } from '../../services/packingBoxesService';
 import { PackingListColumnMapper } from './PackingListColumnMapper';
 import { DeleteBatchModal } from './DeleteBatchModal';
+import * as XLSX from 'xlsx';
 
 interface EnhancedBatchManagementProps {
   user: { email: string } | null;
@@ -40,6 +41,12 @@ export const EnhancedBatchManagement = memo(function EnhancedBatchManagement({
   const [showColumnMapper, setShowColumnMapper] = useState(false);
   const [columnPreviews, setColumnPreviews] = useState<ColumnPreview[]>([]);
   const [pendingCsvText, setPendingCsvText] = useState<string>('');
+
+  // XLSX sheet selector state
+  const [showSheetSelector, setShowSheetSelector] = useState(false);
+  const [xlsxSheetNames, setXlsxSheetNames] = useState<string[]>([]);
+  const [selectedSheet, setSelectedSheet] = useState<string>('');
+  const [pendingWorkbook, setPendingWorkbook] = useState<XLSX.WorkBook | null>(null);
 
   // Delete modal state
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -270,19 +277,69 @@ export const EnhancedBatchManagement = memo(function EnhancedBatchManagement({
     }
   };
 
-  // Handle CSV file upload with smart column mapping
+  // Handle CSV/XLSX file upload with smart column mapping
   const handleCSVUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !user?.email) return;
 
     try {
-      const text = await file.text();
+      const isXlsx = file.name.endsWith('.xlsx') || file.name.endsWith('.xls');
 
+      // If XLSX file, parse it and show sheet selector
+      if (isXlsx) {
+        const arrayBuffer = await file.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+
+        // Get all sheet names
+        const sheetNames = workbook.SheetNames;
+
+        if (sheetNames.length === 0) {
+          alert('❌ No sheets found in Excel file.');
+          event.target.value = '';
+          return;
+        }
+
+        // If only one sheet, use it directly
+        if (sheetNames.length === 1) {
+          const worksheet = workbook.Sheets[sheetNames[0]];
+          const csvText = XLSX.utils.sheet_to_csv(worksheet);
+          await processCSVText(csvText, event);
+        } else {
+          // Multiple sheets - show selector
+          setPendingWorkbook(workbook);
+          setXlsxSheetNames(sheetNames);
+          setSelectedSheet(sheetNames[0]); // Default to first sheet
+          setShowSheetSelector(true);
+        }
+        event.target.value = '';
+        return;
+      }
+
+      // Handle regular CSV file
+      const text = await file.text();
+      await processCSVText(text, event);
+
+    } catch (error) {
+      console.error('File upload failed:', error);
+      setUploadResult({
+        success: 0,
+        errors: [error instanceof Error ? error.message : 'Upload failed'],
+        stats: { totalRows: 0, skippedRows: 0 }
+      });
+      setIsUploading(false);
+    } finally {
+      event.target.value = '';
+    }
+  };
+
+  // Process CSV text (common logic for both CSV and XLSX)
+  const processCSVText = async (text: string, event?: React.ChangeEvent<HTMLInputElement>) => {
+    try {
       if (uploadType === 'vinPlans') {
         // VIN upload path remains unchanged (standardized format)
         setIsUploading(true);
         setUploadResult(null);
-        const result = await batchManagementService.uploadVinPlansFromCSV(text, user.email);
+        const result = await batchManagementService.uploadVinPlansFromCSV(text, user!.email);
         setUploadResult(result);
 
         if (result.success > 0) {
@@ -301,7 +358,7 @@ export const EnhancedBatchManagement = memo(function EnhancedBatchManagement({
         // NEW: Packing list flow with column mapper
         if (!selectedBatch) {
           alert('Please select a batch first');
-          event.target.value = '';
+          if (event) event.target.value = '';
           return;
         }
 
@@ -309,7 +366,7 @@ export const EnhancedBatchManagement = memo(function EnhancedBatchManagement({
           `This will replace all boxes for batch ${selectedBatch.batchId}. Continue?`
         );
         if (!confirmReplace) {
-          event.target.value = '';
+          if (event) event.target.value = '';
           return;
         }
 
@@ -317,8 +374,8 @@ export const EnhancedBatchManagement = memo(function EnhancedBatchManagement({
         const previews = packingBoxesService.generateColumnPreview(text);
 
         if (previews.length === 0) {
-          alert('❌ Could not parse CSV file. Please check the file format.');
-          event.target.value = '';
+          alert('❌ Could not parse file. Please check the file format.');
+          if (event) event.target.value = '';
           return;
         }
 
@@ -328,15 +385,33 @@ export const EnhancedBatchManagement = memo(function EnhancedBatchManagement({
         setShowColumnMapper(true);
       }
     } catch (error) {
-      console.error('CSV upload failed:', error);
+      console.error('Processing failed:', error);
       setUploadResult({
         success: 0,
-        errors: [error instanceof Error ? error.message : 'Upload failed'],
+        errors: [error instanceof Error ? error.message : 'Processing failed'],
         stats: { totalRows: 0, skippedRows: 0 }
       });
       setIsUploading(false);
-    } finally {
-      event.target.value = '';
+    }
+  };
+
+  // Handle sheet selection confirmation
+  const handleSheetSelect = async () => {
+    if (!pendingWorkbook || !selectedSheet) return;
+
+    try {
+      const worksheet = pendingWorkbook.Sheets[selectedSheet];
+      const csvText = XLSX.utils.sheet_to_csv(worksheet);
+
+      // Close sheet selector
+      setShowSheetSelector(false);
+      setPendingWorkbook(null);
+
+      // Process the selected sheet
+      await processCSVText(csvText);
+    } catch (error) {
+      console.error('Sheet processing failed:', error);
+      alert('❌ Failed to process selected sheet.');
     }
   };
 
@@ -933,7 +1008,7 @@ Material consumption will be tracked automatically as cars complete.`);
             <div>
               <input
                 type="file"
-                accept=".csv"
+                accept=".csv,.xlsx,.xls"
                 onChange={(e) => {
                   setUploadType('packingList');
                   handleCSVUpload(e);
@@ -959,7 +1034,7 @@ Material consumption will be tracked automatically as cars complete.`);
                     Uploading Packing List...
                   </>
                 ) : (
-                  '📤 Upload Packing List CSV'
+                  '📤 Upload Packing List (CSV/Excel)'
                 )}
               </label>
             </div>
@@ -1135,6 +1210,71 @@ Material consumption will be tracked automatically as cars complete.`);
           onConfirm={handleConfirmDelete}
           onCancel={() => setShowDeleteModal(false)}
         />
+      )}
+
+      {/* Excel Sheet Selector Modal */}
+      {showSheetSelector && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            {/* Header */}
+            <div className="flex items-center gap-3 mb-4">
+              <span className="text-3xl">📊</span>
+              <h3 className="text-xl font-bold text-gray-900">Select Excel Sheet</h3>
+            </div>
+
+            {/* Description */}
+            <p className="text-sm text-gray-600 mb-4">
+              This Excel file contains multiple sheets. Please select which sheet contains the packing list data:
+            </p>
+
+            {/* Sheet List */}
+            <div className="mb-6 max-h-64 overflow-y-auto border border-gray-200 rounded-lg">
+              {xlsxSheetNames.map((sheetName, idx) => (
+                <label
+                  key={idx}
+                  className={`flex items-center gap-3 p-3 cursor-pointer hover:bg-gray-50 transition-colors ${
+                    idx !== xlsxSheetNames.length - 1 ? 'border-b border-gray-200' : ''
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="sheet-select"
+                    value={sheetName}
+                    checked={selectedSheet === sheetName}
+                    onChange={(e) => setSelectedSheet(e.target.value)}
+                    className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="flex-1 text-sm font-medium text-gray-900">{sheetName}</span>
+                  {idx === 0 && (
+                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">First</span>
+                  )}
+                </label>
+              ))}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowSheetSelector(false);
+                  setPendingWorkbook(null);
+                  setXlsxSheetNames([]);
+                  setSelectedSheet('');
+                }}
+                className="flex-1 bg-gray-500 hover:bg-gray-600 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSheetSelect}
+                disabled={!selectedSheet}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors"
+              >
+                Continue
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

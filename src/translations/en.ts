@@ -125,7 +125,7 @@ const englishTranslations: Translation = {
     cameraScanner: 'Camera Scanner',
     startScanner: 'Start Scanner',
     stopScanner: 'Stop Scanner',
-    scanning: 'Scanning...', 
+    scanning: 'Scanning...',
     cameraWillAppearHere: 'Camera will appear here',
     cameraNotAvailable: 'Camera not available on this device',
     cameraPermissionDenied: 'Camera permission denied. Please enable camera access and try again.',
@@ -162,7 +162,22 @@ const englishTranslations: Translation = {
     enterBarcodeOrQRPlaceholder: 'Enter barcode or QR code content...',
     processEntry: 'Process Entry',
     smartSearch: 'Smart Search',
-    searchItemsNotAvailable: 'Search items when scanning is not available'
+    searchItemsNotAvailable: 'Search items when scanning is not available',
+    // New scanner translations
+    actionRequired: 'Action Required!',
+    scanNotComplete: 'Scan successful, but NOT complete. Please enter quantity and click "Add to Batch" below.',
+    sku: 'SKU:',
+    name: 'Name:',
+    category: 'Category:',
+    zoneInformation: 'Zone Information:',
+    noZoneInfo: 'No zone information available',
+    addToInventory: 'Add to Inventory',
+    enterQuantityToAdd: 'Enter Quantity to Add:',
+    targetBatch: 'Target Batch:',
+    addToBatch: 'Add to Batch',
+    adding: 'Adding...',
+    newScan: 'New Scan',
+    startScanning: 'Start Scanning'
   },
 
   // Production
@@ -267,6 +282,12 @@ const englishTranslations: Translation = {
     uploadPhoto: 'Upload Photo',
     takePhoto: 'Take Photo',
     removePhoto: 'Remove Photo',
+
+    // Additional defects feature
+    markExtraIssues: 'Mark Extra Issues',
+    tapDefectLocation: 'Tap where you see the defect',
+    selectRelatedItem: 'Which item does this defect relate to?',
+    additionalDefectsAdded: '{count} extra defects added',
 
     // Defect types (common defaults - can be customized via CSV)
     defects: {
@@ -435,7 +456,21 @@ const englishTranslations: Translation = {
     pleaseEnterOTP: 'Please enter the OTP',
     pleaseProvideReason: 'Please provide a reason for rejection',
     failedToConfirm: 'Failed to confirm transaction',
-    failedToReject: 'Failed to reject transaction. Please try again.'
+    failedToReject: 'Failed to reject transaction. Please try again.',
+
+    // Transaction types (missing keys)
+    count: 'Count',
+    adjustment: 'Adjustment',
+    transferIn: 'Transfer In',
+    transferOut: 'Transfer Out',
+    initialStock: 'Initial Stock',
+
+    // Additional actions
+    filterTransactions: 'Filter Transactions',
+    createTransaction: 'Create Transaction',
+    viewDetails: 'View Details',
+    approve: 'Approve',
+    cancel: 'Cancel'
   },
   footer: {
     copyright: '© 2025 Berjaya Autotech - Warehouse Management System',
@@ -607,6 +642,108 @@ const englishTranslations: Translation = {
     userJoined: '{user} joined the channel',
     userLeft: '{user} left the channel',
     channelDescription: 'Up to 2 users can chat with automatic translation between different languages'
+  },
+
+  // Waste/Lost/Defect Reporting
+  wasteLostDefectReport: {
+    title: 'Report Items',
+    itemStatus: 'Item Status',
+    waste: 'Waste',
+    lost: 'Lost',
+    defect: 'Defect',
+    unplanned_usage: 'Unplanned Usage',
+    searchForItem: 'Search for Item',
+    searchPlaceholder: 'Type item SKU or name...',
+    quantity: 'Quantity',
+    currentStock: 'Current Stock',
+    quantityExceedsStock: 'Quantity exceeds available stock!',
+    basicReason: 'Basic Reason',
+    reasonPlaceholder: 'Brief description...',
+
+    // Photo Evidence
+    photoEvidence: 'Photo Evidence',
+    photoEvidenceRequired: 'Required before submitting',
+    photoInstructions: 'Upload photos once - they will be attached to all items in this batch submission.',
+    labelPhoto: 'Label Photo',
+    damagePhoto: 'Damage Photo',
+    takePhotoOrUpload: 'Take a photo or upload an image',
+    labelPhotoHelp: 'of the item label/part number',
+    damagePhotoHelp: 'of the actual damage/defect',
+    imageCompressed: 'Image compressed and ready',
+    compressingImage: 'Compressing image...',
+
+    // Batch Selection
+    selectBatch: 'Select Batch',
+    selectBatchPrompt: '-- Select a batch --',
+    batchDefault: 'DEFAULT',
+    unitsAvailable: 'units available',
+    validBatch: 'Valid - Batch has',
+    units: 'units',
+    quantityExceedsBatch: 'Quantity exceeds batch allocation!',
+
+    // Defect Details
+    claimReportDetails: 'Claim Report Details',
+    totalLotQuantity: 'Total Lot Quantity',
+    totalReceived: 'Total received',
+    shift: 'Shift',
+    shiftPlaceholder: 'e.g., Morning, A-Shift',
+    reasonForRejection: 'Reason for Rejection',
+    rejectionReasons: {
+      defect: 'Defect (scratch, dent, crack, etc.)',
+      wrongDimension: 'Wrong dimension / out of spec',
+      missingComponent: 'Missing component',
+      contamination: 'Contamination (oil, dirt, rust, etc.)'
+    },
+    others: 'Others',
+    specifyOtherReason: 'Specify other reason...',
+    detectedBy: 'Detected By',
+    detectedByPlaceholder: 'Name / Department',
+    actionTaken: 'Action Taken',
+    selectAction: 'Select action...',
+    actions: {
+      rework: 'Rework',
+      scrap: 'Scrap',
+      returnToSupplier: 'Return to supplier',
+      holdForInspection: 'Hold for further inspection'
+    },
+
+    // Buttons
+    addWasteItem: 'Add Waste Item',
+    addLostItem: 'Add Lost Item',
+    addDefectItem: 'Add Defect Item',
+    reportItems: 'Report {count} Items',
+    cancel: 'Cancel',
+    backTo: 'Back to {location}',
+
+    // Items List
+    itemsToReport: 'Items to Report',
+
+    // Validation Messages
+    pleaseAddItem: 'Please add at least one item',
+    missingFields: 'Please fill the following required fields:',
+    itemSelection: 'Item selection',
+    validQuantity: 'Valid quantity (must be greater than 0)',
+    reason: 'Reason',
+    labelPhotoRequired: 'Label Photo (required)',
+    damagePhotoRequired: 'Damage Photo (required)',
+    bothPhotosRequired: 'Both Label Photo and Damage Photo are required before submitting.',
+    batchSelection: 'Batch selection',
+    atLeastOneRejectionReason: 'At least one rejection reason (checkboxes or custom reason)',
+    insufficientStock: 'Insufficient stock for {sku} - {itemName}. Available: {available} units, Trying to report: {quantity} units. Please adjust the quantity or verify the stock level.',
+    insufficientBatchStock: 'Insufficient stock in {batch}. Available: {available}, Trying to report: {quantity}',
+
+    // Success Messages
+    successfullyReported: 'Successfully reported from {location}:',
+    wasteItems: '{count} waste',
+    lostItems: '{count} lost',
+    defectItems: '{count} defect items',
+
+    // Error Messages
+    failedToSubmit: 'Failed to submit',
+    failedToUploadImages: 'Failed to upload images. Please try again.',
+    invalidImage: 'Invalid image',
+    fileMustBeImage: 'File must be an image',
+    imageTooLarge: 'Image must be smaller than 20 MB'
   }
 };
 

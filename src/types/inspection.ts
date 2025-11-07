@@ -39,6 +39,16 @@ export interface DefectLocation {
   dotNumber: number;  // Sequential number for matching to defect in report (1, 2, 3...)
 }
 
+// Additional defect that can be added beyond the main checklist result
+export interface AdditionalDefect {
+  defectType: string;         // Stored as English key for consistency
+  defectLocation?: DefectLocation;  // Optional location marker
+  notes?: string;
+  checkedBy: string;
+  checkedAt: Date;
+  status?: string;            // Track defect resolution status
+}
+
 // Section image for defect location marking
 export interface SectionImage {
   imageId: string;
@@ -58,6 +68,7 @@ export interface InspectionItemResult {
   checkedBy?: string;
   status?: string;  // Track defect resolution status (e.g., "Pending", "Fixed", "Acknowledged")
   defectLocation?: DefectLocation;  // Location marked on section image (required for defects, not for "Ok")
+  additionalDefects?: AdditionalDefect[];  // Additional defects found at same item (max 20)
 }
 
 // Section configuration in template
@@ -111,6 +122,9 @@ export interface CarInspection {
   vin: string;
   carType?: string;
   batchId?: string;
+  gateId?: string;        // Quality gate ID
+  gateIndex?: number;     // Gate index for sorting/filtering
+  gateName?: string;      // Gate name for display
   templateId: string;
   status: InspectionStatus;
   startedAt: Date | null;

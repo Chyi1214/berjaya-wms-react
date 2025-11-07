@@ -8,11 +8,10 @@ import {
   where,
   setDoc,
   deleteDoc,
-  runTransaction,
   Timestamp,
-  orderBy,
-  limit,
-} from 'firebase/firestore';
+  orderBy
+} from './costTracking/firestoreWrapper';
+import { runTransaction, limit } from 'firebase/firestore';
 import { db } from './firebase';
 import { createModuleLogger } from './logger';
 

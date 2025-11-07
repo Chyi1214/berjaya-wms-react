@@ -1,5 +1,5 @@
 // User Management Service - v3.2.0 Scanner Integration
-import { collection, doc, getDoc, setDoc, updateDoc, deleteDoc, getDocs, query, orderBy } from 'firebase/firestore';
+import { collection, doc, getDoc, setDoc, updateDoc, deleteDoc, getDocs, query, orderBy } from './costTracking/firestoreWrapper';
 import { db } from './firebase';
 import { UserRecord, UserRole, UserPermissions, PermissionTemplate } from '../types';
 
@@ -17,19 +17,9 @@ class UserManagementService {
   // Get user record from database
   async getUserRecord(email: string): Promise<UserRecord | null> {
     try {
-      // DevAdmin always exists (virtual record)
-      if (this.isDevAdmin(email)) {
-        return {
-          email: email,
-          role: UserRole.DEV_ADMIN,
-          permissions: this.getDevAdminPermissions(),
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          isActive: true
-        };
-      }
-
+      // Check Firestore first (all users including DevAdmin)
       const userDoc = await getDoc(doc(this.usersCollection, email));
+
       if (userDoc.exists()) {
         const data = userDoc.data() as UserRecord;
         return {
@@ -41,6 +31,19 @@ class UserManagementService {
           lastLogin: data.lastLogin ? (data.lastLogin instanceof Date ? data.lastLogin : new Date(data.lastLogin)) : undefined
         };
       }
+
+      // DevAdmin fallback (if no document in Firestore yet)
+      if (this.isDevAdmin(email)) {
+        return {
+          email: email,
+          role: UserRole.DEV_ADMIN,
+          permissions: this.getDevAdminPermissions(),
+          createdAt: new Date('2025-08-19'),
+          updatedAt: new Date(),
+          isActive: true
+        };
+      }
+
       return null;
     } catch (error) {
       console.error('Failed to get user record:', error);
@@ -119,27 +122,109 @@ class UserManagementService {
     }
   }
 
+  // Clean up duplicate user entries (keep most recent)
+  async cleanupDuplicates(): Promise<{ removed: number; errors: string[] }> {
+    try {
+      console.log('🧹 Starting duplicate cleanup...');
+
+      const querySnapshot = await getDocs(this.usersCollection);
+      const usersByEmail = new Map<string, { id: string; data: UserRecord; updatedAt: Date }[]>();
+
+      // Group documents by email
+      querySnapshot.forEach((doc) => {
+        const data = doc.data() as UserRecord;
+        const email = doc.id;
+        const updatedAt = data.updatedAt instanceof Date ? data.updatedAt : new Date(data.updatedAt || 0);
+
+        if (!usersByEmail.has(email)) {
+          usersByEmail.set(email, []);
+        }
+        usersByEmail.get(email)!.push({ id: doc.id, data, updatedAt });
+      });
+
+      // Find and remove duplicates
+      let removed = 0;
+      const errors: string[] = [];
+
+      for (const [email, docs] of usersByEmail.entries()) {
+        if (docs.length > 1) {
+          console.log(`🔍 Found ${docs.length} duplicates for ${email}`);
+
+          // Sort by updatedAt (most recent first)
+          docs.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+
+          // Keep the first (most recent), delete the rest
+          const toKeep = docs[0];
+          const toDelete = docs.slice(1);
+
+          console.log(`✅ Keeping document updated at ${toKeep.updatedAt.toISOString()}`);
+
+          for (const duplicate of toDelete) {
+            try {
+              console.log(`🗑️ Deleting duplicate updated at ${duplicate.updatedAt.toISOString()}`);
+              await deleteDoc(doc(this.usersCollection, duplicate.id));
+              removed++;
+            } catch (error) {
+              const errorMsg = `Failed to delete duplicate for ${email}: ${error instanceof Error ? error.message : 'Unknown error'}`;
+              errors.push(errorMsg);
+              console.error('❌', errorMsg);
+            }
+          }
+        }
+      }
+
+      console.log(`✅ Cleanup complete: ${removed} duplicate(s) removed`);
+      return { removed, errors };
+    } catch (error) {
+      console.error('❌ Failed to cleanup duplicates:', error);
+      throw error;
+    }
+  }
+
   // Get all users
   async getAllUsers(): Promise<UserRecord[]> {
     try {
       const querySnapshot = await getDocs(
         query(this.usersCollection, orderBy('createdAt', 'desc'))
       );
-      
-      const users: UserRecord[] = [];
-      
-      // Add DevAdmin as first user
-      users.push({
-        email: DEV_ADMIN_EMAIL,
-        role: UserRole.DEV_ADMIN,
-        permissions: this.getDevAdminPermissions(),
-        createdAt: new Date('2025-08-19'),
-        updatedAt: new Date(),
-        isActive: true
-      });
 
-      // Add database users
+      const users: UserRecord[] = [];
+
+      // Check if DevAdmin document exists in Firestore
+      const devAdminDoc = await getDoc(doc(this.usersCollection, DEV_ADMIN_EMAIL));
+
+      if (devAdminDoc.exists()) {
+        // Use DevAdmin document from Firestore (has display name if set)
+        const data = devAdminDoc.data() as UserRecord;
+        users.push({
+          email: DEV_ADMIN_EMAIL,
+          role: UserRole.DEV_ADMIN,
+          permissions: this.getDevAdminPermissions(),
+          createdAt: data.createdAt instanceof Date ? data.createdAt : new Date(data.createdAt || '2025-08-19'),
+          updatedAt: data.updatedAt instanceof Date ? data.updatedAt : new Date(data.updatedAt),
+          isActive: true,
+          displayName: data.displayName,
+          useDisplayName: data.useDisplayName,
+          lastLogin: data.lastLogin ? (data.lastLogin instanceof Date ? data.lastLogin : new Date(data.lastLogin)) : undefined
+        });
+      } else {
+        // Fallback to hardcoded DevAdmin (no document in Firestore yet)
+        users.push({
+          email: DEV_ADMIN_EMAIL,
+          role: UserRole.DEV_ADMIN,
+          permissions: this.getDevAdminPermissions(),
+          createdAt: new Date('2025-08-19'),
+          updatedAt: new Date(),
+          isActive: true
+        });
+      }
+
+      // Add all other users (skip DevAdmin to avoid duplicates)
       querySnapshot.forEach((doc) => {
+        if (doc.id === DEV_ADMIN_EMAIL) {
+          return; // Skip DevAdmin, already added above
+        }
+
         const data = doc.data() as UserRecord;
         users.push({
           ...data,
@@ -184,7 +269,7 @@ class UserManagementService {
           itemMaster: { view: true, add: true, edit: true, delete: false },
           bom: { view: true, create: true, edit: true, delete: false },
           csv: { export: true, import: true },
-          scanner: { use: false, admin: true, bulkScan: false },
+          scanner: { use: true, admin: true, bulkScan: true },
           qa: { view: true, performChecks: false, manageChecklists: true, viewReports: true },
           system: { userManagement: true, settings: false, auditLogs: true }
         };
@@ -361,14 +446,90 @@ class UserManagementService {
     }
   }
 
+  // Refresh user permissions to match their role template
+  async refreshUserPermissions(email: string): Promise<void> {
+    try {
+      if (this.isDevAdmin(email)) {
+        throw new Error('DevAdmin permissions cannot be refreshed');
+      }
+
+      // Get current user record
+      const userDoc = await getDoc(doc(this.usersCollection, email));
+      if (!userDoc.exists()) {
+        throw new Error('User not found');
+      }
+
+      const userData = userDoc.data() as UserRecord;
+
+      // Get fresh permissions for their role
+      const freshPermissions = this.getPermissionTemplate(userData.role);
+
+      // Update with fresh permissions
+      await updateDoc(doc(this.usersCollection, email), {
+        permissions: freshPermissions,
+        updatedAt: new Date()
+      });
+
+      console.log(`✅ Refreshed permissions for ${email} (${userData.role})`);
+    } catch (error) {
+      console.error('Failed to refresh user permissions:', error);
+      throw error;
+    }
+  }
+
+  // Bulk refresh permissions for multiple users or all users
+  async bulkRefreshPermissions(options?: { role?: UserRole }): Promise<{ success: number; failed: number; errors: string[] }> {
+    try {
+      console.log('🔄 Starting bulk permission refresh...');
+
+      const allUsers = await this.getAllUsers();
+
+      // Filter users based on options
+      let usersToRefresh = allUsers.filter(user => user.role !== UserRole.DEV_ADMIN);
+
+      if (options?.role) {
+        usersToRefresh = usersToRefresh.filter(user => user.role === options.role);
+      }
+
+      console.log(`📋 Found ${usersToRefresh.length} users to refresh`);
+
+      let success = 0;
+      let failed = 0;
+      const errors: string[] = [];
+
+      // Refresh each user
+      for (const user of usersToRefresh) {
+        try {
+          await this.refreshUserPermissions(user.email);
+          success++;
+        } catch (error) {
+          failed++;
+          const errorMsg = `${user.email}: ${error instanceof Error ? error.message : 'Unknown error'}`;
+          errors.push(errorMsg);
+          console.error(`❌ Failed to refresh ${user.email}:`, error);
+        }
+      }
+
+      console.log(`✅ Bulk refresh complete: ${success} succeeded, ${failed} failed`);
+
+      return { success, failed, errors };
+    } catch (error) {
+      console.error('Failed to bulk refresh permissions:', error);
+      throw error;
+    }
+  }
+
   // v5.6 Personal Settings - Display Name Support
   async updateUserDisplayName(
-    email: string, 
+    email: string,
     displaySettings: { displayName: string; useDisplayName: boolean }
   ): Promise<void> {
     try {
+      console.log('🔧 updateUserDisplayName called:', { email, displaySettings });
+
       // DevAdmin special handling (create virtual record)
       if (this.isDevAdmin(email)) {
+        console.log('👑 DevAdmin detected, using setDoc');
         const devAdminRef = doc(this.usersCollection, email);
         await setDoc(devAdminRef, {
           email: email,
@@ -380,24 +541,34 @@ class UserManagementService {
           displayName: displaySettings.displayName,
           useDisplayName: displaySettings.useDisplayName
         });
+        console.log('✅ DevAdmin record updated');
         return;
       }
 
       // Regular user update
+      console.log('👤 Regular user, using updateDoc');
       const userRef = doc(this.usersCollection, email);
       const userDoc = await getDoc(userRef);
 
       if (!userDoc.exists()) {
+        console.error('❌ User record not found:', email);
         throw new Error('User record not found. Contact administrator to create your account.');
       }
+
+      console.log('📝 Updating user document:', {
+        displayName: displaySettings.displayName,
+        useDisplayName: displaySettings.useDisplayName
+      });
 
       await updateDoc(userRef, {
         displayName: displaySettings.displayName,
         useDisplayName: displaySettings.useDisplayName,
         updatedAt: new Date()
       });
+
+      console.log('✅ User document updated successfully');
     } catch (error) {
-      console.error('Failed to update user display name:', error);
+      console.error('❌ Failed to update user display name:', error);
       throw error;
     }
   }

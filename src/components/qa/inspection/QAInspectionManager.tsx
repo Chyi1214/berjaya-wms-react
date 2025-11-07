@@ -2,7 +2,9 @@
 import React, { useState, useEffect } from 'react';
 import { inspectionService } from '../../../services/inspectionService';
 import { inspectionReportService } from '../../../services/inspectionReportService';
+import { gateService } from '../../../services/gateService';
 import type { CarInspection } from '../../../types/inspection';
+import type { QAGate } from '../../../types/gate';
 import { createModuleLogger } from '../../../services/logger';
 
 const logger = createModuleLogger('QAInspectionManager');
@@ -11,17 +13,20 @@ const QAInspectionManager: React.FC = () => {
   const [inspections, setInspections] = useState<CarInspection[]>([]);
   const [filteredInspections, setFilteredInspections] = useState<CarInspection[]>([]);
   const [selectedInspection, setSelectedInspection] = useState<CarInspection | null>(null);
+  const [gates, setGates] = useState<QAGate[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterGate, setFilterGate] = useState<string>('all');
   const [searchVIN, setSearchVIN] = useState('');
 
   useEffect(() => {
     loadInspections();
+    loadGates();
   }, []);
 
   useEffect(() => {
     applyFilters();
-  }, [inspections, filterStatus, searchVIN]);
+  }, [inspections, filterStatus, filterGate, searchVIN]);
 
   const loadInspections = async () => {
     try {
@@ -35,12 +40,26 @@ const QAInspectionManager: React.FC = () => {
     }
   };
 
+  const loadGates = async () => {
+    try {
+      const allGates = await gateService.getAllGates();
+      setGates(allGates);
+    } catch (err) {
+      logger.error('Failed to load gates:', err);
+    }
+  };
+
   const applyFilters = () => {
     let filtered = [...inspections];
 
     // Filter by status
     if (filterStatus !== 'all') {
       filtered = filtered.filter((i) => i.status === filterStatus);
+    }
+
+    // Filter by gate
+    if (filterGate !== 'all') {
+      filtered = filtered.filter((i) => i.gateId === filterGate);
     }
 
     // Filter by VIN search
@@ -56,11 +75,12 @@ const QAInspectionManager: React.FC = () => {
 
   const exportToCSV = (inspection: CarInspection) => {
     const rows: string[] = [
-      'VIN,Section,Item,Defect Type,Notes,Inspector,Checked At,Status',
+      'VIN,Section,Item,Defect Type,Notes,Inspector,Checked At,Status,IsAdditional',
     ];
 
     Object.entries(inspection.sections).forEach(([sectionId, section]) => {
       Object.entries(section.results).forEach(([itemName, result]) => {
+        // Main defect row
         rows.push(
           [
             inspection.vin,
@@ -72,9 +92,30 @@ const QAInspectionManager: React.FC = () => {
             result.checkedAt
               ? new Date(result.checkedAt).toLocaleString()
               : '',
-            result.status || '',  // Empty by default
+            result.status || '',
+            'No',  // Main defect is not additional
           ].join(',')
         );
+
+        // Additional defects rows (backwards compatibility: treat undefined as empty array)
+        const additionalDefects = result.additionalDefects || [];
+        additionalDefects.forEach((additionalDefect) => {
+          rows.push(
+            [
+              inspection.vin,
+              sectionId,
+              itemName,
+              additionalDefect.defectType,
+              additionalDefect.notes || '',
+              additionalDefect.checkedBy || '',
+              additionalDefect.checkedAt
+                ? new Date(additionalDefect.checkedAt).toLocaleString()
+                : '',
+              additionalDefect.status || '',
+              'Yes',  // Additional defect
+            ].join(',')
+          );
+        });
       });
     });
 
@@ -220,6 +261,18 @@ const QAInspectionManager: React.FC = () => {
             />
           </div>
           <select
+            value={filterGate}
+            onChange={(e) => setFilterGate(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent min-w-[150px]"
+          >
+            <option value="all">All Gates</option>
+            {gates.map((gate) => (
+              <option key={gate.gateId} value={gate.gateId}>
+                {gate.gateName} (Gate {gate.gateIndex})
+              </option>
+            ))}
+          </select>
+          <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -275,6 +328,19 @@ const QAInspectionManager: React.FC = () => {
                         </div>
 
                         <div className="text-sm text-gray-600 space-y-1">
+                          {inspection.gateName && (
+                            <div className="flex items-center gap-2">
+                              <span>🚪 Gate:</span>
+                              <span className="font-medium text-purple-700">
+                                {inspection.gateName}
+                              </span>
+                              {inspection.gateIndex && (
+                                <span className="text-xs text-gray-500">
+                                  (Gate {inspection.gateIndex})
+                                </span>
+                              )}
+                            </div>
+                          )}
                           <div>
                             Sections: {summary.completedSections}/
                             {summary.totalSections} completed
@@ -347,9 +413,17 @@ const QAInspectionManager: React.FC = () => {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {Object.entries(inspection.sections).map(
                           ([sectionId, section]) => {
-                            const defectCount = Object.values(
+                            // Count main defects
+                            let defectCount = Object.values(
                               section.results
                             ).filter((r) => r.defectType !== 'Ok').length;
+
+                            // Add additional defects count
+                            Object.values(section.results).forEach((r) => {
+                              if (r.additionalDefects) {
+                                defectCount += r.additionalDefects.length;
+                              }
+                            });
 
                             return (
                               <div

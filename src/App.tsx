@@ -1,10 +1,11 @@
 // Main App Component
-import { useState, lazy, Suspense } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { LanguageProvider } from './contexts/LanguageContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import Login from './components/Login';
 import RoleSelection from './components/RoleSelection';
+import NameConfirmationModal from './components/NameConfirmationModal';
 import { createModuleLogger } from './services/logger';
 
 const logger = createModuleLogger('App');
@@ -23,11 +24,14 @@ import { applyTransferEffects } from './services/transferEffects';
 
 // Main app content (wrapped inside AuthProvider)
 function AppContent() {
-  const { user, loading, logout } = useAuth();
-  
+  const { user, loading, logout, userRecord, refreshUserRecord, isDevAdmin } = useAuth();
+
   // Navigation state
   const [currentSection, setCurrentSection] = useState<AppSection>(AppSection.LOGIN);
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
+
+  // Name confirmation state
+  const [showNameConfirmation, setShowNameConfirmation] = useState(false);
   
   // Firebase inventory state (real-time sync) - loaded after role selection
   const [inventoryCounts, setInventoryCounts] = useState<InventoryCountEntry[]>([]);
@@ -329,11 +333,26 @@ function AppContent() {
   };
 
   // Update section when authentication state changes
-  if (user && currentSection === AppSection.LOGIN) {
+  useEffect(() => {
+    if (user && currentSection === AppSection.LOGIN) {
+      // DevAdmin skips name confirmation
+      if (!isDevAdmin && !userRecord?.hasConfirmedName) {
+        setShowNameConfirmation(true);
+      } else {
+        setCurrentSection(AppSection.ROLE_SELECTION);
+      }
+    } else if (!user && currentSection !== AppSection.LOGIN) {
+      setCurrentSection(AppSection.LOGIN);
+      setShowNameConfirmation(false);
+    }
+  }, [user, userRecord, currentSection, isDevAdmin]);
+
+  // Handle name confirmation completion
+  const handleNameConfirmed = async () => {
+    setShowNameConfirmation(false);
+    await refreshUserRecord(); // Refresh to get updated hasConfirmedName flag
     setCurrentSection(AppSection.ROLE_SELECTION);
-  } else if (!user && currentSection !== AppSection.LOGIN) {
-    setCurrentSection(AppSection.LOGIN);
-  }
+  };
 
   // Show loading spinner while checking authentication
   if (loading) {
@@ -345,6 +364,11 @@ function AppContent() {
         </div>
       </div>
     );
+  }
+
+  // Show name confirmation modal if needed (one-time prompt)
+  if (showNameConfirmation && user) {
+    return <NameConfirmationModal user={user} onConfirm={handleNameConfirmed} />;
   }
 
   // Render based on current section

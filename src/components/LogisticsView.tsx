@@ -31,6 +31,9 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onTransacti
   const [showElaChat, setShowElaChat] = useState(false);
   const [showPersonalSettings, setShowPersonalSettings] = useState(false);
   const [showTranslationChannels, setShowTranslationChannels] = useState(false);
+
+  // Shared batch state between scanner and logistics monitor
+  const [sharedBatchId, setSharedBatchId] = useState<string>('');
   
   // Handle new count submission (now supports both single items and BOM expansion)
   const handleCountSubmit = async (entries: InventoryCountEntry[]) => {
@@ -229,16 +232,6 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onTransacti
               ) : (
                 <>
                   {/* Transaction Send Form */}
-                  <div className="text-center">
-                    <div className="text-4xl mb-2">📤</div>
-                    <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                      {t('logistics.sendItems')} - {t('roles.logistics')}
-                    </h2>
-                    <p className="text-gray-600">
-                      {t('transactions.sendInventoryToProduction')}
-                    </p>
-                  </div>
-
                   <TransactionSendForm
                     onSubmit={handleTransactionSubmit}
                     onCancel={handleBackToMenu}
@@ -252,7 +245,7 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onTransacti
           {selectedAction === 'scanner' && (
             <UnifiedScannerView
               user={user}
-              onBack={handleBackToMenu}
+              onBatchChange={(batchId) => setSharedBatchId(batchId)}
             />
           )}
 
@@ -272,6 +265,7 @@ export function LogisticsView({ user, onBack, onCountSubmit, counts, onTransacti
               {/* Monitor Dashboard */}
               <UnifiedLogisticsMonitor
                 userEmail={user.email}
+                initialBatchId={sharedBatchId}
               />
             </>
           )}

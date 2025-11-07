@@ -96,6 +96,36 @@ export function SupplierBoxScanManager() {
     }
   };
 
+  const handleDeleteAllScans = async () => {
+    if (!selectedBatch) return;
+
+    const confirmed = window.confirm(
+      `⚠️ WARNING: Delete ALL scans for Batch ${selectedBatch}?\n\n` +
+      `This will permanently delete ${scans.length} scan record(s).\n\n` +
+      'This will remove all scans from the tracking system, but will NOT affect inventory counts or transactions.\n\n' +
+      'This action cannot be undone. Continue?'
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setLoading(true);
+      const deletedCount = await supplierBoxScanService.deleteAllScansForBatch(selectedBatch);
+      logger.info('Deleted all scans for batch:', { batchId: selectedBatch, count: deletedCount });
+
+      alert(`Successfully deleted ${deletedCount} scan record(s) for Batch ${selectedBatch}`);
+
+      // Refresh data
+      await loadScans();
+      await loadDuplicates();
+    } catch (error) {
+      logger.error('Failed to delete all scans:', error);
+      alert('Failed to delete all scans. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const displayScans = showDuplicatesOnly
     ? scans.filter(scan => duplicates.has(scan.supplierBoxQR))
     : scans;
@@ -142,6 +172,17 @@ export function SupplierBoxScanManager() {
                   className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-300 transition-colors"
                 >
                   {loading ? '⏳ Loading...' : '🔄 Refresh'}
+                </button>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={handleDeleteAllScans}
+                  disabled={loading || scans.length === 0}
+                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:bg-gray-300 transition-colors"
+                  title="Delete all scans for this batch"
+                >
+                  🗑️ Delete All ({scans.length})
                 </button>
               </div>
 

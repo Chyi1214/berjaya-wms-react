@@ -1,5 +1,5 @@
 // Scan Lookup Service - Manage barcode to zone lookup data
-import { collection, doc, getDoc, setDoc, updateDoc, deleteDoc, getDocs, query, orderBy, where } from 'firebase/firestore';
+import { collection, doc, getDoc, setDoc, updateDoc, deleteDoc, getDocs, query, orderBy, where, writeBatch } from './costTracking/firestoreWrapper';
 import { db } from './firebase';
 import { prepareForFirestore } from '../utils/firestore';
 import { ScanLookup } from '../types';
@@ -174,29 +174,123 @@ class ScanLookupService {
     }
   }
 
-  // Bulk import from CSV data (car-type-specific) - v7.19.0
+  // Bulk import from CSV data (car-type-specific) - v7.19.0 - Optimized with batch writes
   async bulkImport(lookups: Array<Omit<ScanLookup, 'createdAt' | 'updatedAt' | 'carType'>>, carType: string, userEmail: string): Promise<{ success: number; errors: string[] }> {
     const results = {
       success: 0,
       errors: [] as string[]
     };
 
-    for (const lookup of lookups) {
+    console.log(`📝 Processing ${lookups.length} scanner lookups for ${carType}...`);
+
+    // Firebase batch writes are limited to 500 operations per batch
+    const BATCH_SIZE = 500;
+    const batches: any[][] = [];
+
+    // Split lookups into batches of 500
+    for (let i = 0; i < lookups.length; i += BATCH_SIZE) {
+      batches.push(lookups.slice(i, i + BATCH_SIZE));
+    }
+
+    console.log(`📦 Split into ${batches.length} batch(es) for efficient upload`);
+
+    let processedCount = 0;
+
+    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+      const batch = writeBatch(db);
+      const currentBatch = batches[batchIndex];
+
+      for (const lookup of currentBatch) {
+        try {
+          processedCount++;
+
+          // Log progress every 100 items
+          if (processedCount % 100 === 0 || processedCount === lookups.length) {
+            console.log(`⏳ Processing row ${processedCount}/${lookups.length} (${Math.round(processedCount/lookups.length*100)}%)`);
+          }
+
+          const now = new Date();
+          const lookupData = prepareForFirestore({
+            ...lookup,
+            sku: lookup.sku.toUpperCase(),
+            carType,
+            updatedBy: userEmail,
+            createdAt: now,
+            updatedAt: now
+          });
+
+          // Create unique document ID: {sku}_{carType}_{zone}
+          const docId = `${lookupData.sku}_${carType}_${lookup.targetZone}`;
+          const docRef = doc(this.lookupCollection, docId);
+
+          batch.set(docRef, lookupData);
+          results.success++;
+
+          // Log first few items for verification
+          if (results.success <= 3) {
+            console.log(`💾 Queuing: ${lookup.sku} → Zone ${lookup.targetZone} (${lookup.itemName || 'N/A'})`);
+          }
+        } catch (error) {
+          results.errors.push(`Failed to prepare SKU ${lookup.sku}: ${error}`);
+        }
+      }
+
+      // Commit this batch
       try {
-        await this.saveLookup({
-          ...lookup,
-          sku: lookup.sku.toUpperCase(),
-          carType, // Add car type to all lookups
-          updatedBy: userEmail
-        });
-        results.success++;
+        console.log(`🔄 Committing batch ${batchIndex + 1}/${batches.length} (${currentBatch.length} items)...`);
+        await batch.commit();
+        console.log(`✅ Batch ${batchIndex + 1}/${batches.length} committed successfully`);
       } catch (error) {
-        results.errors.push(`Failed to import SKU ${lookup.sku}: ${error}`);
+        console.error(`❌ Batch ${batchIndex + 1} commit failed:`, error);
+        results.errors.push(`Batch ${batchIndex + 1} commit failed: ${error}`);
       }
     }
 
     console.log(`✅ Bulk import completed for ${carType}: ${results.success} success, ${results.errors.length} errors`);
     return results;
+  }
+
+  // Clear all lookup data for a specific car type - Optimized with batch deletes
+  async clearLookupsForCarType(carType: string): Promise<void> {
+    try {
+      console.log(`🗑️ Clearing all lookups for car type: ${carType}...`);
+      const querySnapshot = await getDocs(
+        query(this.lookupCollection, where('carType', '==', carType))
+      );
+
+      if (querySnapshot.empty) {
+        console.log(`ℹ️ No lookups found for car type ${carType}`);
+        return;
+      }
+
+      // Firebase batch deletes are limited to 500 operations per batch
+      const BATCH_SIZE = 500;
+      const docs = querySnapshot.docs;
+      const batches = [];
+
+      for (let i = 0; i < docs.length; i += BATCH_SIZE) {
+        batches.push(docs.slice(i, i + BATCH_SIZE));
+      }
+
+      console.log(`📦 Deleting ${docs.length} lookups in ${batches.length} batch(es)...`);
+
+      for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+        const batch = writeBatch(db);
+        const currentBatch = batches[batchIndex];
+
+        for (const doc of currentBatch) {
+          batch.delete(doc.ref);
+        }
+
+        await batch.commit();
+        console.log(`✅ Deleted batch ${batchIndex + 1}/${batches.length} (${currentBatch.length} items)`);
+      }
+
+      console.log(`✅ Cleared ${docs.length} scan lookups for car type ${carType}`);
+    } catch (error) {
+      console.error(`Failed to clear lookups for car type ${carType}:`, error);
+      throw error;
+    }
   }
 
   // Clear all lookup data (for testing)

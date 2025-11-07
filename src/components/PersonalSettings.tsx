@@ -17,6 +17,27 @@ export function PersonalSettings({ user, onClose }: PersonalSettingsProps) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // Prevent body scroll when modal is open
+  useEffect(() => {
+    // Save original body overflow
+    const originalOverflow = document.body.style.overflow;
+    const originalPosition = document.body.style.position;
+
+    // Prevent scrolling
+    document.body.style.overflow = 'hidden';
+    document.body.style.position = 'fixed';
+    document.body.style.width = '100%';
+    document.body.style.height = '100%';
+
+    // Cleanup: restore original values
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      document.body.style.position = originalPosition;
+      document.body.style.width = '';
+      document.body.style.height = '';
+    };
+  }, []);
+
   // Load current settings
   useEffect(() => {
     const loadSettings = async () => {
@@ -51,20 +72,30 @@ export function PersonalSettings({ user, onClose }: PersonalSettingsProps) {
 
     setSaving(true);
     try {
+      console.log('💾 Saving display name:', {
+        email: user.email,
+        displayName: displayName.trim(),
+        useDisplayName
+      });
+
       // Update user record with display name preferences
       await userManagementService.updateUserDisplayName(user.email, {
         displayName: displayName.trim(),
         useDisplayName
       });
 
+      console.log('✅ Display name saved to Firestore');
+
       // Refresh the user record in auth context
       await refreshUserRecord();
+
+      console.log('✅ User record refreshed in auth context');
 
       alert('Settings saved successfully!');
       onClose();
     } catch (error) {
-      console.error('Failed to save settings:', error);
-      alert('Failed to save settings. Please try again.');
+      console.error('❌ Failed to save settings:', error);
+      alert(`Failed to save settings: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setSaving(false);
     }
@@ -77,44 +108,56 @@ export function PersonalSettings({ user, onClose }: PersonalSettingsProps) {
 
   if (loading) {
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-        <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md">
-          <div className="text-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Loading settings...</p>
-          </div>
+      <div className="fixed inset-0 z-50 bg-white flex items-center justify-center">
+        <div className="text-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading settings...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <>
-      {/* Backdrop */}
-      <div 
-        className="fixed inset-0 bg-black bg-opacity-50 z-40"
-        onClick={onClose}
-      />
-      
-      {/* Modal */}
-      <div className="fixed inset-0 flex items-center justify-center p-4 z-50">
-        <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-gray-900 flex items-center space-x-2">
-              <span className="text-2xl">⚙️</span>
-              <span>Personal Settings</span>
-            </h2>
-            <button
-              onClick={onClose}
-              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+    <div
+      className="fixed inset-0 z-[9999] bg-white flex flex-col"
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        overflow: 'hidden',
+        touchAction: 'pan-y'
+      }}
+    >
+      {/* Header with Back Button */}
+      <div className="bg-gradient-to-r from-purple-600 to-blue-600 text-white p-6 shadow-lg flex-shrink-0">
+        <div className="flex items-center space-x-4">
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+            aria-label="Back"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <div>
+            <h1 className="text-2xl font-bold">Personal Settings</h1>
+            <p className="text-sm text-white/80">Customize your profile and preferences</p>
           </div>
+        </div>
+      </div>
 
+      {/* Scrollable Content */}
+      <div
+        className="flex-1 overflow-y-auto"
+        style={{
+          overflowY: 'auto',
+          WebkitOverflowScrolling: 'touch'
+        }}
+      >
+        <div className="p-6 max-w-2xl mx-auto">
           {/* Current User Info */}
           <div className="bg-gray-50 rounded-lg p-4 mb-6">
             <div className="flex items-center space-x-3">
@@ -199,7 +242,7 @@ export function PersonalSettings({ user, onClose }: PersonalSettingsProps) {
           </div>
 
           {/* Action Buttons */}
-          <div className="flex space-x-3">
+          <div className="flex space-x-3 pb-6">
             <button
               onClick={handleReset}
               className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
@@ -216,7 +259,7 @@ export function PersonalSettings({ user, onClose }: PersonalSettingsProps) {
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }
 

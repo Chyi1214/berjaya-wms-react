@@ -130,12 +130,16 @@ export interface Transaction {
   transactionType: TransactionType;
   status: TransactionStatus;
   performedBy: string;
+  performedByName?: string; // Display name of user who performed transaction
   approvedBy?: string;
+  approvedByName?: string; // Display name of user who approved transaction
   timestamp: Date;
   concludedAt?: Date; // When this transaction was included in period conclusion
   notes?: string;
   reference?: string; // Purchase order, work order, etc.
   batchId?: string; // Batch tracking for v6.5+ batch allocation system
+  fromBatch?: string; // Source batch for cross-batch transfers (v7.20.0+)
+  toBatch?: string; // Destination batch for cross-batch transfers (v7.20.0+)
   parentTransactionId?: string; // For cancellation/rectification tracking
   isRectification?: boolean; // True if this transaction reverses another
 }
@@ -151,8 +155,10 @@ export interface TransactionFilter {
   dateTo?: Date;
   searchTerm?: string;
   batchId?: string; // Filter by batch
+  fromBatch?: string; // Filter by source batch (v7.20.0+)
+  toBatch?: string; // Filter by destination batch (v7.20.0+)
   includeRectifications?: boolean; // Show/hide rectification transactions
-  showCrossBatchOnly?: boolean; // Show only cross-batch transfer transactions
+  showCrossBatchOnly?: boolean; // Show only cross-batch transfer transactions (v7.20.0+)
 }
 
 // Transaction form data
@@ -169,6 +175,8 @@ export interface TransactionFormData {
   notes?: string;
   reference?: string;
   batchId?: string;
+  fromBatch?: string; // Source batch for cross-batch transfers (v7.20.0+)
+  toBatch?: string; // Destination batch for cross-batch transfers (v7.20.0+)
 }
 
 // Scanner Types - v3.2.0 Barcode Integration

@@ -1,5 +1,5 @@
 // Batch Health Service - Priority Allocation & Health Monitoring
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { collection, getDocs, query, where } from '../costTracking/firestoreWrapper';
 import { db } from '../firebase';
 import { Batch, BatchHealthCheck, BatchHealthStatus, BatchRequirement } from '../../types/inventory';
 import { createModuleLogger } from '../logger';

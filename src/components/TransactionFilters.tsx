@@ -175,10 +175,48 @@ export function TransactionFilters({ filters, onFiltersChange }: TransactionFilt
           </select>
         </div>
 
+        {/* From Batch Filter - v7.20.0 */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            📦 From Batch
+          </label>
+          <select
+            value={filters.fromBatch || ''}
+            onChange={(e) => updateFilter('fromBatch', e.target.value)}
+            className="input-primary text-sm"
+          >
+            <option value="">All batches</option>
+            {availableBatches.map(batchId => (
+              <option key={batchId} value={batchId}>
+                Batch {batchId}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* To Batch Filter - v7.20.0 */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            🎯 To Batch
+          </label>
+          <select
+            value={filters.toBatch || ''}
+            onChange={(e) => updateFilter('toBatch', e.target.value)}
+            className="input-primary text-sm"
+          >
+            <option value="">All batches</option>
+            {availableBatches.map(batchId => (
+              <option key={batchId} value={batchId}>
+                Batch {batchId}
+              </option>
+            ))}
+          </select>
+        </div>
+
         {/* Cross-Batch Transfer Filter */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            📦 Cross-Batch Transfers
+            ✨ Cross-Batch Only
           </label>
           <select
             value={filters.showCrossBatchOnly === undefined ? '' : filters.showCrossBatchOnly ? 'true' : 'false'}

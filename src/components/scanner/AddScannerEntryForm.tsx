@@ -4,10 +4,11 @@ import { scanLookupService } from '../../services/scanLookupService';
 interface AddScannerEntryFormProps {
   onAdd: () => void;
   userEmail: string;
+  carType: string;
   existingSKUs?: string[];
 }
 
-export function AddScannerEntryForm({ onAdd, userEmail, existingSKUs: _existingSKUs }: AddScannerEntryFormProps) {
+export function AddScannerEntryForm({ onAdd, userEmail, carType, existingSKUs: _existingSKUs }: AddScannerEntryFormProps) {
   // Note: existingSKUs parameter reserved for future duplicate checking optimization
   const [formData, setFormData] = useState({
     sku: '',
@@ -26,14 +27,14 @@ export function AddScannerEntryForm({ onAdd, userEmail, existingSKUs: _existingS
     if (!formData.sku.trim()) {
       newErrors.sku = 'SKU is required';
     } else {
-      // Check for duplicate SKU+Zone combination (v7.19.0: default to TK1 for legacy forms)
-      const existingLookups = await scanLookupService.getAllLookupsBySKU(formData.sku.toUpperCase(), 'TK1');
+      // Check for duplicate SKU+Zone combination
+      const existingLookups = await scanLookupService.getAllLookupsBySKU(formData.sku.toUpperCase(), carType);
       const duplicateExists = existingLookups.some(lookup =>
         lookup.targetZone.toString() === formData.targetZone
       );
 
       if (duplicateExists) {
-        newErrors.sku = `SKU ${formData.sku.toUpperCase()} already exists in zone ${formData.targetZone}`;
+        newErrors.sku = `SKU ${formData.sku.toUpperCase()} already exists in zone ${formData.targetZone} for ${carType}`;
       }
     }
 
@@ -59,7 +60,7 @@ export function AddScannerEntryForm({ onAdd, userEmail, existingSKUs: _existingS
 
       const newLookup = {
         sku: formData.sku.toUpperCase(),
-        carType: 'TK1', // v7.19.0: Default to TK1 for legacy forms
+        carType: carType,
         targetZone: formData.targetZone,
         itemName: formData.itemName.trim() || undefined,
         expectedQuantity: formData.expectedQuantity ? Number(formData.expectedQuantity) : undefined,

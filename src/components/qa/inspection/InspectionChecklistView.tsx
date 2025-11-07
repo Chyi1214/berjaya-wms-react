@@ -1,8 +1,9 @@
 // Inspection Checklist View - Worker interface for inspecting a section
 import React, { useState, useEffect } from 'react';
-import { doc, updateDoc, Timestamp } from 'firebase/firestore';
+import { doc, updateDoc, Timestamp } from '../../../services/costTracking/firestoreWrapper';
 import { db } from '../../../services/firebase';
 import { inspectionService } from '../../../services/inspectionService';
+import { preloadImages } from '../../../services/imageCache';
 import type {
   CarInspection,
   InspectionSection,
@@ -15,6 +16,7 @@ import { createModuleLogger } from '../../../services/logger';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { getLocalizedText, getLocalizedTextSafe } from '../../../utils/multilingualHelper';
 import { DefectLocationMarker } from './DefectLocationMarker';
+import { AddExtraDefectModal } from './AddExtraDefectModal';
 
 const logger = createModuleLogger('InspectionChecklistView');
 
@@ -63,20 +65,35 @@ const InspectionChecklistView: React.FC<InspectionChecklistViewProps> = ({
     itemDisplayName: string;
   } | null>(null);
   const [nextDotNumber, setNextDotNumber] = useState(1);
+  const [showExtraDefectModal, setShowExtraDefectModal] = useState(false);
 
   // Map language context to multilingual helper language code
   const langCode = currentLanguage as 'en' | 'ms' | 'zh' | 'my' | 'bn';
 
-  // Calculate next dot number based on existing defects in this section
+  // Calculate next dot number based on existing defects in this section (including additional defects)
   useEffect(() => {
     if (!inspection) return;
 
     const sectionResult = inspection.sections[section];
-    const defectsWithLocations = Object.values(sectionResult.results)
-      .filter(result => result.defectType !== 'Ok' && result.defectLocation)
-      .map(result => result.defectLocation!.dotNumber);
+    const allDotNumbers: number[] = [];
 
-    const maxDotNumber = defectsWithLocations.length > 0 ? Math.max(...defectsWithLocations) : 0;
+    // Collect dot numbers from main defects
+    Object.values(sectionResult.results).forEach(result => {
+      if (result.defectType !== 'Ok' && result.defectLocation) {
+        allDotNumbers.push(result.defectLocation.dotNumber);
+      }
+
+      // Collect dot numbers from additional defects
+      if (result.additionalDefects) {
+        result.additionalDefects.forEach(additionalDefect => {
+          if (additionalDefect.defectLocation) {
+            allDotNumbers.push(additionalDefect.defectLocation.dotNumber);
+          }
+        });
+      }
+    });
+
+    const maxDotNumber = allDotNumbers.length > 0 ? Math.max(...allDotNumbers) : 0;
     setNextDotNumber(maxDotNumber + 1);
   }, [inspection, section]);
 
@@ -153,6 +170,30 @@ const InspectionChecklistView: React.FC<InspectionChecklistViewProps> = ({
       }
     };
   }, [inspectionId, section, userEmail, userName]);
+
+  // Pre-load all template images when template is loaded
+  useEffect(() => {
+    if (!template) return;
+
+    // Collect all image URLs from all sections
+    const imageUrls: string[] = [];
+    Object.values(template.sections).forEach(sectionTemplate => {
+      if (sectionTemplate.images) {
+        sectionTemplate.images.forEach(img => {
+          if (img.imageUrl) {
+            imageUrls.push(img.imageUrl);
+          }
+        });
+      }
+    });
+
+    if (imageUrls.length > 0) {
+      // Pre-load images in background (don't await)
+      preloadImages(imageUrls).catch(err => {
+        logger.warn('Failed to preload some images:', err);
+      });
+    }
+  }, [template]);
 
   const handleDefectSelect = async (itemName: string, defectType: DefectType, itemDisplayName: string) => {
     if (!inspection || !template) return;
@@ -341,6 +382,50 @@ const InspectionChecklistView: React.FC<InspectionChecklistViewProps> = ({
   const handleLocationCancel = () => {
     setShowLocationMarker(false);
     setPendingDefect(null);
+  };
+
+  const handleSaveExtraDefect = async (data: {
+    itemName: string;
+    defectType: string;
+    defectLocation?: DefectLocation;
+    notes?: string;
+  }) => {
+    if (!inspection) return;
+
+    try {
+      setSaving(true);
+      setShowExtraDefectModal(false);
+
+      await inspectionService.addAdditionalDefect(
+        inspectionId,
+        section,
+        data.itemName,
+        {
+          defectType: data.defectType,
+          defectLocation: data.defectLocation,
+          notes: data.notes,
+          checkedBy: userEmail,
+        }
+      );
+
+      const updated = await inspectionService.getInspectionById(inspectionId);
+      if (updated) {
+        setInspection(updated);
+      } else {
+        setError('Failed to reload inspection after save');
+      }
+
+      logger.info('Extra defect saved successfully:', data);
+    } catch (err) {
+      logger.error('Failed to save extra defect:', err);
+      setError('Failed to save extra defect. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCancelExtraDefect = () => {
+    setShowExtraDefectModal(false);
   };
 
   const handleCompleteSection = async () => {
@@ -563,25 +648,46 @@ const InspectionChecklistView: React.FC<InspectionChecklistViewProps> = ({
                           {itemName}
                         </div>
                         {isChecked && (
-                          <div className="text-sm text-gray-600 mt-1">
-                            <span
-                              className={`px-2 py-1 rounded text-xs font-medium ${
-                                result.defectType === 'Ok'
-                                  ? 'bg-green-100 text-green-800'
-                                  : 'bg-red-100 text-red-800'
-                              }`}
-                            >
-                              {result.defectType}
-                              {result.defectLocation && (
-                                <span className="ml-1 px-1.5 py-0.5 bg-red-600 text-white rounded-full text-xs font-bold">
-                                  #{result.defectLocation.dotNumber}
+                          <div className="text-sm text-gray-600 mt-1 space-y-1">
+                            <div>
+                              <span
+                                className={`px-2 py-1 rounded text-xs font-medium ${
+                                  result.defectType === 'Ok'
+                                    ? 'bg-green-100 text-green-800'
+                                    : 'bg-red-100 text-red-800'
+                                }`}
+                              >
+                                {result.defectType}
+                                {result.defectLocation && (
+                                  <span className="ml-1 px-1.5 py-0.5 bg-red-600 text-white rounded-full text-xs font-bold">
+                                    #{result.defectLocation.dotNumber}
+                                  </span>
+                                )}
+                              </span>
+                              {result.notes && (
+                                <span className="ml-2 text-gray-500">
+                                  "{result.notes}"
                                 </span>
                               )}
-                            </span>
-                            {result.notes && (
-                              <span className="ml-2 text-gray-500">
-                                "{result.notes}"
-                              </span>
+                            </div>
+                            {/* Show additional defects if any */}
+                            {result.additionalDefects && result.additionalDefects.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                <span className="text-xs text-gray-600">+{result.additionalDefects.length} more:</span>
+                                {result.additionalDefects.map((additionalDefect, idx) => (
+                                  <span
+                                    key={idx}
+                                    className="px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-800"
+                                  >
+                                    {additionalDefect.defectType}
+                                    {additionalDefect.defectLocation && (
+                                      <span className="ml-1 px-1.5 py-0.5 bg-orange-600 text-white rounded-full text-xs font-bold">
+                                        #{additionalDefect.defectLocation.dotNumber}
+                                      </span>
+                                    )}
+                                  </span>
+                                ))}
+                              </div>
                             )}
                           </div>
                         )}
@@ -659,7 +765,7 @@ const InspectionChecklistView: React.FC<InspectionChecklistViewProps> = ({
         </div>
 
         {/* Complete Button - Normal button at the bottom */}
-        <div className="mt-6">
+        <div className="mt-6 space-y-3">
           {sectionResult.status === 'completed' && checkedItems < totalItems ? (
             // Show Reopen button if completed but items are missing
             <button
@@ -681,6 +787,15 @@ const InspectionChecklistView: React.FC<InspectionChecklistViewProps> = ({
                 : `${t('qa.completeSection')} (${checkedItems}/${totalItems})`}
             </button>
           )}
+
+          {/* Mark Extra Issues Button */}
+          <button
+            onClick={() => setShowExtraDefectModal(true)}
+            disabled={saving}
+            className="w-full py-4 bg-orange-600 text-white rounded-lg font-semibold hover:bg-orange-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors text-lg shadow-lg"
+          >
+            📍 {t('qa.markExtraIssues') || 'Mark Extra Issues'}
+          </button>
 
           {/* Show unchecked items if any */}
           {checkedItems < totalItems && (
@@ -748,6 +863,18 @@ const InspectionChecklistView: React.FC<InspectionChecklistViewProps> = ({
           defectType={pendingDefect.defectType}
           onLocationSet={handleLocationSet}
           onCancel={handleLocationCancel}
+        />
+      )}
+
+      {/* Add Extra Defect Modal */}
+      {showExtraDefectModal && template && (
+        <AddExtraDefectModal
+          section={section}
+          template={template}
+          sectionImages={template.sections[section].images}
+          nextDotNumber={nextDotNumber}
+          onSave={handleSaveExtraDefect}
+          onCancel={handleCancelExtraDefect}
         />
       )}
     </div>

@@ -12,7 +12,7 @@ import {
   where,
   orderBy,
   onSnapshot
-} from 'firebase/firestore';
+} from './costTracking/firestoreWrapper';
 import { db } from './firebase';
 import { geminiService } from './geminiService';
 import { createModuleLogger } from './logger';

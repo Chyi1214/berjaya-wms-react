@@ -174,7 +174,7 @@ export function TransactionTable({
                     {transaction.id.slice(-8)}
                   </div>
                   <div className="text-xs text-gray-500">
-                    By: {transaction.performedBy}
+                    By: {transaction.performedByName || transaction.performedBy}
                   </div>
                 </td>
               
@@ -209,11 +209,26 @@ export function TransactionTable({
                 {transaction.amount}
               </td>
 
-              {/* Batch Cell */}
+              {/* Batch Cell - v7.20.0: Cross-batch transfer support */}
               <td className="px-6 py-4 whitespace-nowrap">
-                {transaction.batchId ? (
+                {transaction.fromBatch && transaction.toBatch && transaction.fromBatch !== transaction.toBatch ? (
+                  // Cross-batch transfer
+                  <div className="flex flex-col space-y-1">
+                    <div className="flex items-center space-x-1">
+                      <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-800">
+                        📦 {transaction.fromBatch}
+                      </span>
+                      <span className="text-purple-600 font-bold">→</span>
+                      <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                        🎯 {transaction.toBatch}
+                      </span>
+                    </div>
+                    <div className="text-xs text-purple-600 font-medium">✨ Cross-Batch</div>
+                  </div>
+                ) : transaction.batchId || transaction.fromBatch ? (
+                  // Regular single-batch transfer
                   <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-800">
-                    📦 {transaction.batchId}
+                    📦 {transaction.toBatch || transaction.batchId || transaction.fromBatch}
                   </span>
                 ) : transaction.notes?.includes('Batch:') ? (
                   <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-600">
@@ -266,7 +281,32 @@ export function TransactionTable({
                           <span className="text-gray-600">New Amount:</span>
                           <span className="ml-2 text-gray-900">{transaction.newAmount || 'N/A'}</span>
                         </div>
+                        {/* Batch Transfer Details - v7.20.0 */}
+                        {(transaction.fromBatch || transaction.batchId) && (
+                          <div>
+                            <span className="text-gray-600">Source Batch:</span>
+                            <span className="ml-2 font-medium text-orange-700">
+                              📦 {transaction.fromBatch || transaction.batchId}
+                            </span>
+                          </div>
+                        )}
+                        {transaction.toBatch && (
+                          <div>
+                            <span className="text-gray-600">Destination Batch:</span>
+                            <span className="ml-2 font-medium text-purple-700">
+                              🎯 {transaction.toBatch}
+                            </span>
+                          </div>
+                        )}
                       </div>
+                      {/* Cross-Batch Transfer Highlight */}
+                      {transaction.fromBatch && transaction.toBatch && transaction.fromBatch !== transaction.toBatch && (
+                        <div className="mt-3 p-2 bg-purple-50 border border-purple-200 rounded">
+                          <span className="text-sm text-purple-800 font-medium">
+                            ✨ Cross-Batch Transfer: Items moved from Batch {transaction.fromBatch} to Batch {transaction.toBatch}
+                          </span>
+                        </div>
+                      )}
                     </div>
 
                     {/* Notes Section */}

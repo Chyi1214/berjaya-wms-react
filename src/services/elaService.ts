@@ -1,5 +1,5 @@
 // Ela Service - Phase 2: Real AI integration with Gemini
-import { collection, addDoc, doc, setDoc, getDocs, getDoc, query, orderBy, where } from 'firebase/firestore';
+import { collection, addDoc, doc, setDoc, getDocs, getDoc, query, orderBy, where } from './costTracking/firestoreWrapper';
 import { db } from './firebase';
 import { ElaConversation, ElaMessage } from '../types/ela';
 import { geminiService } from './geminiService';

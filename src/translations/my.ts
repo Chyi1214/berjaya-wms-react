@@ -162,7 +162,22 @@ const myanmarTranslations: Translation = {
     enterBarcodeOrQRPlaceholder: 'ဘားကုဒ် သို့မဟုတ် QR ကုဒ် အကြောင်းအရာ ထည့်ပါ...',
     processEntry: 'ထည့်သွင်းမှု လုပ်ဆောင်ပါ',
     smartSearch: 'စမတ် ရှာဖွေခြင်း',
-    searchItemsNotAvailable: 'စကင်ဖတ်ခြင်း မရနိုင်သောအခါ ပစ္စည်းများကို ရှာပါ'
+    searchItemsNotAvailable: 'စကင်ဖတ်ခြင်း မရနိုင်သောအခါ ပစ္စည်းများကို ရှာပါ',
+    // New scanner translations
+    actionRequired: 'လုပ်ဆောင်ရန် လိုအပ်သည်!',
+    scanNotComplete: 'စကင်ဖတ်ခြင်း အောင်မြင်သော်လည်း မပြီးစီးသေးပါ။ ကျေးဇူးပြု၍ အရေအတွက်ကို ထည့်ပြီး အောက်ပါ "Batch သို့ ထည့်ပါ" ကို နှိပ်ပါ။',
+    sku: 'SKU:',
+    name: 'အမည်:',
+    category: 'အမျိုးအစား:',
+    zoneInformation: 'ဇုန် အချက်အလက်:',
+    noZoneInfo: 'ဇုန် အချက်အလက် မရရှိနိုင်ပါ',
+    addToInventory: 'ကုန်ပစ္စည်းစာရင်းသို့ ထည့်ပါ',
+    enterQuantityToAdd: 'ထည့်မည့် အရေအတွက် ထည့်ပါ:',
+    targetBatch: 'ပစ်မှတ် Batch:',
+    addToBatch: 'Batch သို့ ထည့်ပါ',
+    adding: 'ထည့်နေသည်...',
+    newScan: 'စကင်အသစ်',
+    startScanning: 'စကင်ဖတ် စတင်ပါ'
   },
 
   // Production
@@ -324,7 +339,21 @@ const myanmarTranslations: Translation = {
     pleaseEnterOTP: 'ကျေးဇူးပြု၍ OTP ထည့်ပါ',
     pleaseProvideReason: 'ကျေးဇူးပြု၍ ငြင်းပယ်ရသည့် အကြောင်းရင်းကို ဖော်ပြပါ',
     failedToConfirm: 'ငွေလွှဲခြင်း အတည်ပြုရန် မအောင်မြင်ပါ',
-    failedToReject: 'ငွေလွှဲခြင်းကို ငြင်းပယ်ရန် မအောင်မြင်ပါ။ ထပ်ကြိုးစားပါ။'
+    failedToReject: 'ငွေလွှဲခြင်းကို ငြင်းပယ်ရန် မအောင်မြင်ပါ။ ထပ်ကြိုးစားပါ။',
+
+    // Transaction types (missing keys)
+    count: 'ရေတွက်ခြင်း',
+    adjustment: 'ညှိနှိုင်းခြင်း',
+    transferIn: 'လွှဲပြောင်း ဝင်',
+    transferOut: 'လွှဲပြောင်း ထွက်',
+    initialStock: 'ကန ဦး သိုလှောင်မှု',
+
+    // Additional actions
+    filterTransactions: 'ငွေလွှဲမှု စီစစ်ပါ',
+    createTransaction: 'ငွေလွှဲမှု ဖန်တီးပါ',
+    viewDetails: 'အသေးစိတ် ကြည့်ပါ',
+    approve: 'အတည်ပြုပါ',
+    cancel: 'ပယ်ဖျက်ပါ'
   },
 
   // Translation Chat System
@@ -439,6 +468,12 @@ const myanmarTranslations: Translation = {
     takePhoto: 'ဓာတ်ပုံ ရိုက်ပါ',
     removePhoto: 'ဓာတ်ပုံ ဖယ်ရှားပါ',
 
+    // Additional defects feature
+    markExtraIssues: 'အပို ပြဿနာများ မှတ်သားပါ',
+    tapDefectLocation: 'သင် ချို့ယွင်းချက် မြင်ရသည့် နေရာကို နှိပ်ပါ',
+    selectRelatedItem: 'ဤ ချို့ယွင်းချက်သည် မည်သည့် ပစ္စည်းနှင့် ဆက်စပ်သနည်း?',
+    additionalDefectsAdded: '{count} ခု အပို ချို့ယွင်းချက်များ ထည့်ပြီးပါပြီ',
+
     // Defect types (common defaults - can be customized via CSV)
     defects: {
       notInstalled: 'မှန်ကန်စွာ မတပ်ဆင်ထားပါ',
@@ -480,6 +515,108 @@ const myanmarTranslations: Translation = {
   footer: {
     copyright: '© 2025 Berjaya Autotech - ကုန်လှောင်ရုံ စီမံခန့်ခွဲမှုစနစ်',
     version: 'v{version} - {feature}'
+  },
+
+  // အမှိုက်/ပျောက်ဆုံး/ချို့ယွင်းမှု အစီရင်ခံစာ
+  wasteLostDefectReport: {
+    title: 'ပစ္စည်းများ အစီရင်ခံပါ',
+    itemStatus: 'ပစ္စည်း အခြေအနေ',
+    waste: 'အမှိုက်',
+    lost: 'ပျောက်ဆုံး',
+    defect: 'ချို့ယွင်းမှု',
+    unplanned_usage: 'စီမံချက်မရှိ အသုံးပြုမှု',
+    searchForItem: 'ပစ္စည်း ရှာဖွေပါ',
+    searchPlaceholder: 'ပစ္စည်း SKU သို့မဟုတ် အမည် ရိုက်ပါ...',
+    quantity: 'အရေအတွက်',
+    currentStock: 'လက်ရှိ စတော့',
+    quantityExceedsStock: 'အရေအတွက်သည် ရရှိနိုင်သော စတော့ကို ကျော်လွန်နေသည်!',
+    basicReason: 'အခြေခံ အကြောင်းရင်း',
+    reasonPlaceholder: 'အတိုချုံး ဖော်ပြချက်...',
+
+    // ဓာတ်ပုံ အထောက်အထား
+    photoEvidence: 'ဓာတ်ပုံ အထောက်အထား',
+    photoEvidenceRequired: 'တင်သွင်းခြင်းမပြုမီ လိုအပ်သည်',
+    photoInstructions: 'တစ်ကြိမ် ဓာတ်ပုံများ တင်ပါ - ၎င်းတို့ကို ဤအုပ်စု တင်သွင်းမှုရှိ ပစ္စည်းအားလုံးတွင် ပူးတွဲမည်ဖြစ်သည်။',
+    labelPhoto: 'တံဆိပ် ဓာတ်ပုံ',
+    damagePhoto: 'ပျက်စီးမှု ဓာတ်ပုံ',
+    takePhotoOrUpload: 'ဓာတ်ပုံရိုက်ပါ သို့မဟုတ် ပုံတင်ပါ',
+    labelPhotoHelp: 'ပစ္စည်း တံဆိပ်/အစိတ်အပိုင်း နံပါတ်',
+    damagePhotoHelp: 'အမှန်တကယ် ပျက်စီးမှု/ချို့ယွင်းမှု',
+    imageCompressed: 'ပုံကို ချုံ့ပြီး အဆင်သင့်ဖြစ်သည်',
+    compressingImage: 'ပုံကို ချုံ့နေသည်...',
+
+    // အုပ်စု ရွေးချယ်ခြင်း
+    selectBatch: 'အုပ်စု ရွေးချယ်ပါ',
+    selectBatchPrompt: '-- အုပ်စု ရွေးချယ်ပါ --',
+    batchDefault: 'မူလ',
+    unitsAvailable: 'ယူနစ် ရရှိနိုင်',
+    validBatch: 'တရားဝင် - အုပ်စုတွင် ရှိသည်',
+    units: 'ယူနစ်',
+    quantityExceedsBatch: 'အရေအတွက်သည် အုပ်စု ခွဲဝေမှုကို ကျော်လွန်နေသည်!',
+
+    // ချို့ယွင်းမှု အသေးစိတ်
+    claimReportDetails: 'တောင်းဆို အစီရင်ခံစာ အသေးစိတ်',
+    totalLotQuantity: 'စုစုပေါင်း လော့ အရေအတွက်',
+    totalReceived: 'စုစုပေါင်း လက်ခံရရှိ',
+    shift: 'ဆောင်းရွက်',
+    shiftPlaceholder: 'ဥပမာ၊ နံနက်၊ A-Shift',
+    reasonForRejection: 'ငြင်းပယ်ခြင်း အကြောင်းရင်း',
+    rejectionReasons: {
+      defect: 'ချို့ယွင်းမှု (ကြောင်း၊ အက်၊ အက်၊ စသည်)',
+      wrongDimension: 'မှားယွင်းသော အရွယ်အစား / သတ်မှတ်ချက်ပြင်ပ',
+      missingComponent: 'အစိတ်အပိုင်း ပျောက်ဆုံး',
+      contamination: 'ညစ်ညမ်းမှု (ဆီ၊ အညစ်အကြေး၊ သံချေး၊ စသည်)'
+    },
+    others: 'အခြား',
+    specifyOtherReason: 'အခြား အကြောင်းရင်း သတ်မှတ်ပါ...',
+    detectedBy: 'ရှာဖွေတွေ့ရှိသူ',
+    detectedByPlaceholder: 'အမည် / ဌာန',
+    actionTaken: 'ဆောင်ရွက်ခဲ့သော လုပ်ရပ်',
+    selectAction: 'လုပ်ရပ် ရွေးချယ်ပါ...',
+    actions: {
+      rework: 'ပြန်လုပ်',
+      scrap: 'စွန့်ပစ်',
+      returnToSupplier: 'ပေးသွင်းသူထံ ပြန်ပို့',
+      holdForInspection: 'နောက်ထပ် စစ်ဆေးမှုအတွက် ထိန်းသိမ်း'
+    },
+
+    // ခလုတ်များ
+    addWasteItem: 'အမှိုက် ပစ္စည်း ထည့်ပါ',
+    addLostItem: 'ပျောက်ဆုံး ပစ္စည်း ထည့်ပါ',
+    addDefectItem: 'ချို့ယွင်းမှု ပစ္စည်း ထည့်ပါ',
+    reportItems: '{count} ပစ္စည်းများ အစီရင်ခံပါ',
+    cancel: 'ပယ်ဖျက်',
+    backTo: '{location} သို့ ပြန်သွား',
+
+    // ပစ္စည်းများ စာရင်း
+    itemsToReport: 'အစီရင်ခံရန် ပစ္စည်းများ',
+
+    // အတည်ပြုခြင်း မက်ဆေ့ချ်များ
+    pleaseAddItem: 'ကျေးဇူးပြု၍ အနည်းဆုံး ပစ္စည်းတစ်ခု ထည့်ပါ',
+    missingFields: 'ကျေးဇူးပြု၍ အောက်ပါ လိုအပ်သော နယ်ပယ်များကို ဖြည့်ပါ:',
+    itemSelection: 'ပစ္စည်း ရွေးချယ်ခြင်း',
+    validQuantity: 'တရားဝင် အရေအတွက် (0 ထက် ကြီးရမည်)',
+    reason: 'အကြောင်းရင်း',
+    labelPhotoRequired: 'တံဆိပ် ဓာတ်ပုံ (လိုအပ်)',
+    damagePhotoRequired: 'ပျက်စီးမှု ဓာတ်ပုံ (လိုအပ်)',
+    bothPhotosRequired: 'တင်သွင်းခြင်းမပြုမီ တံဆိပ် ဓာတ်ပုံနှင့် ပျက်စီးမှု ဓာတ်ပုံ နှစ်ခုလုံး လိုအပ်သည်။',
+    batchSelection: 'အုပ်စု ရွေးချယ်ခြင်း',
+    atLeastOneRejectionReason: 'အနည်းဆုံး ငြင်းပယ်ခြင်း အကြောင်းရင်း တစ်ခု (အမှန်ခြစ်ဘောက်စ် သို့မဟုတ် စိတ်ကြိုက် အကြောင်းရင်း)',
+    insufficientStock: '{sku} - {itemName} အတွက် စတော့မလုံလောက်ပါ။ ရရှိနိုင်: {available} ယူနစ်၊ အစီရင်ခံရန် ကြိုးစားနေ: {quantity} ယူနစ်။ ကျေးဇူးပြု၍ အရေအတွက်ကို ချိန်ညှိပါ သို့မဟုတ် စတော့ အဆင့်ကို အတည်ပြုပါ။',
+    insufficientBatchStock: '{batch} တွင် စတော့မလုံလောက်ပါ။ ရရှိနိုင်: {available}၊ အစီရင်ခံရန် ကြိုးစားနေ: {quantity}',
+
+    // အောင်မြင်မှု မက်ဆေ့ချ်များ
+    successfullyReported: '{location} မှ အောင်မြင်စွာ အစီရင်ခံခဲ့သည်:',
+    wasteItems: '{count} အမှိုက်',
+    lostItems: '{count} ပျောက်ဆုံး',
+    defectItems: '{count} ချို့ယွင်းမှု ပစ္စည်းများ',
+
+    // အမှား မက်ဆေ့ချ်များ
+    failedToSubmit: 'တင်သွင်းရန် မအောင်မြင်ပါ',
+    failedToUploadImages: 'ဓာတ်ပုံများ တင်ရန် မအောင်မြင်ပါ။ ကျေးဇူးပြု၍ ထပ်စမ်းပါ။',
+    invalidImage: 'မမှန်ကန်သော ပုံ',
+    fileMustBeImage: 'ဖိုင်သည် ပုံတစ်ခု ဖြစ်ရမည်',
+    imageTooLarge: 'ပုံသည် 20 MB ထက် သေးရမည်'
   }
 };
 

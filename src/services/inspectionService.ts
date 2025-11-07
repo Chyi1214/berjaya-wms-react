@@ -10,10 +10,10 @@ import {
   updateDoc,
   orderBy,
   Timestamp,
-  runTransaction,
   onSnapshot,
   type Unsubscribe,
-} from 'firebase/firestore';
+} from './costTracking/firestoreWrapper';
+import { runTransaction } from 'firebase/firestore';
 import { db } from './firebase';
 import { createModuleLogger } from './logger';
 import type {
@@ -24,6 +24,7 @@ import type {
   InspectionItemResult,
   InspectionSectionResult,
   InspectionSummary,
+  AdditionalDefect,
 } from '../types/inspection';
 
 const logger = createModuleLogger('InspectionService');
@@ -196,15 +197,30 @@ export const inspectionService = {
 
   // ========= Inspections =========
 
-  async createInspection(vin: string, templateId: string): Promise<string> {
+  async createInspection(
+    vin: string,
+    templateId: string,
+    batchId?: string,
+    gateInfo?: { gateId: string; gateIndex: number; gateName: string }
+  ): Promise<string> {
     try {
-      logger.info('Creating inspection for VIN:', vin);
+      logger.info('Creating inspection for VIN:', { vin, gate: gateInfo?.gateName });
 
-      // Check if inspection already exists for this VIN
-      const existing = await this.getInspectionByVIN(vin);
-      if (existing) {
-        logger.warn('Inspection already exists for VIN:', vin);
-        return existing.inspectionId;
+      // Check if inspection already exists for this VIN+Gate combination
+      // Each gate should have its own independent inspection
+      if (gateInfo) {
+        const existing = await this.getInspectionByVINAndGate(vin, gateInfo.gateId);
+        if (existing) {
+          logger.warn('Inspection already exists for VIN at this gate:', { vin, gate: gateInfo.gateName });
+          return existing.inspectionId;
+        }
+      } else {
+        // Fallback for cases without gate info (shouldn't happen in normal flow)
+        const existing = await this.getInspectionByVIN(vin);
+        if (existing) {
+          logger.warn('Inspection already exists for VIN:', vin);
+          return existing.inspectionId;
+        }
       }
 
       // Get template
@@ -268,6 +284,12 @@ export const inspectionService = {
         sections,
         createdAt: new Date(),
         updatedAt: new Date(),
+        ...(batchId && { batchId }),
+        ...(gateInfo && {
+          gateId: gateInfo.gateId,
+          gateIndex: gateInfo.gateIndex,
+          gateName: gateInfo.gateName,
+        }),
       };
 
       await setDoc(doc(db, INSPECTIONS_COL, inspectionId), {
@@ -340,6 +362,43 @@ export const inspectionService = {
       return convertTimestamps<CarInspection>(snapshot.docs[0].data());
     } catch (error) {
       logger.error('Failed to get inspection by VIN:', error);
+      throw error;
+    }
+  },
+
+  // Get inspection by VIN and Gate (for gate-specific operations)
+  async getInspectionByVINAndGate(vin: string, gateId: string): Promise<CarInspection | null> {
+    try {
+      const q = query(
+        collection(db, INSPECTIONS_COL),
+        where('vin', '==', vin),
+        where('gateId', '==', gateId)
+      );
+      const snapshot = await getDocs(q);
+
+      if (snapshot.empty) {
+        return null;
+      }
+
+      return convertTimestamps<CarInspection>(snapshot.docs[0].data());
+    } catch (error) {
+      logger.error('Failed to get inspection by VIN and Gate:', error);
+      throw error;
+    }
+  },
+
+  // Get all inspections for a specific VIN across all gates
+  async getInspectionsByVIN(vin: string): Promise<CarInspection[]> {
+    try {
+      const q = query(
+        collection(db, INSPECTIONS_COL),
+        where('vin', '==', vin),
+        orderBy('gateIndex', 'asc')
+      );
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => convertTimestamps<CarInspection>(doc.data()));
+    } catch (error) {
+      logger.error('Failed to get inspections by VIN:', error);
       throw error;
     }
   },
@@ -463,6 +522,102 @@ export const inspectionService = {
     }
   },
 
+  async addAdditionalDefect(
+    inspectionId: string,
+    section: InspectionSection,
+    itemName: string,
+    defectData: {
+      defectType: string;
+      defectLocation?: { x: number; y: number; imageId: string; dotNumber: number };
+      notes?: string;
+      checkedBy: string;
+    }
+  ): Promise<void> {
+    try {
+      logger.info('Adding additional defect:', { inspectionId, section, itemName, defectType: defectData.defectType });
+
+      return runTransaction(db, async (tx) => {
+        const docRef = doc(db, INSPECTIONS_COL, inspectionId);
+        const docSnap = await tx.get(docRef);
+
+        if (!docSnap.exists()) {
+          throw new Error(`Inspection not found: ${inspectionId}`);
+        }
+
+        const inspection = convertTimestamps<CarInspection>(docSnap.data());
+        const sanitizedItemName = sanitizeFieldName(itemName);
+
+        // Get existing result or create a default "Ok" entry if item hasn't been checked yet
+        let existingResult = inspection.sections[section].results[sanitizedItemName];
+        const updates: Record<string, any> = {};
+
+        if (!existingResult) {
+          // Item hasn't been checked yet - create a default "Ok" result entry
+          logger.info('Item not checked yet, creating default entry:', { itemName });
+
+          existingResult = {
+            defectType: 'Ok',
+            checkedBy: defectData.checkedBy,
+            checkedAt: new Date(),
+            additionalDefects: [],
+          };
+
+          // Add the default result to updates
+          updates[`sections.${section}.results.${sanitizedItemName}`] = {
+            defectType: 'Ok',
+            checkedBy: defectData.checkedBy,
+            checkedAt: Timestamp.now(),
+          };
+        }
+
+        // Get existing additional defects array or initialize empty
+        const existingAdditional = existingResult.additionalDefects || [];
+
+        // Check limit (max 20 additional defects per item)
+        if (existingAdditional.length >= 20) {
+          throw new Error('Maximum limit of 20 additional defects per item reached');
+        }
+
+        // Build new additional defect
+        const newDefect: any = {
+          defectType: defectData.defectType,
+          notes: defectData.notes || null,
+          checkedBy: defectData.checkedBy,
+          checkedAt: Timestamp.now(),
+        };
+
+        if (defectData.defectLocation) {
+          newDefect.defectLocation = {
+            x: defectData.defectLocation.x,
+            y: defectData.defectLocation.y,
+            imageId: defectData.defectLocation.imageId,
+            dotNumber: defectData.defectLocation.dotNumber,
+          };
+        }
+
+        // Append to array
+        const updatedAdditional = [...existingAdditional, newDefect];
+
+        // Update Firestore
+        updates[`sections.${section}.results.${sanitizedItemName}.additionalDefects`] = updatedAdditional;
+        updates.updatedAt = Timestamp.now();
+
+        tx.update(docRef, updates);
+
+        logger.info('Additional defect added successfully:', {
+          inspectionId,
+          section,
+          itemName,
+          totalAdditional: updatedAdditional.length,
+          createdDefaultEntry: !inspection.sections[section].results[sanitizedItemName],
+        });
+      });
+    } catch (error) {
+      logger.error('Failed to add additional defect:', error);
+      throw error;
+    }
+  },
+
   async completeSection(inspectionId: string, section: InspectionSection): Promise<void> {
     try {
       logger.info('Completing section:', { inspectionId, section });
@@ -522,7 +677,10 @@ export const inspectionService = {
     let totalDefects = 0;
 
     Object.values(inspection.sections).forEach(section => {
-      if (section.inspector) {
+      // Prefer inspectorName over email
+      if (section.inspectorName) {
+        inspectorsSet.add(section.inspectorName);
+      } else if (section.inspector) {
         inspectorsSet.add(section.inspector);
       }
 
@@ -536,6 +694,19 @@ export const inspectionService = {
         if (result.defectType !== 'Ok') {
           totalDefects++;
         }
+
+        // Count additional defects (backwards compatibility: treat undefined as empty array)
+        const additionalDefects = result.additionalDefects || [];
+        additionalDefects.forEach((additionalDefect: AdditionalDefect) => {
+          // Initialize counter if this defect type hasn't been seen yet
+          if (!defectsByType[additionalDefect.defectType]) {
+            defectsByType[additionalDefect.defectType] = 0;
+          }
+          defectsByType[additionalDefect.defectType]++;
+
+          // Additional defects are always actual defects (never "Ok")
+          totalDefects++;
+        });
       });
     });
 

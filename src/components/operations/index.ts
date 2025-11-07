@@ -1,4 +1,3 @@
-export { ScannerOperationsCard } from './ScannerOperationsCard';
 export { CSVUploadInstructionsCard } from './CSVUploadInstructionsCard';
 export { QAManagementCard } from './QAManagementCard';
 export { BatchManagementCard } from './BatchManagementCard';
@@ -11,3 +10,5 @@ export { APIManagementCard } from './APIManagementCard';
 export { WorkflowAutomationCard } from './WorkflowAutomationCard';
 export { DevelopmentRoadmapCard } from './DevelopmentRoadmapCard';
 export { QuickActionsCard } from './QuickActionsCard';
+export { LogisticsSetupPage } from './LogisticsSetupPage';
+export { ProductionSetupPage } from './ProductionSetupPage';

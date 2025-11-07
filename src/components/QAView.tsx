@@ -2,11 +2,15 @@
 import React, { useState } from 'react';
 import { QAViewProps } from '../types';
 import QAInspectionContainer from './qa/inspection/QAInspectionContainer';
+import QAStockView from './qa/stock/QAStockView';
 import { ElaMenu } from './ela/ElaMenu';
 import { ElaChat } from './ela/ElaChat';
 import { TranslationChannels } from './chat/TranslationChannels';
 
+type QATabType = 'inspection' | 'stock';
+
 const QAView: React.FC<QAViewProps> = ({ user, onBack }) => {
+  const [activeTab, setActiveTab] = useState<QATabType>('inspection');
   const [showElaMenu, setShowElaMenu] = useState(false);
   const [showElaChat, setShowElaChat] = useState(false);
   const [showTranslationChannels, setShowTranslationChannels] = useState(false);
@@ -37,6 +41,30 @@ const QAView: React.FC<QAViewProps> = ({ user, onBack }) => {
               <h1 className="text-lg font-bold text-gray-900">
                 Quality Assurance - Worker
               </h1>
+            </div>
+
+            {/* Tab Navigation */}
+            <div className="ml-8 flex items-center space-x-2">
+              <button
+                onClick={() => setActiveTab('inspection')}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  activeTab === 'inspection'
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                📋 Inspection
+              </button>
+              <button
+                onClick={() => setActiveTab('stock')}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  activeTab === 'stock'
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                📦 Stock
+              </button>
             </div>
 
             {/* Right side buttons */}
@@ -73,10 +101,15 @@ const QAView: React.FC<QAViewProps> = ({ user, onBack }) => {
 
       {/* Main Content */}
       <main className="py-4">
-        <QAInspectionContainer
-          userEmail={user.email}
-          userName={userName}
-        />
+        {activeTab === 'inspection' && (
+          <QAInspectionContainer
+            userEmail={user.email}
+            userName={userName}
+          />
+        )}
+        {activeTab === 'stock' && (
+          <QAStockView />
+        )}
       </main>
 
       {/* Ela Chat Modal */}

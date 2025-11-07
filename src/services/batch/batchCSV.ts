@@ -1,5 +1,5 @@
 // Batch CSV Service - CSV import/export operations
-import { collection, addDoc } from 'firebase/firestore';
+import { collection, addDoc } from '../costTracking/firestoreWrapper';
 import { db } from '../firebase';
 import { CarType, Batch, VinPlan, BatchItem } from '../../types/inventory';
 import { createModuleLogger } from '../logger';

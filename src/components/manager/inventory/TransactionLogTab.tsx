@@ -49,6 +49,14 @@ export function TransactionLogTab({ transactions }: TransactionLogTabProps) {
         filtered = filtered.filter(t => t.batchId === filters.batchId || t.notes?.includes(`Batch: ${filters.batchId}`));
       }
     }
+    // From Batch filter (v7.20.0)
+    if (filters.fromBatch) {
+      filtered = filtered.filter(t => t.fromBatch === filters.fromBatch || t.batchId === filters.fromBatch);
+    }
+    // To Batch filter (v7.20.0)
+    if (filters.toBatch) {
+      filtered = filtered.filter(t => t.toBatch === filters.toBatch);
+    }
     if (filters.includeRectifications === false) {
       filtered = filtered.filter(t => !t.isRectification);
     } else if (filters.includeRectifications === true) {
@@ -70,17 +78,21 @@ export function TransactionLogTab({ transactions }: TransactionLogTabProps) {
       );
     }
 
-    // Cross-batch transfer filter
+    // Cross-batch transfer filter (v7.20.0: Use fromBatch/toBatch fields)
     if (filters.showCrossBatchOnly === false) {
       // Hide cross-batch transfers
-      filtered = filtered.filter(t =>
-        !(t.notes?.includes('Manager transfer from Batch') && t.notes?.includes('to Batch'))
-      );
+      filtered = filtered.filter(t => {
+        // A cross-batch transfer has different fromBatch and toBatch values
+        const isCrossBatch = t.fromBatch && t.toBatch && t.fromBatch !== t.toBatch;
+        return !isCrossBatch;
+      });
     } else if (filters.showCrossBatchOnly === true) {
       // Show only cross-batch transfers
-      filtered = filtered.filter(t =>
-        t.notes?.includes('Manager transfer from Batch') && t.notes?.includes('to Batch')
-      );
+      filtered = filtered.filter(t => {
+        // A cross-batch transfer has different fromBatch and toBatch values
+        const isCrossBatch = t.fromBatch && t.toBatch && t.fromBatch !== t.toBatch;
+        return isCrossBatch;
+      });
     }
 
     return filtered;

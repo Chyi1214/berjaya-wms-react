@@ -51,7 +51,7 @@ export function ManagerView({ user: _user, onBack, inventoryCounts, onClearCount
     <div className="min-h-screen bg-gray-50">
       {/* Header - Eugene's redesigned upper panel */}
       <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center h-16">
             {/* Back Button */}
             <button
@@ -104,7 +104,7 @@ export function ManagerView({ user: _user, onBack, inventoryCounts, onClearCount
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-6 max-w-7xl">
+      <main className="container mx-auto px-4 py-6 max-w-[1800px]">
         <div className="space-y-6">
 
         {/* Navigation */}

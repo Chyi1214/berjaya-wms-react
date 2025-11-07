@@ -6,6 +6,9 @@ import { combinedSearchService } from '../../services/combinedSearch';
 import { wasteReportService, type WasteReport } from '../../services/wasteReportService';
 import { batchAllocationService } from '../../services/batchAllocationService'; // v7.9.0: For batch allocation fix
 import { transactionService } from '../../services/transactions'; // v7.18.0: For transaction records
+import { compressWasteReportImage, validateWasteReportImage } from '../../utils/imageCompression'; // v7.38.2: Image upload
+import { uploadWasteReportImages } from '../../services/storageService'; // v7.38.2: Firebase Storage
+import { useLanguage } from '../../contexts/LanguageContext'; // v7.38.2: Translations
 
 interface WasteLostDefectViewProps {
   user: User;
@@ -18,7 +21,7 @@ interface WasteLostDefectEntry {
   sku: string;
   itemName: string;
   quantity: number;
-  type: 'WASTE' | 'LOST' | 'DEFECT';
+  type: 'WASTE' | 'LOST' | 'DEFECT' | 'UNPLANNED_USAGE';
   reason?: string;
 
   // Batch tracking (v7.18.0)
@@ -34,22 +37,24 @@ interface WasteLostDefectEntry {
   shift?: string;
 }
 
-// Rejection reason options for DEFECT
-const REJECTION_REASONS = [
-  'Defect (scratch, dent, crack, etc.)',
-  'Wrong dimension / out of spec',
-  'Missing component',
-  'Contamination (oil, dirt, rust, etc.)'
-];
-
-const ACTION_OPTIONS = [
-  'Rework',
-  'Scrap',
-  'Return to supplier',
-  'Hold for further inspection'
-];
-
 export function WasteLostDefectView({ user, location, locationDisplay, onBack }: WasteLostDefectViewProps) {
+  const { t } = useLanguage(); // v7.38.2: Translations
+
+  // Rejection reason options for DEFECT (v7.38.2: Now translated)
+  const REJECTION_REASONS = [
+    t('wasteLostDefectReport.rejectionReasons.defect'),
+    t('wasteLostDefectReport.rejectionReasons.wrongDimension'),
+    t('wasteLostDefectReport.rejectionReasons.missingComponent'),
+    t('wasteLostDefectReport.rejectionReasons.contamination')
+  ];
+
+  const ACTION_OPTIONS = [
+    t('wasteLostDefectReport.actions.rework'),
+    t('wasteLostDefectReport.actions.scrap'),
+    t('wasteLostDefectReport.actions.returnToSupplier'),
+    t('wasteLostDefectReport.actions.holdForInspection')
+  ];
+
   const [entries, setEntries] = useState<WasteLostDefectEntry[]>([]);
   const [currentEntry, setCurrentEntry] = useState<WasteLostDefectEntry>({
     sku: '',
@@ -70,6 +75,13 @@ export function WasteLostDefectView({ user, location, locationDisplay, onBack }:
   // v7.18.0: Batch selection
   const [availableBatches, setAvailableBatches] = useState<Array<{ batchId: string; allocated: number }>>([]);
   const [selectedBatch, setSelectedBatch] = useState<string>('');
+
+  // v7.38.2: Image upload (REQUIRED for waste reports)
+  const [labelImage, setLabelImage] = useState<File | null>(null);
+  const [labelImagePreview, setLabelImagePreview] = useState<string | null>(null);
+  const [damageImage, setDamageImage] = useState<File | null>(null);
+  const [damageImagePreview, setDamageImagePreview] = useState<string | null>(null);
+  const [isCompressingImages, setIsCompressingImages] = useState(false);
 
   // Search for items
   useEffect(() => {
@@ -145,7 +157,7 @@ export function WasteLostDefectView({ user, location, locationDisplay, onBack }:
     }
   };
 
-  const handleTypeChange = (type: 'WASTE' | 'LOST' | 'DEFECT') => {
+  const handleTypeChange = (type: 'WASTE' | 'LOST' | 'DEFECT' | 'UNPLANNED_USAGE') => {
     setCurrentEntry({
       ...currentEntry,
       type,
@@ -160,6 +172,46 @@ export function WasteLostDefectView({ user, location, locationDisplay, onBack }:
       })
     });
     setSelectedRejectionReasons([]);
+  };
+
+  // v7.38.2: Handle image selection (upload or camera)
+  const handleImageSelect = async (file: File, type: 'label' | 'damage') => {
+    try {
+      setIsCompressingImages(true);
+      setError(null);
+
+      // Validate image
+      const validation = validateWasteReportImage(file);
+      if (!validation.valid) {
+        setError(validation.error || 'Invalid image');
+        setIsCompressingImages(false);
+        return;
+      }
+
+      // Compress image
+      const { compressedFile, dataUrl } = await compressWasteReportImage(file);
+
+      // Create a File object from the compressed blob
+      const compressedImageFile = new File([compressedFile], file.name, {
+        type: 'image/jpeg',
+        lastModified: Date.now()
+      });
+
+      // Set state based on type
+      if (type === 'label') {
+        setLabelImage(compressedImageFile);
+        setLabelImagePreview(dataUrl);
+      } else {
+        setDamageImage(compressedImageFile);
+        setDamageImagePreview(dataUrl);
+      }
+
+      setIsCompressingImages(false);
+    } catch (error) {
+      console.error('Failed to process image:', error);
+      setError('Failed to process image. Please try again.');
+      setIsCompressingImages(false);
+    }
   };
 
   const handleRejectionReasonChange = (reason: string, checked: boolean) => {
@@ -240,6 +292,8 @@ export function WasteLostDefectView({ user, location, locationDisplay, onBack }:
     setSearchTerm('');
     setSelectedRejectionReasons([]);
     setError(null);
+
+    // Note: Images are kept for the entire batch submission
   };
 
   const removeEntry = (index: number) => {
@@ -276,6 +330,12 @@ Checked / Verified By: ________________________ Signature: _____________________
   const submitWasteLostDefect = async () => {
     if (entries.length === 0) {
       setError('Please add at least one item');
+      return;
+    }
+
+    // v7.38.2: Validate images are uploaded
+    if (!labelImage || !damageImage) {
+      setError('Both Label Photo and Damage Photo are required before submitting.');
       return;
     }
 
@@ -389,7 +449,37 @@ Checked / Verified By: ________________________ Signature: _____________________
         // 3. Sync Layer 1 (expected_inventory) from Layer 2 (batch_allocations)
         await tableStateService.syncExpectedFromBatchAllocations(entry.sku, location);
 
-        // 4. CREATE individual waste report (NEW SYSTEM) (v7.18.0: with batch tracking)
+        // 4. UPLOAD IMAGES to Firebase Storage (v7.38.2)
+        let labelImageUrl: string | undefined;
+        let damageImageUrl: string | undefined;
+        let labelImageSize: number | undefined;
+        let damageImageSize: number | undefined;
+
+        if (labelImage && damageImage) {
+          try {
+            // Generate unique report ID for storage path
+            const reportId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+            // Upload both images
+            const imageData = await uploadWasteReportImages(labelImage, damageImage, reportId);
+            labelImageUrl = imageData.labelImageUrl;
+            damageImageUrl = imageData.damageImageUrl;
+            labelImageSize = imageData.labelImageSize;
+            damageImageSize = imageData.damageImageSize;
+
+            console.log('✅ Images uploaded:', {
+              labelImageUrl,
+              damageImageUrl,
+              labelImageSize: `${(labelImageSize / 1024).toFixed(2)} KB`,
+              damageImageSize: `${(damageImageSize / 1024).toFixed(2)} KB`
+            });
+          } catch (imageError) {
+            console.error('❌ Failed to upload images:', imageError);
+            throw new Error('Failed to upload images. Please try again.');
+          }
+        }
+
+        // 5. CREATE individual waste report (NEW SYSTEM) (v7.18.0: with batch tracking, v7.38.2: with images)
         const wasteReport: Omit<WasteReport, 'id' | 'reportedAt'> = {
           sku: entry.sku,
           itemName: entry.itemName,
@@ -403,6 +493,12 @@ Checked / Verified By: ________________________ Signature: _____________________
           // v7.18.0: Batch tracking
           batchId: entry.batchId,
           batchAllocation: entry.batchAllocation,
+
+          // v7.38.2: Image evidence with actual sizes for cost tracking
+          labelImageUrl,
+          damageImageUrl,
+          labelImageSize,
+          damageImageSize,
 
           reportedBy: user.email
         };
@@ -444,14 +540,22 @@ Checked / Verified By: ________________________ Signature: _____________________
       const wasteCount = entries.filter(e => e.type === 'WASTE').length;
       const lostCount = entries.filter(e => e.type === 'LOST').length;
       const defectCount = entries.filter(e => e.type === 'DEFECT').length;
+      const unplannedCount = entries.filter(e => e.type === 'UNPLANNED_USAGE').length;
 
       let message = `Successfully reported from ${locationDisplay}:`;
       if (wasteCount > 0) message += ` ${wasteCount} waste,`;
       if (lostCount > 0) message += ` ${lostCount} lost,`;
-      if (defectCount > 0) message += ` ${defectCount} defect items`;
+      if (defectCount > 0) message += ` ${defectCount} defect,`;
+      if (unplannedCount > 0) message += ` ${unplannedCount} unplanned usage items`;
 
       setSuccess(message.replace(/,$/, ''));
       setEntries([]);
+
+      // v7.38.2: Reset images
+      setLabelImage(null);
+      setLabelImagePreview(null);
+      setDamageImage(null);
+      setDamageImagePreview(null);
 
     } catch (error) {
       console.error('Failed to submit waste/lost/defect items:', error);
@@ -466,6 +570,7 @@ Checked / Verified By: ________________________ Signature: _____________________
       case 'WASTE': return 'bg-red-100 text-red-800 border-red-200';
       case 'LOST': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
       case 'DEFECT': return 'bg-purple-100 text-purple-800 border-purple-200';
+      case 'UNPLANNED_USAGE': return 'bg-blue-100 text-blue-800 border-blue-200';
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
@@ -475,6 +580,7 @@ Checked / Verified By: ________________________ Signature: _____________________
       case 'WASTE': return '🔥';
       case 'LOST': return '❓';
       case 'DEFECT': return '⚠️';
+      case 'UNPLANNED_USAGE': return '📋';
       default: return '📦';
     }
   };
@@ -494,7 +600,7 @@ Checked / Verified By: ________________________ Signature: _____________________
             </div>
             <div className="mt-3">
               <button onClick={onBack} className="btn-primary">
-                Back to {locationDisplay}
+                {t('wasteLostDefectReport.backTo', { location: locationDisplay })}
               </button>
             </div>
           </div>
@@ -517,15 +623,15 @@ Checked / Verified By: ________________________ Signature: _____________________
           <div className="bg-white rounded-lg shadow-md p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
               <span className="text-2xl mr-2">🗂️</span>
-              Report Items - {locationDisplay}
+              {t('wasteLostDefectReport.title')} - {locationDisplay}
             </h3>
 
             <div className="space-y-4">
               {/* Type Selection */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">Item Status</label>
-                <div className="grid grid-cols-3 gap-3">
-                  {(['WASTE', 'LOST', 'DEFECT'] as const).map((type) => (
+                <label className="block text-sm font-medium text-gray-700 mb-3">{t('wasteLostDefectReport.itemStatus')}</label>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {(['WASTE', 'LOST', 'DEFECT', 'UNPLANNED_USAGE'] as const).map((type) => (
                     <button
                       key={type}
                       onClick={() => handleTypeChange(type)}
@@ -536,7 +642,7 @@ Checked / Verified By: ________________________ Signature: _____________________
                       }`}
                     >
                       <div className="text-xl mb-1">{getTypeEmoji(type)}</div>
-                      <div className="text-sm font-medium">{type}</div>
+                      <div className="text-sm font-medium">{t(`wasteLostDefectReport.${type.toLowerCase()}`)}</div>
                     </button>
                   ))}
                 </div>
@@ -545,13 +651,13 @@ Checked / Verified By: ________________________ Signature: _____________________
               {/* Item Search */}
               <div className="relative">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Search for Item
+                  {t('wasteLostDefectReport.searchForItem')}
                 </label>
                 <input
                   type="text"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Type item SKU or name..."
+                  placeholder={t('wasteLostDefectReport.searchPlaceholder')}
                   className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
 
@@ -575,7 +681,7 @@ Checked / Verified By: ________________________ Signature: _____________________
               {/* Quantity and Basic Reason */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Quantity</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">{t('wasteLostDefectReport.quantity')}</label>
                   <input
                     type="number"
                     min="1"
@@ -590,19 +696,19 @@ Checked / Verified By: ________________________ Signature: _____________________
                   {currentStock !== null && currentEntry.sku && (
                     <div className="mt-2 text-sm">
                       <span className="text-gray-600">
-                        <strong>Current Stock:</strong> {currentStock} units
+                        <strong>{t('wasteLostDefectReport.currentStock')}:</strong> {currentStock} {t('wasteLostDefectReport.units')}
                       </span>
                       {currentEntry.quantity > currentStock && (
                         <div className="text-red-600 font-semibold mt-1 flex items-center">
                           <span className="mr-1">⚠️</span>
-                          <span>Quantity exceeds available stock!</span>
+                          <span>{t('wasteLostDefectReport.quantityExceedsStock')}</span>
                         </div>
                       )}
                     </div>
                   )}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Basic Reason</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">{t('wasteLostDefectReport.basicReason')}</label>
                   <input
                     type="text"
                     value={currentEntry.reason}
@@ -610,17 +716,146 @@ Checked / Verified By: ________________________ Signature: _____________________
                       ...currentEntry,
                       reason: e.target.value
                     })}
-                    placeholder="Brief description..."
+                    placeholder={t('wasteLostDefectReport.reasonPlaceholder')}
                     className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
+              </div>
+
+              {/* Image Upload (v7.38.2 - REQUIRED) */}
+              <div className="border-t border-gray-200 pt-4 space-y-4">
+                <h4 className="font-medium text-gray-900 flex items-center">
+                  <span className="mr-2">📸</span>
+                  {t('wasteLostDefectReport.photoEvidence')} <span className="text-red-500 ml-1">*{t('wasteLostDefectReport.photoEvidenceRequired')}</span>
+                </h4>
+                <p className="text-sm text-gray-600">
+                  {t('wasteLostDefectReport.photoInstructions')}
+                </p>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Label Image Upload */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      {t('wasteLostDefectReport.labelPhoto')} <span className="text-red-500">*</span>
+                    </label>
+                    <div className="space-y-2">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            handleImageSelect(file, 'label');
+                          }
+                        }}
+                        className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                        disabled={isCompressingImages}
+                      />
+                      {labelImagePreview && (
+                        <div className="relative">
+                          <img
+                            src={labelImagePreview}
+                            alt="Label preview"
+                            className="w-full h-48 object-cover rounded-lg border border-gray-300"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setLabelImage(null);
+                              setLabelImagePreview(null);
+                            }}
+                            className="absolute top-2 right-2 bg-red-500 text-white p-2 rounded-full hover:bg-red-600 shadow-lg"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                          <div className="mt-1 text-xs text-green-600 flex items-center">
+                            <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                            </svg>
+                            {t('wasteLostDefectReport.imageCompressed')}
+                          </div>
+                        </div>
+                      )}
+                      {!labelImagePreview && (
+                        <div className="text-xs text-gray-500">
+                          📷 {t('wasteLostDefectReport.takePhotoOrUpload')} {t('wasteLostDefectReport.labelPhotoHelp')}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Damage Image Upload */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      {t('wasteLostDefectReport.damagePhoto')} <span className="text-red-500">*</span>
+                    </label>
+                    <div className="space-y-2">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            handleImageSelect(file, 'damage');
+                          }
+                        }}
+                        className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                        disabled={isCompressingImages}
+                      />
+                      {damageImagePreview && (
+                        <div className="relative">
+                          <img
+                            src={damageImagePreview}
+                            alt="Damage preview"
+                            className="w-full h-48 object-cover rounded-lg border border-gray-300"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDamageImage(null);
+                              setDamageImagePreview(null);
+                            }}
+                            className="absolute top-2 right-2 bg-red-500 text-white p-2 rounded-full hover:bg-red-600 shadow-lg"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                          <div className="mt-1 text-xs text-green-600 flex items-center">
+                            <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                            </svg>
+                            {t('wasteLostDefectReport.imageCompressed')}
+                          </div>
+                        </div>
+                      )}
+                      {!damageImagePreview && (
+                        <div className="text-xs text-gray-500">
+                          📷 {t('wasteLostDefectReport.takePhotoOrUpload')} {t('wasteLostDefectReport.damagePhotoHelp')}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Loading Indicator */}
+                {isCompressingImages && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <div className="flex items-center">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+                      <span className="text-sm text-blue-700">{t('wasteLostDefectReport.compressingImage')}</span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Batch Selection (v7.18.0) */}
               {currentEntry.sku && availableBatches.length > 0 && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    📦 Select Batch <span className="text-red-500">*</span>
+                    📦 {t('wasteLostDefectReport.selectBatch')} <span className="text-red-500">*</span>
                   </label>
                   <select
                     value={selectedBatch}
@@ -636,10 +871,10 @@ Checked / Verified By: ________________________ Signature: _____________________
                     }}
                     className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   >
-                    <option value="">-- Select a batch --</option>
+                    <option value="">{t('wasteLostDefectReport.selectBatchPrompt')}</option>
                     {availableBatches.map((batch) => (
                       <option key={batch.batchId} value={batch.batchId}>
-                        {batch.batchId === 'DEFAULT' ? '🚫 DEFAULT' : `Batch ${batch.batchId}`} - {batch.allocated} units available
+                        {batch.batchId === 'DEFAULT' ? `🚫 ${t('wasteLostDefectReport.batchDefault')}` : `Batch ${batch.batchId}`} - {batch.allocated} {t('wasteLostDefectReport.unitsAvailable')}
                       </option>
                     ))}
                   </select>
@@ -652,14 +887,14 @@ Checked / Verified By: ________________________ Signature: _____________________
                           return (
                             <div className="text-red-600 font-semibold flex items-center">
                               <span className="mr-1">⚠️</span>
-                              <span>Quantity ({currentEntry.quantity}) exceeds batch allocation ({available})!</span>
+                              <span>{t('wasteLostDefectReport.quantityExceedsBatch')}</span>
                             </div>
                           );
                         } else {
                           return (
                             <div className="text-green-600 flex items-center">
                               <span className="mr-1">✓</span>
-                              <span>Valid - Batch has {available} units</span>
+                              <span>{t('wasteLostDefectReport.validBatch')} {available} {t('wasteLostDefectReport.units')}</span>
                             </div>
                           );
                         }
@@ -674,13 +909,13 @@ Checked / Verified By: ________________________ Signature: _____________________
                 <div className="border-t pt-4 space-y-4">
                   <h4 className="font-medium text-gray-900 flex items-center">
                     <span className="mr-2">⚠️</span>
-                    Claim Report Details
+                    {t('wasteLostDefectReport.claimReportDetails')}
                   </h4>
 
                   {/* Total Lot Quantity and Shift */}
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Total Lot Quantity</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">{t('wasteLostDefectReport.totalLotQuantity')}</label>
                       <input
                         type="number"
                         value={currentEntry.totalLotQuantity || ''}
@@ -688,12 +923,12 @@ Checked / Verified By: ________________________ Signature: _____________________
                           ...currentEntry,
                           totalLotQuantity: parseInt(e.target.value) || undefined
                         })}
-                        placeholder="Total received"
+                        placeholder={t('wasteLostDefectReport.totalReceived')}
                         className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Shift</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">{t('wasteLostDefectReport.shift')}</label>
                       <input
                         type="text"
                         value={currentEntry.shift || ''}
@@ -701,7 +936,7 @@ Checked / Verified By: ________________________ Signature: _____________________
                           ...currentEntry,
                           shift: e.target.value
                         })}
-                        placeholder="e.g., Morning, A-Shift"
+                        placeholder={t('wasteLostDefectReport.shiftPlaceholder')}
                         className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                       />
                     </div>
@@ -709,7 +944,7 @@ Checked / Verified By: ________________________ Signature: _____________________
 
                   {/* Rejection Reasons */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Reason for Rejection</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">{t('wasteLostDefectReport.reasonForRejection')}</label>
                     <div className="space-y-2">
                       {REJECTION_REASONS.map((reason) => (
                         <label key={reason} className="flex items-center">
@@ -723,7 +958,7 @@ Checked / Verified By: ________________________ Signature: _____________________
                         </label>
                       ))}
                       <div className="flex items-center">
-                        <span className="text-sm mr-2">Others:</span>
+                        <span className="text-sm mr-2">{t('wasteLostDefectReport.others')}:</span>
                         <input
                           type="text"
                           value={currentEntry.customReason || ''}
@@ -731,7 +966,7 @@ Checked / Verified By: ________________________ Signature: _____________________
                             ...currentEntry,
                             customReason: e.target.value
                           })}
-                          placeholder="Specify other reason..."
+                          placeholder={t('wasteLostDefectReport.specifyOtherReason')}
                           className="flex-1 p-2 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                         />
                       </div>
@@ -741,7 +976,7 @@ Checked / Verified By: ________________________ Signature: _____________________
                   {/* Detected By and Action Taken */}
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Detected By</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">{t('wasteLostDefectReport.detectedBy')}</label>
                       <input
                         type="text"
                         value={currentEntry.detectedBy || ''}
@@ -749,12 +984,12 @@ Checked / Verified By: ________________________ Signature: _____________________
                           ...currentEntry,
                           detectedBy: e.target.value
                         })}
-                        placeholder="Name / Department"
+                        placeholder={t('wasteLostDefectReport.detectedByPlaceholder')}
                         className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Action Taken</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">{t('wasteLostDefectReport.actionTaken')}</label>
                       <select
                         value={currentEntry.actionTaken || ''}
                         onChange={(e) => setCurrentEntry({
@@ -763,7 +998,7 @@ Checked / Verified By: ________________________ Signature: _____________________
                         })}
                         className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                       >
-                        <option value="">Select action...</option>
+                        <option value="">{t('wasteLostDefectReport.selectAction')}</option>
                         {ACTION_OPTIONS.map((action) => (
                           <option key={action} value={action}>{action}</option>
                         ))}
@@ -781,10 +1016,11 @@ Checked / Verified By: ________________________ Signature: _____________________
                   className={`px-6 py-3 rounded-lg font-medium text-white transition-colors disabled:cursor-not-allowed ${
                     currentEntry.type === 'WASTE' ? 'bg-red-500 hover:bg-red-600 disabled:bg-gray-400' :
                     currentEntry.type === 'LOST' ? 'bg-yellow-500 hover:bg-yellow-600 disabled:bg-gray-400' :
-                    'bg-purple-500 hover:bg-purple-600 disabled:bg-gray-400'
+                    currentEntry.type === 'DEFECT' ? 'bg-purple-500 hover:bg-purple-600 disabled:bg-gray-400' :
+                    'bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400'
                   }`}
                 >
-                  Add {currentEntry.type} Item
+                  {t(`wasteLostDefectReport.add${currentEntry.type === 'WASTE' ? 'Waste' : currentEntry.type === 'LOST' ? 'Lost' : 'Defect'}Item`)}
                 </button>
               </div>
             </div>
@@ -794,7 +1030,7 @@ Checked / Verified By: ________________________ Signature: _____________________
         {/* Items List */}
         {entries.length > 0 && !success && (
           <div className="bg-white rounded-lg shadow-md p-6">
-            <h4 className="text-md font-semibold text-gray-900 mb-4">Items to Report ({entries.length})</h4>
+            <h4 className="text-md font-semibold text-gray-900 mb-4">{t('wasteLostDefectReport.itemsToReport')} ({entries.length})</h4>
 
             <div className="space-y-3">
               {entries.map((entry, index) => (
@@ -834,10 +1070,10 @@ Checked / Verified By: ________________________ Signature: _____________________
                 {isSubmitting ? (
                   <div className="flex items-center justify-center">
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Submitting...
+                    {t('wasteLostDefectReport.failedToSubmit')}...
                   </div>
                 ) : (
-                  `Report ${entries.length} Items`
+                  t('wasteLostDefectReport.reportItems', { count: entries.length })
                 )}
               </button>
 
@@ -846,7 +1082,7 @@ Checked / Verified By: ________________________ Signature: _____________________
                 disabled={isSubmitting}
                 className="flex-1 btn-secondary disabled:opacity-50"
               >
-                Cancel
+                {t('wasteLostDefectReport.cancel')}
               </button>
             </div>
           </div>
@@ -856,7 +1092,7 @@ Checked / Verified By: ________________________ Signature: _____________________
         {entries.length === 0 && !success && (
           <div className="text-center">
             <button onClick={onBack} className="btn-secondary">
-              Back to {locationDisplay}
+              {t('wasteLostDefectReport.backTo', { location: locationDisplay })}
             </button>
           </div>
         )}

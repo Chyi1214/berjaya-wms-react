@@ -1,15 +1,15 @@
 // Tool Check Service - Firebase operations for tool inventory checking
-import { 
-  collection, 
-  doc, 
-  getDocs, 
+import {
+  collection,
+  doc,
+  getDocs,
   getDoc,
-  query, 
-  where, 
+  query,
+  where,
   orderBy,
   Timestamp,
   setDoc
-} from 'firebase/firestore';
+} from './costTracking/firestoreWrapper';
 import { db } from './firebase';
 import {
   ToolCheckConfig,

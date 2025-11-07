@@ -8,6 +8,8 @@ import { bomService } from '../services/bom';
 import { scannerService } from '../services/scannerService';
 import { qrExtractionService } from '../services/qrExtraction';
 import { batchAllocationService } from '../services/batchAllocationService';
+import { batchManagementService } from '../services/batchManagement';
+import { scanLookupService } from '../services/scanLookupService';
 
 interface TransactionSendFormProps {
   onSubmit: (transaction: TransactionFormData & { otp: string; skipOTP?: boolean }) => void;
@@ -22,6 +24,7 @@ interface CartItem {
   amount: number;
   isBOM: boolean;
   bomData?: BOM;
+  zones?: Array<{zone: string; itemName?: string; expectedQuantity?: number}>;
 }
 
 export function TransactionSendForm({ onSubmit, onCancel, inventoryCounts }: TransactionSendFormProps) {
@@ -68,8 +71,17 @@ export function TransactionSendForm({ onSubmit, onCancel, inventoryCounts }: Tra
 
   // Batch allocation states
   const [availableBatches, setAvailableBatches] = useState<string[]>([]);
-  const [selectedBatch, setSelectedBatch] = useState<string>('');
+  const [selectedBatch, setSelectedBatch] = useState<string>(''); // Source batch (fromBatch)
+  const [destinationBatch, setDestinationBatch] = useState<string>(''); // Destination batch (toBatch) - v7.20.0
   const [batchConfigLoading, setBatchConfigLoading] = useState(false);
+
+  // Car type selection (v7.19.0)
+  const [availableCarTypes, setAvailableCarTypes] = useState<Array<{carCode: string; name: string}>>([]);
+  const [selectedCarType, setSelectedCarType] = useState<string>('TK1');
+  const [carTypesLoading, setCarTypesLoading] = useState(false);
+
+  // Store scan result data for zone display
+  const [scannedItemZones, setScannedItemZones] = useState<Array<{zone: string; itemName?: string; expectedQuantity?: number}>>([]);
 
   // Check if current item is a BOM
   const isBOM = currentSku.startsWith('BOM');
@@ -92,10 +104,66 @@ export function TransactionSendForm({ onSubmit, onCancel, inventoryCounts }: Tra
     }
   }, [currentSku, isBOM]);
 
-  // Load batch configuration on mount
+  // Load car types and batch configuration on mount
   useEffect(() => {
+    loadCarTypes();
     loadBatchConfig();
   }, []);
+
+  // Fetch zone data when SKU or car type changes
+  useEffect(() => {
+    const fetchZoneData = async () => {
+      if (!currentSku || isBOM) {
+        setScannedItemZones([]);
+        return;
+      }
+
+      try {
+        console.log(`🔍 Fetching zones for SKU: ${currentSku}, Car Type: ${selectedCarType}`);
+        const allLookups = await scanLookupService.getAllLookupsBySKU(currentSku, selectedCarType);
+
+        if (allLookups.length > 0) {
+          const zones = allLookups.map(lookup => ({
+            zone: lookup.targetZone.toString(),
+            itemName: lookup.itemName,
+            expectedQuantity: lookup.expectedQuantity
+          }));
+          setScannedItemZones(zones);
+          console.log(`✅ Found ${zones.length} zones for ${currentSku} (${selectedCarType})`);
+        } else {
+          setScannedItemZones([]);
+          console.log(`❌ No zones found for ${currentSku} (${selectedCarType})`);
+        }
+      } catch (error) {
+        console.error('Failed to fetch zone data:', error);
+        setScannedItemZones([]);
+      }
+    };
+
+    fetchZoneData();
+  }, [currentSku, selectedCarType, isBOM]);
+
+  // Load available car types
+  const loadCarTypes = async () => {
+    try {
+      setCarTypesLoading(true);
+
+      // Ensure TK1 exists
+      await batchManagementService.ensureTK1CarTypeExists();
+
+      // Load all car types
+      const carTypes = await batchManagementService.getAllCarTypes();
+      setAvailableCarTypes(carTypes);
+
+      console.log('✅ Loaded car types for Send Form:', carTypes);
+    } catch (error) {
+      console.error('Failed to load car types:', error);
+      // Fallback to TK1 only
+      setAvailableCarTypes([{ carCode: 'TK1', name: 'TK1 (Default)' }]);
+    } finally {
+      setCarTypesLoading(false);
+    }
+  };
 
   const loadBatchConfig = async () => {
     try {
@@ -146,6 +214,43 @@ export function TransactionSendForm({ onSubmit, onCancel, inventoryCounts }: Tra
   const currentItem = availableItems.find(item => item.sku === currentSku);
   const maxAvailableQuantity = currentItem?.totalQuantity || 0;
 
+  // Check for common zones across cart items
+  const cartZoneWarning = useMemo(() => {
+    // Need at least 2 items to check
+    if (cart.length < 2) return null;
+
+    // Get items with zone data (exclude BOMs and items without zones)
+    const itemsWithZones = cart.filter(item => !item.isBOM && item.zones && item.zones.length > 0);
+
+    // Need at least 2 items with zones to compare
+    if (itemsWithZones.length < 2) return null;
+
+    // Find common zones across all items
+    const firstItemZones = new Set(itemsWithZones[0].zones!.map(z => z.zone));
+
+    for (let i = 1; i < itemsWithZones.length; i++) {
+      const currentZones = new Set(itemsWithZones[i].zones!.map(z => z.zone));
+
+      // Keep only zones that exist in current item
+      for (const zone of firstItemZones) {
+        if (!currentZones.has(zone)) {
+          firstItemZones.delete(zone);
+        }
+      }
+    }
+
+    // If no common zones, return warning
+    if (firstItemZones.size === 0) {
+      return {
+        hasWarning: true,
+        message: `⚠️ Warning: These ${itemsWithZones.length} items have NO common zones! They might be for different vehicles or purposes.`,
+        itemCount: itemsWithZones.length
+      };
+    }
+
+    return null;
+  }, [cart]);
+
   // Calculate how much is already in cart for this SKU
   const amountInCart = cart
     .filter(item => item.sku === currentSku)
@@ -191,13 +296,14 @@ export function TransactionSendForm({ onSubmit, onCancel, inventoryCounts }: Tra
         }
       }
 
-      // Add to cart
+      // Add to cart with zone data
       const newCartItem: CartItem = {
         sku: currentSku,
         itemName: currentItem?.name || currentSku,
         amount: currentAmount,
         isBOM: isBOM,
-        bomData: currentBomData || undefined
+        bomData: currentBomData || undefined,
+        zones: scannedItemZones.length > 0 ? scannedItemZones : undefined
       };
 
       setCart(prev => [...prev, newCartItem]);
@@ -259,6 +365,16 @@ export function TransactionSendForm({ onSubmit, onCancel, inventoryCounts }: Tra
     try {
       const otp = generateOTP();
 
+      // Determine if this is a cross-batch transfer
+      const isCrossBatch = destinationBatch && destinationBatch !== selectedBatch;
+
+      // Build notes with batch transfer information
+      let notes = `Multi-item send from Batch ${selectedBatch}`;
+      if (isCrossBatch) {
+        notes += ` to Batch ${destinationBatch} (Cross-Batch Transfer)`;
+      }
+      notes += `. Total items: ${cart.length}`;
+
       // Create multi-item transaction data
       const transactionData: TransactionFormData & { otp: string; skipOTP?: boolean } = {
         sku: cart[0].sku, // Legacy field - use first item
@@ -271,9 +387,11 @@ export function TransactionSendForm({ onSubmit, onCancel, inventoryCounts }: Tra
         transactionType: TransactionType.TRANSFER_OUT,
         location: 'logistics',
         toLocation: destinationZone,
-        notes: `Multi-item send from Batch ${selectedBatch}. Total items: ${cart.length}`,
+        notes,
         reference: '',
-        batchId: selectedBatch,
+        batchId: selectedBatch, // Keep for backward compatibility
+        fromBatch: selectedBatch, // v7.20.0 - Source batch
+        toBatch: destinationBatch || selectedBatch, // v7.20.0 - Destination batch (defaults to source if not specified)
         otp,
         skipOTP
       };
@@ -283,6 +401,7 @@ export function TransactionSendForm({ onSubmit, onCancel, inventoryCounts }: Tra
       // Clear cart after successful submission
       setCart([]);
       setDestinationZone('');
+      setDestinationBatch(''); // v7.20.0 - Clear destination batch
     } catch (error) {
       console.error('Failed to create transaction:', error);
       alert(t('transactions.failedToCreateTransaction'));
@@ -353,12 +472,16 @@ export function TransactionSendForm({ onSubmit, onCancel, inventoryCounts }: Tra
     stopScanning();
 
     try {
-      const extractionResult = await qrExtractionService.extractSKUFromQRCode(scannedCode);
+      // Pass selected car type to extraction service
+      const extractionResult = await qrExtractionService.extractSKUFromQRCode(scannedCode, selectedCarType);
 
-      if (extractionResult.success && extractionResult.extractedSKU && extractionResult.lookupData) {
+      // Now accepts items found in EITHER scanner lookup OR item master
+      if (extractionResult.success && extractionResult.extractedSKU) {
         const extractedSKU = extractionResult.extractedSKU;
 
         console.log('✅ Successfully extracted SKU:', extractedSKU);
+        console.log('📍 Zone data available:', extractionResult.lookupData ? 'Yes' : 'No');
+        console.log('📋 Item Master available:', extractionResult.itemMaster ? 'Yes' : 'No');
 
         const inventoryItem = availableItems.find(item => item.sku === extractedSKU);
 
@@ -373,21 +496,36 @@ export function TransactionSendForm({ onSubmit, onCancel, inventoryCounts }: Tra
           setSelectedSearchResult(searchResult);
           setScanError(null);
 
+          // Store zone information for display (if available)
+          if (extractionResult.lookupData && extractionResult.lookupData.length > 0) {
+            const zones = extractionResult.lookupData.map(lookup => ({
+              zone: lookup.targetZone.toString(),
+              itemName: lookup.itemName,
+              expectedQuantity: lookup.expectedQuantity
+            }));
+            setScannedItemZones(zones);
+          } else {
+            setScannedItemZones([]); // No zone data available
+          }
+
           console.log('📦 Found in inventory via scan:', inventoryItem);
         } else {
-          setScanError(`${extractedSKU} found in scanner data but not in current inventory`);
+          setScanError(`${extractedSKU} found but not in current inventory`);
           setSelectedSearchResult(null);
+          setScannedItemZones([]);
         }
 
       } else {
         const attemptsList = extractionResult.attemptedLookups.slice(0, 3).join(', ');
         setScanError(`No valid SKU found. Tried: ${attemptsList}${extractionResult.attemptedLookups.length > 3 ? '...' : ''}`);
         setSelectedSearchResult(null);
+        setScannedItemZones([]);
       }
     } catch (error) {
       console.error('QR extraction failed:', error);
       setScanError('Failed to process scanned QR code');
       setSelectedSearchResult(null);
+      setScannedItemZones([]);
     }
   };
 
@@ -400,84 +538,101 @@ export function TransactionSendForm({ onSubmit, onCancel, inventoryCounts }: Tra
 
   return (
     <div className="bg-white rounded-lg p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h3 className="text-lg font-semibold text-gray-900">
-          📤 {t('transactions.sendItemsToProduction')} (Multi-Item)
-        </h3>
-        <button
-          onClick={onCancel}
-          className="text-gray-400 hover:text-gray-600"
-        >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
-
-      {/* Batch Selection Section */}
-      <div className="mb-6 bg-orange-50 border border-orange-200 rounded-lg p-4">
-        <div className="flex items-center justify-center space-x-4">
-          <div className="text-center">
-            <p className="text-sm text-gray-600 mb-1">Sending From Batch</p>
-            <div className="text-xl font-bold text-orange-600">
+      {/* Compact Badge Style - Match Scanner */}
+      <div className="mb-4 bg-white rounded-lg p-3 shadow-sm border border-gray-200">
+        <div className="space-y-2">
+          {/* Source Batch Badge Line */}
+          <div className="flex items-center gap-2 text-sm flex-wrap">
+            <span className="text-gray-600">From Batch:</span>
+            <span>📦</span>
+            <span className="font-semibold text-orange-700">
               {batchConfigLoading ? '⏳ Loading...' : selectedBatch || 'Not Set'}
-            </div>
-          </div>
-
-          {!batchConfigLoading && availableBatches.length > 1 && (
-            <div className="flex items-center space-x-2">
-              <button
-                type="button"
-                onClick={() => {
-                  const dropdown = document.getElementById('transaction-batch-selector');
-                  if (dropdown) {
-                    (dropdown as HTMLSelectElement).focus();
-                  }
-                }}
-                className="text-sm text-orange-600 hover:text-orange-700 underline"
-              >
-                Change
-              </button>
+            </span>
+            {!batchConfigLoading && availableBatches.length > 0 && (
               <select
                 id="transaction-batch-selector"
                 value={selectedBatch}
                 onChange={(e) => setSelectedBatch(e.target.value)}
-                className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                className="text-xs border border-orange-300 bg-orange-50 rounded px-2 py-1 text-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
               >
+                <option value="">Select Source Batch *</option>
                 {availableBatches.map(batchId => (
                   <option key={batchId} value={batchId}>
                     Batch {batchId}
                   </option>
                 ))}
               </select>
-            </div>
-          )}
-        </div>
-        {!batchConfigLoading && (
-          <p className="text-xs text-gray-500 text-center mt-2">
-            All items will be deducted from this batch allocation
-          </p>
-        )}
-      </div>
+            )}
+          </div>
 
-      {/* Destination Zone - Select Once for All Items */}
-      <div className="mb-6">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          🏭 {t('transactions.sendToProductionZone')} * (for all items)
-        </label>
-        <select
-          value={destinationZone}
-          onChange={(e) => setDestinationZone(e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-          required
-        >
-          <option value="">{t('transactions.selectDestinationZone')}</option>
-          {PRODUCTION_ZONES.map((zone) => (
-            <option key={zone.id} value={zone.value}>
-              {zone.name}
-            </option>
-          ))}
-        </select>
+          {/* Destination Batch Badge Line - v7.20.0 Cross-Batch Transfer */}
+          <div className="flex items-center gap-2 text-sm flex-wrap">
+            <span className="text-gray-600">To Batch:</span>
+            <span>🎯</span>
+            <span className="font-semibold text-purple-700">
+              {batchConfigLoading ? '⏳ Loading...' : destinationBatch || 'Same Batch'}
+            </span>
+            {!batchConfigLoading && availableBatches.length > 0 && (
+              <select
+                id="transaction-dest-batch-selector"
+                value={destinationBatch}
+                onChange={(e) => setDestinationBatch(e.target.value)}
+                className="text-xs border border-purple-300 bg-purple-50 rounded px-2 py-1 text-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500"
+              >
+                <option value="">Keep in Same Batch</option>
+                {availableBatches.map(batchId => (
+                  <option key={batchId} value={batchId}>
+                    Batch {batchId}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {/* Car Type Selection Badge Line */}
+          <div className="flex items-center gap-2 text-sm flex-wrap">
+            <span className="text-gray-600">Car Type:</span>
+            <span>🚗</span>
+            <span className="font-semibold text-blue-700">
+              {carTypesLoading ? '⏳ Loading...' : selectedCarType}
+            </span>
+            {!carTypesLoading && availableCarTypes.length > 1 && (
+              <select
+                value={selectedCarType}
+                onChange={(e) => {
+                  setSelectedCarType(e.target.value);
+                  // Zones will auto-refresh via useEffect
+                }}
+                className="text-xs border border-blue-300 bg-blue-50 rounded px-2 py-1 text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {availableCarTypes.map(carType => (
+                  <option key={carType.carCode} value={carType.carCode}>
+                    Change ▼ {carType.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {/* Zone Selection Badge Line */}
+          <div className="flex items-center gap-2 text-sm flex-wrap">
+            <span className="text-gray-600">Send to Zone:</span>
+            <span>🏭</span>
+            <select
+              value={destinationZone}
+              onChange={(e) => setDestinationZone(e.target.value)}
+              className="text-xs border border-blue-300 bg-blue-50 rounded px-2 py-1 text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            >
+              <option value="">Select Zone *</option>
+              {PRODUCTION_ZONES.map((zone) => (
+                <option key={zone.id} value={zone.value}>
+                  {zone.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
       </div>
 
       {/* Cart Display */}
@@ -488,37 +643,84 @@ export function TransactionSendForm({ onSubmit, onCancel, inventoryCounts }: Tra
           </h4>
           <div className="space-y-2">
             {cart.map((item, index) => (
-              <div key={index} className="flex items-center justify-between bg-white p-3 rounded border border-green-200">
-                <div className="flex-1">
-                  <div className="font-medium text-gray-900">
-                    {item.sku} - {item.itemName}
-                    {item.isBOM && <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">BOM</span>}
-                  </div>
-                  {item.bomData && (
-                    <div className="text-xs text-gray-500 mt-1">
-                      Components: {item.bomData.components.map(c => `${c.sku} (${c.quantity}x)`).join(', ')}
+              <div key={index} className="bg-white p-3 rounded border border-green-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <div className="font-medium text-gray-900">
+                      {item.sku} - {item.itemName}
+                      {item.isBOM && <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">BOM</span>}
                     </div>
-                  )}
-                </div>
-                <div className="flex items-center space-x-3">
-                  <input
-                    type="number"
-                    min="1"
-                    value={item.amount}
-                    onChange={(e) => handleUpdateCartQuantity(index, parseInt(e.target.value) || 0)}
-                    className="w-20 px-2 py-1 border border-gray-300 rounded text-center"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveFromCart(index)}
-                    className="text-red-600 hover:text-red-800"
-                    title="Remove from cart"
-                  >
-                    🗑️
-                  </button>
+                    {item.bomData && (
+                      <div className="text-xs text-gray-500 mt-1">
+                        Components: {item.bomData.components.map(c => `${c.sku} (${c.quantity}x)`).join(', ')}
+                      </div>
+                    )}
+                    {/* Display zones for this cart item */}
+                    {item.zones && item.zones.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {item.zones.map((zoneInfo, zIdx) => (
+                          <span key={zIdx} className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-blue-100 text-blue-800">
+                            🎯 Zone {zoneInfo.zone}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {!item.zones && !item.isBOM && (
+                      <div className="mt-1 text-xs text-gray-500">
+                        ⚠️ No zone data
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <input
+                      type="number"
+                      min="1"
+                      value={item.amount}
+                      onChange={(e) => handleUpdateCartQuantity(index, parseInt(e.target.value) || 0)}
+                      className="w-20 px-2 py-1 border border-gray-300 rounded text-center"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveFromCart(index)}
+                      className="text-red-600 hover:text-red-800"
+                      title="Remove from cart"
+                    >
+                      🗑️
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Zone Mismatch Warning */}
+      {cartZoneWarning && (
+        <div className="mb-6 bg-red-50 border-2 border-red-300 rounded-lg p-4">
+          <div className="flex items-start">
+            <div className="flex-shrink-0">
+              <span className="text-3xl">🚨</span>
+            </div>
+            <div className="ml-3 flex-1">
+              <h4 className="text-lg font-bold text-red-900 mb-2">
+                Zone Mismatch Detected!
+              </h4>
+              <p className="text-red-800 mb-3">
+                {cartZoneWarning.message}
+              </p>
+              <div className="bg-white border border-red-200 rounded p-3 text-sm">
+                <p className="font-semibold text-red-900 mb-2">Why is this a problem?</p>
+                <ul className="list-disc list-inside space-y-1 text-red-800">
+                  <li>Items for different zones shouldn't be sent together</li>
+                  <li>You might have scanned the wrong item by mistake</li>
+                  <li>This could cause confusion at the production line</li>
+                </ul>
+                <p className="mt-3 font-semibold text-red-900">
+                  💡 Suggestion: Double-check your scanned items or send them separately
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -542,6 +744,7 @@ export function TransactionSendForm({ onSubmit, onCancel, inventoryCounts }: Tra
                 setCurrentSku('');
                 setSelectedSearchResult(null);
                 setScanError(null);
+                setScannedItemZones([]);
               }}
             />
 
@@ -603,6 +806,45 @@ export function TransactionSendForm({ onSubmit, onCancel, inventoryCounts }: Tra
                     </span>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* Destination Zones Display (shown when scanned) */}
+            {scannedItemZones.length > 0 && (
+              <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+                <h4 className="font-medium text-green-900 mb-2 flex items-center">
+                  <span className="mr-2">🎯</span>
+                  Destination Zones for {currentItem?.sku}
+                </h4>
+                <div className="space-y-1">
+                  {scannedItemZones.map((zoneInfo, index) => (
+                    <div key={index} className="flex items-center justify-between text-sm bg-white p-2 rounded border border-green-200">
+                      <div className="flex items-center space-x-2">
+                        <span className="font-semibold text-green-800">Zone {zoneInfo.zone}</span>
+                        {zoneInfo.itemName && (
+                          <span className="text-gray-600">• {zoneInfo.itemName}</span>
+                        )}
+                      </div>
+                      {zoneInfo.expectedQuantity && (
+                        <span className="text-green-700 font-medium">
+                          Expected: {zoneInfo.expectedQuantity} units
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-green-700 mt-2">
+                  💡 This item needs to go to {scannedItemZones.length} zone{scannedItemZones.length > 1 ? 's' : ''}
+                </p>
+              </div>
+            )}
+
+            {/* No Zone Data Message (when scanned but no zones found) */}
+            {currentItem && scannedItemZones.length === 0 && selectedSearchResult && (
+              <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <p className="text-sm text-yellow-800">
+                  ℹ️ No zone data available for this item. Item found in Item Master but not in Scanner Lookup.
+                </p>
               </div>
             )}
 

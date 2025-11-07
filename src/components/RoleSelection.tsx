@@ -1,5 +1,5 @@
 // Role Selection Component - Choose user role after login
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { UserRole, RoleInfo, type RoleSelectionProps } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext'; // Import useAuth
@@ -48,6 +48,15 @@ export function RoleSelection({ user, onRoleSelect, onLogout }: RoleSelectionPro
   const [showTranslationChannels, setShowTranslationChannels] = useState(false);
 
   const userRole = authenticatedUser?.userRecord?.role;
+
+  // Debug: Log userRecord when it changes
+  useEffect(() => {
+    console.log('🔍 RoleSelection userRecord updated:', {
+      displayName: authenticatedUser?.userRecord?.displayName,
+      useDisplayName: authenticatedUser?.userRecord?.useDisplayName,
+      calculatedDisplayName: getDisplayName(user, authenticatedUser?.userRecord)
+    });
+  }, [authenticatedUser?.userRecord, user]);
 
   // Handle role button click
   const handleRoleClick = (role: UserRole) => {

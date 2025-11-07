@@ -1,5 +1,5 @@
 // Report Service - v5.7 Worker Report Button System
-import { collection, doc, addDoc, getDocs, updateDoc, query, where } from 'firebase/firestore';
+import { collection, doc, addDoc, getDocs, updateDoc, query, where } from './costTracking/firestoreWrapper';
 import { db } from './firebase';
 
 export interface WorkerReport {

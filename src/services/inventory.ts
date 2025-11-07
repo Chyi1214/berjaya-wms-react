@@ -1,15 +1,15 @@
 // Firebase Inventory Service - Real-time inventory data management
-import { 
-  collection, 
-  doc, 
-  setDoc, 
-  getDocs, 
-  onSnapshot, 
-  query, 
+import {
+  collection,
+  doc,
+  query,
   orderBy,
   Timestamp,
+  setDoc,
+  getDocs,
+  onSnapshot,
   deleteDoc
-} from 'firebase/firestore';
+} from './costTracking/firestoreWrapper';
 import { db } from './firebase';
 import { itemMasterService } from './itemMaster';
 import { InventoryCountEntry } from '../types';
@@ -61,8 +61,8 @@ export const inventoryService = {
         itemName: item.name
       };
       const firestoreData = mapEntryToFirestore(canonicalEntry);
-      
-      await setDoc(docRef, firestoreData);
+
+      await setDoc(docRef, firestoreData, 'InventoryService', 'saveInventoryCount');
       logger.info('Inventory count saved', { docId, amount: entry.amount });
       
     } catch (error) {
@@ -78,8 +78,8 @@ export const inventoryService = {
         collection(db, INVENTORY_COLLECTION),
         orderBy('lastUpdated', 'desc')
       );
-      
-      const snapshot = await getDocs(q);
+
+      const snapshot = await getDocs(q, 'InventoryService', 'getAllInventoryCounts');
       const counts: InventoryCountEntry[] = [];
       
       snapshot.forEach((doc) => {
@@ -103,15 +103,15 @@ export const inventoryService = {
         collection(db, INVENTORY_COLLECTION),
         orderBy('lastUpdated', 'desc')
       );
-      
+
       const unsubscribe = onSnapshot(q, (snapshot) => {
         const counts: InventoryCountEntry[] = [];
-        
+
         snapshot.forEach((doc) => {
           const entry = mapFirestoreToEntry(doc.id, doc.data());
           counts.push(entry);
         });
-        
+
         logger.debug('Real-time inventory counts update', { count: counts.length });
         callback(counts);
       });
@@ -127,11 +127,11 @@ export const inventoryService = {
   // Clear all inventory data (for testing)
   async clearAllInventory(): Promise<void> {
     try {
-      const snapshot = await getDocs(collection(db, INVENTORY_COLLECTION));
+      const snapshot = await getDocs(collection(db, INVENTORY_COLLECTION), 'InventoryService', 'clearAllInventory');
       const deletePromises: Promise<void>[] = [];
-      
+
       snapshot.forEach((doc) => {
-        deletePromises.push(deleteDoc(doc.ref));
+        deletePromises.push(deleteDoc(doc.ref, 'InventoryService', 'clearAllInventory'));
       });
       
       await Promise.all(deletePromises);

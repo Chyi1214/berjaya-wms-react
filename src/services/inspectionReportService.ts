@@ -1,11 +1,44 @@
 // Inspection Report Service - Generate PDF reports for car inspections
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import JsBarcode from 'jsbarcode';
 import type { CarInspection, InspectionTemplate, InspectionSection, DefectLocation } from '../types/inspection';
 import { inspectionService } from './inspectionService';
 import { createModuleLogger } from './logger';
+import { loadImageAsDataURL, getCacheStats } from './imageCache';
 
 const logger = createModuleLogger('InspectionReportService');
+
+// PDF Layout Constants
+const PDF_CONSTANTS = {
+  MARGIN_LEFT: 20,
+  MARGIN_RIGHT: 20,
+  PAGE_BOTTOM_LIMIT: 260,
+  PAGE_TOP_START: 20,
+  TITLE_FONT_SIZE: 18,
+  HEADER_FONT_SIZE: 10,
+  SECTION_FONT_SIZE: 10,
+  FOOTER_FONT_SIZE: 8,
+  LABEL_X: 20,
+  VALUE_X_OFFSET: 22,
+  BARCODE_X: 130,
+  BARCODE_WIDTH: 60,
+  BARCODE_HEIGHT: 10,
+  IMAGE_WIDTH: 57,
+  IMAGE_HEIGHT_RATIO: 600 / 800,
+  IMAGES_PER_ROW: 3,
+  IMAGE_SPACING: 5,
+  INSPECTORS_PER_LINE: 3,
+} as const;
+
+// Standard section keys for car inspections
+const SECTION_KEYS: InspectionSection[] = [
+  'right_outside',
+  'left_outside',
+  'front_back',
+  'interior_right',
+  'interior_left',
+];
 
 // Helper: Format date for PDF display
 function formatDateForPDF(date: Date | string): string {
@@ -18,14 +51,6 @@ function formatDateForPDF(date: Date | string): string {
   return `${year}-${month}-${day} ${hours}:${minutes}`;
 }
 
-// Helper: Format status for display
-function formatStatus(status: string): string {
-  return status
-    .split('_')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join(' ');
-}
-
 // Helper: Get localized text or fallback to English
 function getLocalizedText(text: string | { en: string; ms?: string; zh?: string; my?: string; bn?: string }): string {
   if (typeof text === 'string') {
@@ -34,26 +59,17 @@ function getLocalizedText(text: string | { en: string; ms?: string; zh?: string;
   return text.en || '[No translation]';
 }
 
-// Helper: Load image from URL and convert to Data URL
-async function loadImageAsDataURL(url: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = img.width;
-      canvas.height = img.height;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        reject(new Error('Failed to get canvas context'));
-        return;
-      }
-      ctx.drawImage(img, 0, 0);
-      resolve(canvas.toDataURL('image/jpeg', 0.8));
-    };
-    img.onerror = () => reject(new Error(`Failed to load image: ${url}`));
-    img.src = url;
+// Helper: Generate barcode as Data URL
+function generateBarcodeDataURL(text: string, width: number = 2, height: number = 40): string {
+  const canvas = document.createElement('canvas');
+  JsBarcode(canvas, text, {
+    format: 'CODE128',
+    width: width,
+    height: height,
+    displayValue: false, // Don't show text below barcode since we'll show VIN separately
+    margin: 0,
   });
+  return canvas.toDataURL('image/png');
 }
 
 // Helper: Draw dots on image canvas
@@ -67,56 +83,151 @@ function drawDotsOnImage(
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
+      // Add space above and below for numbers
+      const numberAreaHeight = 80; // Space for numbers at top and bottom
       const canvas = document.createElement('canvas');
       canvas.width = imageWidth;
-      canvas.height = imageHeight;
+      canvas.height = imageHeight + (numberAreaHeight * 2);
       const ctx = canvas.getContext('2d');
       if (!ctx) {
         reject(new Error('Failed to get canvas context'));
         return;
       }
 
-      // Draw original image
-      ctx.drawImage(img, 0, 0, imageWidth, imageHeight);
+      // Fill background with white
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Draw dots
-      locations.forEach((location) => {
+      // Draw original image in the middle (offset by top margin)
+      const imageYOffset = numberAreaHeight;
+      ctx.drawImage(img, 0, imageYOffset, imageWidth, imageHeight);
+
+      // Draw dots with callout numbers OUTSIDE image (top and bottom)
+
+      // Prepare dot data with positions (adjusted for image offset)
+      const dotData = locations.map((location) => {
         const x = (location.x / 100) * imageWidth;
-        const y = (location.y / 100) * imageHeight;
-        const dotRadius = Math.max(20, imageWidth * 0.025); // Increased size
+        const y = (location.y / 100) * imageHeight + imageYOffset; // Offset for top margin
+        const displayNumber = location.pdfDotNumber !== undefined ? location.pdfDotNumber : location.dotNumber;
+        return { x, y, displayNumber, location };
+      });
 
-        // Draw outer black ring for better visibility
-        ctx.fillStyle = '#000000';
-        ctx.beginPath();
-        ctx.arc(x, y, dotRadius + 4, 0, 2 * Math.PI);
-        ctx.fill();
+      // Divide dots into top-half and bottom-half groups
+      const imageCenterY = imageYOffset + (imageHeight / 2);
+      const topDots = dotData.filter(d => d.y < imageCenterY).sort((a, b) => a.x - b.x);
+      const bottomDots = dotData.filter(d => d.y >= imageCenterY).sort((a, b) => a.x - b.x);
 
-        // Draw red circle
-        ctx.fillStyle = '#dc2626';
+      const dotRadius = Math.max(12, imageWidth * 0.015);
+      const fontSize = Math.max(36, imageWidth * 0.045); // Bigger numbers!
+      const minSpacing = fontSize * 1.8; // Minimum horizontal spacing between numbers
+      const marginPadding = 10;
+
+      // Draw dots (just circles, no numbers inside)
+      dotData.forEach(({ x, y }) => {
+        // White fill
+        ctx.fillStyle = '#ffffff';
         ctx.beginPath();
         ctx.arc(x, y, dotRadius, 0, 2 * Math.PI);
         ctx.fill();
 
-        // Draw white border
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 4; // Thicker border
+        // Black ring outline
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 2.5;
         ctx.beginPath();
         ctx.arc(x, y, dotRadius, 0, 2 * Math.PI);
         ctx.stroke();
-
-        // Draw number - use pdfDotNumber if available, otherwise use original dotNumber
-        const displayNumber = location.pdfDotNumber !== undefined ? location.pdfDotNumber : location.dotNumber;
-        ctx.fillStyle = '#ffffff';
-        ctx.font = `bold ${dotRadius * 1.3}px Arial`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-
-        // Add text shadow for better readability
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
-        ctx.shadowBlur = 3;
-        ctx.fillText(displayNumber.toString(), x, y);
-        ctx.shadowBlur = 0;
       });
+
+      // Helper function to adjust X positions to prevent overlap
+      const adjustXPositions = (targetXPositions: number[]) => {
+        const adjusted = [...targetXPositions];
+        for (let i = 1; i < adjusted.length; i++) {
+          if (adjusted[i] - adjusted[i - 1] < minSpacing) {
+            adjusted[i] = adjusted[i - 1] + minSpacing;
+          }
+        }
+        // If last number goes off right edge, redistribute spacing
+        if (adjusted[adjusted.length - 1] > imageWidth - marginPadding) {
+          const totalWidth = imageWidth - (marginPadding * 2);
+          const spacing = Math.min(minSpacing, totalWidth / (adjusted.length - 1));
+          for (let i = 0; i < adjusted.length; i++) {
+            adjusted[i] = marginPadding + (i * spacing);
+          }
+        }
+        return adjusted;
+      };
+
+      // Draw top-half dots with numbers ABOVE image
+      if (topDots.length > 0) {
+        const targetXs = adjustXPositions(topDots.map(d => d.x));
+        const numberY = numberAreaHeight / 2; // Center in top area
+
+        topDots.forEach((dot, index) => {
+          const numberX = targetXs[index];
+
+          // Draw leader line
+          ctx.strokeStyle = '#000000';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(dot.x, dot.y - dotRadius); // Start from top of dot
+          ctx.lineTo(numberX, numberAreaHeight - 5); // End just below number area
+          ctx.stroke();
+
+          // Draw number in black circle with white text
+          ctx.font = `bold ${fontSize}px Arial`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+
+          const text = dot.displayNumber.toString();
+          const circleRadius = fontSize * 0.8; // Circle size based on font
+
+          // Black filled circle
+          ctx.fillStyle = '#000000';
+          ctx.beginPath();
+          ctx.arc(numberX, numberY, circleRadius, 0, 2 * Math.PI);
+          ctx.fill();
+
+          // White number text
+          ctx.fillStyle = '#ffffff';
+          ctx.fillText(text, numberX, numberY);
+        });
+      }
+
+      // Draw bottom-half dots with numbers BELOW image
+      if (bottomDots.length > 0) {
+        const targetXs = adjustXPositions(bottomDots.map(d => d.x));
+        const numberY = imageYOffset + imageHeight + (numberAreaHeight / 2); // Center in bottom area
+
+        bottomDots.forEach((dot, index) => {
+          const numberX = targetXs[index];
+
+          // Draw leader line
+          ctx.strokeStyle = '#000000';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(dot.x, dot.y + dotRadius); // Start from bottom of dot
+          ctx.lineTo(numberX, imageYOffset + imageHeight + 5); // End just above number area
+          ctx.stroke();
+
+          // Draw number in black circle with white text
+          ctx.font = `bold ${fontSize}px Arial`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+
+          const text = dot.displayNumber.toString();
+          const circleRadius = fontSize * 0.8; // Circle size based on font
+
+          // Black filled circle
+          ctx.fillStyle = '#000000';
+          ctx.beginPath();
+          ctx.arc(numberX, numberY, circleRadius, 0, 2 * Math.PI);
+          ctx.fill();
+
+          // White number text
+          ctx.fillStyle = '#ffffff';
+          ctx.fillText(text, numberX, numberY);
+        });
+      }
 
       resolve(canvas.toDataURL('image/jpeg', 0.8));
     };
@@ -138,45 +249,125 @@ export const inspectionReportService = {
     template: InspectionTemplate
   ): Promise<void> {
     try {
+      const startTime = performance.now();
       logger.info('Generating inspection report for:', inspection.inspectionId);
 
       const doc = new jsPDF();
       const pageWidth = doc.internal.pageSize.getWidth();
       let yPosition = 18;
 
-      // Title
-      doc.setFontSize(18);
+      const timings: Record<string, number> = {};
+
+      // Gate info with stylish border box (left aligned) and Title (center aligned)
+      if (inspection.gateName) {
+        // Prepare gate text
+        const gateLabel = 'Gate:';
+        const gateValue = inspection.gateName;
+
+        // Calculate box dimensions with larger text
+        const gateFontSize = 14;
+        doc.setFontSize(gateFontSize);
+        doc.setFont('helvetica', 'bold');
+        const labelWidth = doc.getTextWidth(gateLabel);
+        doc.setFont('helvetica', 'normal');
+        const valueWidth = doc.getTextWidth(gateValue);
+
+        const boxPadding = 5;
+        const textSpacing = 3;
+        const boxWidth = labelWidth + textSpacing + valueWidth + (boxPadding * 2);
+        const boxHeight = 11;
+        const boxX = PDF_CONSTANTS.MARGIN_LEFT;
+        const boxY = yPosition - 7.5;
+        const cornerRadius = 2;
+
+        // Draw outer border (thick black)
+        doc.setDrawColor(0, 0, 0); // Black
+        doc.setLineWidth(1.5);
+        doc.roundedRect(boxX, boxY, boxWidth, boxHeight, cornerRadius, cornerRadius, 'S');
+
+        // Draw inner border (thick black with white gap)
+        const borderGap = 2; // White space between borders
+        doc.setDrawColor(0, 0, 0); // Black
+        doc.setLineWidth(1.5);
+        doc.roundedRect(boxX + borderGap, boxY + borderGap, boxWidth - (borderGap * 2), boxHeight - (borderGap * 2), cornerRadius - 0.5, cornerRadius - 0.5, 'S');
+
+        // Draw gate text inside box
+        const textY = yPosition;
+        doc.setFontSize(gateFontSize);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(0, 0, 0);
+        doc.text(gateLabel, boxX + boxPadding, textY);
+        doc.setFont('helvetica', 'bold'); // Make gate value bold too
+        doc.text(gateValue, boxX + boxPadding + labelWidth + textSpacing, textY);
+      }
+
+      // Title (centered)
+      doc.setFontSize(PDF_CONSTANTS.TITLE_FONT_SIZE);
       doc.setFont('helvetica', 'bold');
+      doc.setTextColor(0, 0, 0);
       doc.text('Car QA Inspection Report', pageWidth / 2, yPosition, { align: 'center' });
       yPosition += 10;
 
-      // Header Information - Single line format
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'bold');
-      doc.text('VIN:', 20, yPosition);
-      doc.setFont('helvetica', 'normal');
-      doc.text(inspection.vin, 35, yPosition);
+      // Header Information
+      const summary = inspectionService.getInspectionSummary(inspection);
 
+      // VIN with Barcode
+      doc.setFontSize(PDF_CONSTANTS.HEADER_FONT_SIZE);
       doc.setFont('helvetica', 'bold');
-      doc.text('Status:', 100, yPosition);
+      doc.text('VIN:', PDF_CONSTANTS.LABEL_X, yPosition);
       doc.setFont('helvetica', 'normal');
-      doc.text(formatStatus(inspection.status), 120, yPosition);
+      doc.text(inspection.vin, PDF_CONSTANTS.LABEL_X + 15, yPosition);
+
+      // Add barcode on the right side
+      const barcodeStart = performance.now();
+      try {
+        // OPTIMIZATION: Use smaller width parameter for faster generation
+        const barcodeDataURL = generateBarcodeDataURL(inspection.vin, 1, 30);
+        doc.addImage(
+          barcodeDataURL,
+          'PNG',
+          PDF_CONSTANTS.BARCODE_X,
+          yPosition - 5,
+          PDF_CONSTANTS.BARCODE_WIDTH,
+          PDF_CONSTANTS.BARCODE_HEIGHT
+        );
+      } catch (error) {
+        logger.warn('Failed to generate barcode:', error);
+      }
+      timings.barcode = performance.now() - barcodeStart;
       yPosition += 6;
 
-      // Dates - Single line
+      // Progress (combines Status and Sections)
+      doc.setFont('helvetica', 'bold');
+      doc.text('Progress:', PDF_CONSTANTS.LABEL_X, yPosition);
+      doc.setFont('helvetica', 'normal');
+
+      // Format: "2/5 in progress" or "5/5 complete"
+      let progressText = `${summary.completedSections}/${summary.totalSections}`;
+      if (summary.completedSections === summary.totalSections) {
+        progressText += ' complete';
+      } else if (summary.completedSections > 0) {
+        progressText += ' in progress';
+      } else {
+        progressText += ' not started';
+      }
+      doc.text(progressText, PDF_CONSTANTS.LABEL_X + PDF_CONSTANTS.VALUE_X_OFFSET, yPosition);
+      yPosition += 6;
+
+      // Dates
       if (inspection.startedAt) {
         doc.setFont('helvetica', 'bold');
-        doc.text('Started:', 20, yPosition);
+        doc.text('Started:', PDF_CONSTANTS.LABEL_X, yPosition);
         doc.setFont('helvetica', 'normal');
-        doc.text(formatDateForPDF(inspection.startedAt), 40, yPosition);
+        doc.text(formatDateForPDF(inspection.startedAt), PDF_CONSTANTS.LABEL_X + 20, yPosition);
         yPosition += 6;
       }
 
       if (inspection.completedAt) {
         doc.setFont('helvetica', 'bold');
-        doc.text('Completed:', 20, yPosition);
+        doc.text('Completed:', PDF_CONSTANTS.LABEL_X, yPosition);
         doc.setFont('helvetica', 'normal');
-        doc.text(formatDateForPDF(inspection.completedAt), 45, yPosition);
+        doc.text(formatDateForPDF(inspection.completedAt), PDF_CONSTANTS.LABEL_X + 25, yPosition);
 
         // Add duration on same line if available
         if (inspection.startedAt) {
@@ -190,25 +381,37 @@ export const inspectionReportService = {
         yPosition += 6;
       }
 
-      // Summary Statistics - More compact, single line
-      const summary = inspectionService.getInspectionSummary(inspection);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Sections:', 20, yPosition);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`${summary.completedSections}/${summary.totalSections}`, 42, yPosition);
+      // Inspectors with proper line wrapping
+      if (summary.inspectors.length > 0) {
+        doc.setFont('helvetica', 'bold');
+        doc.text('Inspectors:', PDF_CONSTANTS.LABEL_X, yPosition);
+        doc.setFont('helvetica', 'normal');
 
-      doc.setFont('helvetica', 'bold');
-      doc.text('Defects:', 70, yPosition);
-      doc.setFont('helvetica', 'normal');
-      doc.text(summary.totalDefects.toString(), 90, yPosition);
+        // Format inspectors - multiple per line, separated by commas
+        const inspectorLines: string[] = [];
+        for (let i = 0; i < summary.inspectors.length; i += PDF_CONSTANTS.INSPECTORS_PER_LINE) {
+          const chunk = summary.inspectors.slice(i, i + PDF_CONSTANTS.INSPECTORS_PER_LINE);
+          inspectorLines.push(chunk.join(', '));
+        }
 
-      doc.setFont('helvetica', 'bold');
-      doc.text('Inspectors:', 110, yPosition);
-      doc.setFont('helvetica', 'normal');
-      doc.text(summary.inspectors.join(', '), 135, yPosition);
-      yPosition += 8;
+        // Print first line
+        doc.text(inspectorLines[0], PDF_CONSTANTS.LABEL_X + PDF_CONSTANTS.VALUE_X_OFFSET, yPosition);
+        yPosition += 5;
+
+        // Print additional lines if needed
+        for (let i = 1; i < inspectorLines.length; i++) {
+          doc.text(inspectorLines[i], PDF_CONSTANTS.LABEL_X + PDF_CONSTANTS.VALUE_X_OFFSET, yPosition);
+          yPosition += 5;
+        }
+
+        yPosition += 3;
+      } else {
+        yPosition += 2;
+      }
 
       // ===== CONSOLIDATE IMAGES WITH GLOBAL DOT RENUMBERING =====
+      const imageCollectionStart = performance.now();
+
       // Extended defect location with PDF display number and section info
       interface DefectLocationWithPdfNumber extends DefectLocation {
         pdfDotNumber: number;  // Sequential PDF number (1, 2, 3, 4...)
@@ -229,16 +432,8 @@ export const inspectionReportService = {
       const dotNumberMapping = new Map<string, number>();
       let nextPdfDotNumber = 1;
 
-      const sectionKeys: InspectionSection[] = [
-        'right_outside',
-        'left_outside',
-        'front_back',
-        'interior_right',
-        'interior_left',
-      ];
-
       // Loop through all sections to collect images and defect locations
-      for (const sectionKey of sectionKeys) {
+      for (const sectionKey of SECTION_KEYS) {
         const sectionResult = inspection.sections[sectionKey];
         const sectionTemplate = template.sections[sectionKey];
 
@@ -261,14 +456,29 @@ export const inspectionReportService = {
             });
           }
 
-          // Collect defect locations that reference this image
-          const defectsWithLocations = Object.entries(sectionResult.results)
-            .filter(([_, result]) => result.defectType !== 'Ok' && result.defectLocation)
-            .filter(([_, result]) => result.defectLocation!.imageId === image.imageId)
-            .map(([itemName, result]) => ({
-              location: result.defectLocation!,
-              itemName,
-            }));
+          // Collect defect locations that reference this image (including additional defects)
+          const defectsWithLocations: Array<{ location: DefectLocation; itemName: string }> = [];
+
+          Object.entries(sectionResult.results).forEach(([itemName, result]) => {
+            // Main defect location
+            if (result.defectType !== 'Ok' && result.defectLocation && result.defectLocation.imageId === image.imageId) {
+              defectsWithLocations.push({
+                location: result.defectLocation,
+                itemName,
+              });
+            }
+
+            // Additional defect locations (backwards compatibility: treat undefined as empty array)
+            const additionalDefects = result.additionalDefects || [];
+            additionalDefects.forEach((additionalDefect) => {
+              if (additionalDefect.defectLocation && additionalDefect.defectLocation.imageId === image.imageId) {
+                defectsWithLocations.push({
+                  location: additionalDefect.defectLocation,
+                  itemName,
+                });
+              }
+            });
+          });
 
           // Add to consolidated image with PDF numbering
           const consolidated = consolidatedImages.get(imageKey)!;
@@ -295,110 +505,127 @@ export const inspectionReportService = {
         }
       }
 
+      timings.imageCollection = performance.now() - imageCollectionStart;
+
       // Render consolidated images section if any images exist
       if (consolidatedImages.size > 0) {
-        doc.setFontSize(11);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Defect Images:', 20, yPosition);
-        yPosition += 4;
+        const imageProcessingStart = performance.now();
+        const imgWidth = PDF_CONSTANTS.IMAGE_WIDTH;
+        const imgHeight = imgWidth * PDF_CONSTANTS.IMAGE_HEIGHT_RATIO;
 
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'italic');
-        doc.setTextColor(100);
-        doc.text('(Dots show defects from all sections)', 20, yPosition);
-        doc.setTextColor(0);
-        yPosition += 6;
-
-        // Render images horizontally - 3 per row
-        const imgWidth = 57; // One-third page width
-        const imgHeight = (600 / 800) * imgWidth;
-        const spacing = 5; // Small space between images
-        const leftMargin = 20;
-        const imagesPerRow = 3;
-
-        let xPosition = leftMargin;
+        let xPosition = PDF_CONSTANTS.MARGIN_LEFT;
         let rowStartY = yPosition;
         let imageCount = 0;
 
         const images = Array.from(consolidatedImages.values());
 
-        for (let i = 0; i < images.length; i++) {
-          const consolidatedImage = images[i];
+        // Load base images (using shared cache by URL)
+        const imageLoadStart = performance.now();
+        const cacheStatsBefore = getCacheStats();
 
+        const imageLoadPromises = images.map(async (consolidatedImage) => {
           try {
-            // Check if we need a new page
-            if (rowStartY + imgHeight > 260) {
-              doc.addPage();
-              rowStartY = 20;
-              yPosition = 20;
-              xPosition = leftMargin;
-              imageCount = 0;
-            }
+            // Load base image (automatically uses cache if available)
+            const baseImageDataURL = await loadImageAsDataURL(consolidatedImage.imageUrl);
 
-            // Load image and draw all dots
-            const imageDataURL = await loadImageAsDataURL(consolidatedImage.imageUrl);
+            // Draw dots on the base image (specific to this inspection)
             const imageWithDots = await drawDotsOnImage(
-              imageDataURL,
+              baseImageDataURL,
               consolidatedImage.defectLocations,
               800,
               600
             );
-
-            // Add image to PDF (no caption)
-            doc.addImage(imageWithDots, 'JPEG', xPosition, rowStartY, imgWidth, imgHeight);
-
-            imageCount++;
-
-            // Check if we need to move to next row
-            if (imageCount >= imagesPerRow) {
-              // Move to next row
-              xPosition = leftMargin;
-              rowStartY += imgHeight + spacing;
-              imageCount = 0;
-            } else {
-              // Move to next column
-              xPosition += imgWidth + spacing;
-            }
+            return { success: true as const, imageWithDots, consolidatedImage };
           } catch (error) {
             logger.error(`Failed to load/draw consolidated image ${consolidatedImage.imageName}:`, error);
+            return { success: false as const, consolidatedImage };
+          }
+        });
+
+        // Wait for all images to load in parallel
+        const loadedImages = await Promise.all(imageLoadPromises);
+        timings.imageLoading = performance.now() - imageLoadStart;
+
+        const cacheStatsAfter = getCacheStats();
+        const newlyCached = cacheStatsAfter.size - cacheStatsBefore.size;
+        (timings as any).cacheHits = images.length - newlyCached;
+        (timings as any).cacheMisses = newlyCached;
+
+        // Now render the loaded images
+        const imageRenderStart = performance.now();
+        for (const result of loadedImages) {
+          if (!result.success || !result.imageWithDots) continue;
+
+          // Check if we need a new page
+          if (rowStartY + imgHeight > PDF_CONSTANTS.PAGE_BOTTOM_LIMIT) {
+            doc.addPage();
+            rowStartY = PDF_CONSTANTS.PAGE_TOP_START;
+            yPosition = PDF_CONSTANTS.PAGE_TOP_START;
+            xPosition = PDF_CONSTANTS.MARGIN_LEFT;
+            imageCount = 0;
+          }
+
+          // Add image to PDF
+          doc.addImage(result.imageWithDots, 'JPEG', xPosition, rowStartY, imgWidth, imgHeight);
+
+          imageCount++;
+
+          // Check if we need to move to next row
+          if (imageCount >= PDF_CONSTANTS.IMAGES_PER_ROW) {
+            xPosition = PDF_CONSTANTS.MARGIN_LEFT;
+            rowStartY += imgHeight + PDF_CONSTANTS.IMAGE_SPACING;
+            imageCount = 0;
+          } else {
+            xPosition += imgWidth + PDF_CONSTANTS.IMAGE_SPACING;
           }
         }
 
         // Update yPosition to after all images
         if (imageCount > 0) {
-          // Last row had images but wasn't full
           yPosition = rowStartY + imgHeight + 5;
         } else {
-          // Last row was full
           yPosition = rowStartY + 5;
         }
 
-        // Add spacing before section details
         yPosition += 5;
+        timings.imageRendering = performance.now() - imageRenderStart;
+        timings.totalImageProcessing = performance.now() - imageProcessingStart;
+      }
+
+      // Create email-to-name mapping from sections
+      const sectionDetailsStart = performance.now();
+      const emailToNameMap = new Map<string, string>();
+      for (const sectionKey of SECTION_KEYS) {
+        const section = inspection.sections[sectionKey];
+        if (section.inspector && section.inspectorName) {
+          emailToNameMap.set(section.inspector, section.inspectorName);
+        }
       }
 
       // Section Details header
-      doc.setFontSize(11);
+      doc.setFontSize(PDF_CONSTANTS.SECTION_FONT_SIZE + 1);
       doc.setFont('helvetica', 'bold');
-      doc.text('Defect Details:', 20, yPosition);
+      doc.text('Defect Details:', PDF_CONSTANTS.LABEL_X, yPosition);
       yPosition += 4;
 
-      for (const sectionKey of sectionKeys) {
+      for (const sectionKey of SECTION_KEYS) {
         const sectionResult = inspection.sections[sectionKey];
         const sectionTemplate = template.sections[sectionKey];
 
         if (!sectionTemplate) continue;
 
         // Check if we need a new page
-        if (yPosition > 250) {
+        if (yPosition > PDF_CONSTANTS.PAGE_BOTTOM_LIMIT - 10) {
           doc.addPage();
-          yPosition = 20;
+          yPosition = PDF_CONSTANTS.PAGE_TOP_START;
         }
 
         // Get defects for this section first to check if we need to show anything
-        const sectionDefects = Object.entries(sectionResult.results)
-          .filter(([_, result]) => result.defectType !== 'Ok')
-          .map(([itemName, result]) => {
+        const sectionDefectRows: Array<{ row: any[]; sortNumber: number }> = [];
+
+        Object.entries(sectionResult.results).forEach(([itemName, result]) => {
+          // Main defect
+          if (result.defectType !== 'Ok') {
             // Get PDF dot number from mapping if location exists
             let pdfDotNumber: number | null = null;
             if (result.defectLocation) {
@@ -408,26 +635,65 @@ export const inspectionReportService = {
 
             // Add dot number prefix using PDF number
             const dotPrefix = pdfDotNumber !== null ? `[${pdfDotNumber}] ` : '';
-            return {
+
+            // Get inspector name from email mapping
+            const inspectorDisplay = result.checkedBy
+              ? (emailToNameMap.get(result.checkedBy) || result.checkedBy)
+              : '-';
+
+            sectionDefectRows.push({
               row: [
                 dotPrefix + itemName,
                 result.defectType,
                 result.notes || '-',
-                result.checkedBy || '-',
+                inspectorDisplay,
                 result.status || '',  // Empty by default for someone to fill in later
               ],
               sortNumber: pdfDotNumber !== null ? pdfDotNumber : 9999, // Sort items without dots to the end
-            };
-          })
+            });
+          }
+
+          // Additional defects (backwards compatibility: treat undefined as empty array)
+          const additionalDefects = result.additionalDefects || [];
+          additionalDefects.forEach((additionalDefect) => {
+            // Get PDF dot number from mapping if location exists
+            let pdfDotNumber: number | null = null;
+            if (additionalDefect.defectLocation) {
+              const mappingKey = `${sectionKey}_${additionalDefect.defectLocation.dotNumber}`;
+              pdfDotNumber = dotNumberMapping.get(mappingKey) || null;
+            }
+
+            // Add dot number prefix using PDF number, plus "+" to indicate additional
+            const dotPrefix = pdfDotNumber !== null ? `[${pdfDotNumber}] +` : '+';
+
+            // Get inspector name from email mapping
+            const inspectorDisplay = additionalDefect.checkedBy
+              ? (emailToNameMap.get(additionalDefect.checkedBy) || additionalDefect.checkedBy)
+              : '-';
+
+            sectionDefectRows.push({
+              row: [
+                `${dotPrefix} ${itemName}`,
+                additionalDefect.defectType,
+                additionalDefect.notes || '-',
+                inspectorDisplay,
+                additionalDefect.status || '',
+              ],
+              sortNumber: pdfDotNumber !== null ? pdfDotNumber : 9999,
+            });
+          });
+        });
+
+        const sectionDefects = sectionDefectRows
           .sort((a, b) => a.sortNumber - b.sortNumber) // Sort by PDF dot number
           .map(item => item.row); // Extract just the row data
 
         // Only show sections with defects
         if (sectionDefects.length > 0) {
-          // Section Header - More compact, on same line
-          doc.setFontSize(10);
+          // Section Header
+          doc.setFontSize(PDF_CONSTANTS.SECTION_FONT_SIZE);
           doc.setFont('helvetica', 'bold');
-          doc.text(`${getLocalizedText(sectionTemplate.sectionName)}:`, 20, yPosition);
+          doc.text(`${getLocalizedText(sectionTemplate.sectionName)}:`, PDF_CONSTANTS.LABEL_X, yPosition);
 
           if (sectionResult.inspectorName) {
             doc.setFont('helvetica', 'normal');
@@ -435,9 +701,7 @@ export const inspectionReportService = {
           }
           yPosition += 3;
 
-          // Images are now shown at the top in consolidated section
-          // Proceed directly to defect table
-
+          // Defect table
           autoTable(doc, {
             startY: yPosition,
             head: [['Item', 'Defect', 'Notes', 'Inspector', 'Status']],
@@ -445,25 +709,29 @@ export const inspectionReportService = {
             theme: 'striped',
             headStyles: { fillColor: [108, 117, 125], fontSize: 8 },
             bodyStyles: { fontSize: 8 },
-            margin: { left: 20, right: 20 },
+            margin: { left: PDF_CONSTANTS.MARGIN_LEFT, right: PDF_CONSTANTS.MARGIN_RIGHT },
             styles: { cellPadding: 2 },
             columnStyles: {
               0: { cellWidth: 40 },
               1: { cellWidth: 28 },
               2: { cellWidth: 45 },
               3: { cellWidth: 35 },
-              4: { cellWidth: 22 },  // New Status column
+              4: { cellWidth: 22 },
             },
           });
-          yPosition = (doc as any).lastAutoTable.finalY + 4;
+          // Type-safe access to lastAutoTable
+          yPosition = ((doc as any).lastAutoTable?.finalY || yPosition) + 4;
         }
       }
 
+      timings.sectionDetails = performance.now() - sectionDetailsStart;
+
       // Footer with generation timestamp
+      const footerStart = performance.now();
       const totalPages = doc.internal.pages.length - 1;
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
-        doc.setFontSize(8);
+        doc.setFontSize(PDF_CONSTANTS.FOOTER_FONT_SIZE);
         doc.setFont('helvetica', 'normal');
         doc.setTextColor(128);
         doc.text(
@@ -473,11 +741,14 @@ export const inspectionReportService = {
           { align: 'center' }
         );
       }
+      timings.footer = performance.now() - footerStart;
 
       // Open PDF in new tab instead of downloading
+      const pdfOutputStart = performance.now();
       const filename = `Inspection_${inspection.vin}_${new Date().toISOString().split('T')[0]}.pdf`;
       const pdfBlob = doc.output('blob');
       const url = URL.createObjectURL(pdfBlob);
+      timings.pdfOutput = performance.now() - pdfOutputStart;
 
       // Open in new tab for preview and printing
       const newWindow = window.open(url, '_blank');
@@ -486,6 +757,33 @@ export const inspectionReportService = {
         doc.save(filename);
         alert('Please allow popups to preview the report, or use the downloaded file.');
       }
+
+      // Calculate total time
+      const totalTime = performance.now() - startTime;
+      timings.total = totalTime;
+
+      // Log performance breakdown (use console.log directly to ensure it shows in production)
+      const cacheHits = (timings as any).cacheHits || 0;
+      const cacheMisses = (timings as any).cacheMisses || 0;
+      const cacheStatus = cacheMisses === 0 ? '✅ ALL CACHED' : `🔄 ${cacheHits} cached, ${cacheMisses} downloaded`;
+
+      console.log('📊 PDF Generation Performance:', {
+        filename,
+        totalTime: `${totalTime.toFixed(0)}ms`,
+        cacheStatus,
+        breakdown: {
+          barcode: `${(timings.barcode || 0).toFixed(0)}ms`,
+          imageCollection: `${(timings.imageCollection || 0).toFixed(0)}ms`,
+          imageLoading: `${(timings.imageLoading || 0).toFixed(0)}ms (${cacheStatus})`,
+          imageRendering: `${(timings.imageRendering || 0).toFixed(0)}ms`,
+          totalImages: `${(timings.totalImageProcessing || 0).toFixed(0)}ms`,
+          sectionDetails: `${(timings.sectionDetails || 0).toFixed(0)}ms`,
+          footer: `${(timings.footer || 0).toFixed(0)}ms`,
+          pdfOutput: `${(timings.pdfOutput || 0).toFixed(0)}ms`,
+        },
+        imageCount: consolidatedImages.size,
+        totalCachedImages: getCacheStats().size,
+      });
 
       logger.info('Report generated successfully:', filename);
     } catch (error) {
@@ -528,6 +826,25 @@ export const inspectionReportService = {
       await this.generateInspectionReport(inspection, template);
     } catch (error) {
       logger.error('Failed to generate report by VIN:', error);
+      throw error;
+    }
+  },
+
+  async generateReportByVINAndGate(vin: string, gateId: string): Promise<void> {
+    try {
+      const inspection = await inspectionService.getInspectionByVINAndGate(vin, gateId);
+      if (!inspection) {
+        throw new Error(`No inspection found for VIN: ${vin} at gate: ${gateId}`);
+      }
+
+      const template = await inspectionService.getTemplate(inspection.templateId);
+      if (!template) {
+        throw new Error(`Template not found: ${inspection.templateId}`);
+      }
+
+      await this.generateInspectionReport(inspection, template);
+    } catch (error) {
+      logger.error('Failed to generate report by VIN and Gate:', error);
       throw error;
     }
   },

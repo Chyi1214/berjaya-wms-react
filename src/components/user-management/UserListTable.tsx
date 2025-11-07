@@ -8,6 +8,7 @@ interface UserListTableProps {
   onEditUser: (user: UserRecord) => void;
   onToggleUserStatus: (user: UserRecord) => void;
   onDeleteUser: (email: string) => void;
+  onRefreshPermissions: (user: UserRecord) => void;
   onAddUser: () => void;
 }
 
@@ -44,6 +45,7 @@ export const UserListTable = memo(function UserListTable({
   onEditUser,
   onToggleUserStatus,
   onDeleteUser,
+  onRefreshPermissions,
   onAddUser,
 }: UserListTableProps) {
   if (isLoading) {
@@ -94,10 +96,19 @@ export const UserListTable = memo(function UserListTable({
               <td className="px-6 py-4 whitespace-nowrap">
                 <div className="flex items-center">
                   <div>
-                    <div className="text-sm font-medium text-gray-900">{user.email}</div>
-                    <div className="text-sm text-gray-500">
-                      Created {user.createdAt.toLocaleDateString()}
-                    </div>
+                    {user.displayName ? (
+                      <>
+                        <div className="text-sm font-medium text-gray-900">{user.displayName}</div>
+                        <div className="text-sm text-gray-500">{user.email}</div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="text-sm font-medium text-gray-900">{user.email}</div>
+                        <div className="text-sm text-gray-500">
+                          Created {user.createdAt.toLocaleDateString()}
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               </td>
@@ -132,8 +143,16 @@ export const UserListTable = memo(function UserListTable({
                     <button
                       onClick={() => onEditUser(user)}
                       className="text-blue-600 hover:text-blue-800"
+                      title="Edit user details"
                     >
                       Edit
+                    </button>
+                    <button
+                      onClick={() => onRefreshPermissions(user)}
+                      className="text-purple-600 hover:text-purple-800"
+                      title="Refresh permissions to match role template"
+                    >
+                      🔄 Refresh
                     </button>
                     <button
                       onClick={() => onToggleUserStatus(user)}

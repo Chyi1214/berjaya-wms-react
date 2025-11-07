@@ -2,13 +2,15 @@
 import { useState } from 'react';
 import QAInspectionManager from '../qa/inspection/QAInspectionManager';
 import QAInspectionAnalytics from '../qa/inspection/QAInspectionAnalytics';
+import { DefectLocationAnalytics } from '../qa/inspection/DefectLocationAnalytics';
 import ChecklistConfiguration from '../qa/config/ChecklistConfiguration';
+import QALocationsConfig from '../qa/config/QALocationsConfig';
 
 interface QASectionProps {
   onRefresh?: () => void;
 }
 
-type QATabType = 'manager' | 'analytics' | 'configuration';
+type QATabType = 'manager' | 'analytics' | 'locations' | 'qaLocations' | 'configuration';
 
 export function QASection({ onRefresh: _onRefresh }: QASectionProps) {
   const [activeTab, setActiveTab] = useState<QATabType>('manager');
@@ -39,6 +41,26 @@ export function QASection({ onRefresh: _onRefresh }: QASectionProps) {
             Analytics
           </button>
           <button
+            onClick={() => setActiveTab('locations')}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              activeTab === 'locations'
+                ? 'bg-blue-600 text-white'
+                : 'bg-white text-gray-700 hover:bg-gray-100'
+            }`}
+          >
+            Defect Locations
+          </button>
+          <button
+            onClick={() => setActiveTab('qaLocations')}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              activeTab === 'qaLocations'
+                ? 'bg-blue-600 text-white'
+                : 'bg-white text-gray-700 hover:bg-gray-100'
+            }`}
+          >
+            QA Locations
+          </button>
+          <button
             onClick={() => setActiveTab('configuration')}
             className={`px-4 py-2 rounded-lg font-medium transition-colors ${
               activeTab === 'configuration'
@@ -55,6 +77,8 @@ export function QASection({ onRefresh: _onRefresh }: QASectionProps) {
       <div>
         {activeTab === 'manager' && <QAInspectionManager />}
         {activeTab === 'analytics' && <QAInspectionAnalytics />}
+        {activeTab === 'locations' && <DefectLocationAnalytics />}
+        {activeTab === 'qaLocations' && <QALocationsConfig />}
         {activeTab === 'configuration' && <ChecklistConfiguration />}
       </div>
     </div>

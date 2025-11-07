@@ -1,17 +1,17 @@
 // BOM Service - Firebase operations for Bill of Materials
-import { 
-  collection, 
-  doc, 
-  setDoc, 
-  getDocs, 
+import {
+  collection,
+  doc,
+  setDoc,
+  getDocs,
   deleteDoc,
-  onSnapshot, 
-  query, 
+  onSnapshot,
+  query,
   orderBy,
   where,
   Timestamp,
   writeBatch
-} from 'firebase/firestore';
+} from './costTracking/firestoreWrapper';
 import { db } from './firebase';
 import { BOM, BOMComponent, SearchableItem, InventoryCountEntry } from '../types';
 import { itemMasterService } from './itemMaster';

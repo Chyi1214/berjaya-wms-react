@@ -6,11 +6,10 @@ import {
   query,
   where,
   orderBy,
-  limit,
   getDocs,
-  deleteDoc,
-  serverTimestamp
-} from 'firebase/firestore';
+  deleteDoc
+} from './costTracking/firestoreWrapper';
+import { serverTimestamp, limit } from 'firebase/firestore';
 import { db } from './firebase';
 import { createModuleLogger } from './logger';
 
@@ -191,6 +190,40 @@ class SupplierBoxScanService {
     } catch (error) {
       logger.error('Error deleting scan:', error);
       throw new Error('Failed to delete scan');
+    }
+  }
+
+  /**
+   * Delete all scans for a specific batch
+   * Used by managers to clear scan history for a completed/cancelled batch
+   */
+  async deleteAllScansForBatch(batchId: string): Promise<number> {
+    try {
+      logger.info('Deleting all scans for batch:', batchId);
+
+      // Get all scans for this batch (no limit)
+      const q = query(
+        collection(db, SCANS_COLLECTION),
+        where('batchId', '==', batchId)
+      );
+
+      const snapshot = await getDocs(q);
+      const totalScans = snapshot.size;
+
+      if (totalScans === 0) {
+        logger.info('No scans found for batch:', batchId);
+        return 0;
+      }
+
+      // Delete all scans in parallel
+      const deletions = snapshot.docs.map(doc => deleteDoc(doc.ref));
+      await Promise.all(deletions);
+
+      logger.info('All scans deleted for batch:', { batchId, count: totalScans });
+      return totalScans;
+    } catch (error) {
+      logger.error('Error deleting all scans for batch:', error);
+      throw new Error('Failed to delete all scans for batch');
     }
   }
 

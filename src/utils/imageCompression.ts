@@ -1,4 +1,5 @@
 // Image Compression Utility - Smart compression only when needed
+import imageCompression from 'browser-image-compression';
 import { createModuleLogger } from '../services/logger';
 
 const logger = createModuleLogger('ImageCompression');
@@ -140,4 +141,72 @@ function loadImage(file: File): Promise<HTMLImageElement> {
 
     img.src = url;
   });
+}
+
+/**
+ * Compress image for waste/defect reports
+ * Target: Under 400 KB, 1280px max dimension, 80% quality
+ * Used for label and damage photos
+ */
+export async function compressWasteReportImage(file: File): Promise<{
+  compressedFile: File;
+  dataUrl: string;
+  originalSize: number;
+  compressedSize: number;
+}> {
+  try {
+    logger.info('Compressing waste report image:', {
+      name: file.name,
+      originalSize: `${(file.size / 1024 / 1024).toFixed(2)} MB`
+    });
+
+    const options = {
+      maxSizeMB: 0.4,              // Max 400 KB
+      maxWidthOrHeight: 1280,      // Max dimension 1280px
+      useWebWorker: true,
+      fileType: 'image/jpeg' as const,
+      initialQuality: 0.8          // 80% JPEG quality
+    };
+
+    const compressedFile = await imageCompression(file, options);
+
+    // Convert to data URL for preview
+    const dataUrl = await imageCompression.getDataUrlFromFile(compressedFile);
+
+    const reduction = ((1 - compressedFile.size / file.size) * 100).toFixed(1);
+
+    logger.info('Waste report image compressed:', {
+      originalSize: `${(file.size / 1024).toFixed(2)} KB`,
+      compressedSize: `${(compressedFile.size / 1024).toFixed(2)} KB`,
+      reduction: `${reduction}%`
+    });
+
+    return {
+      compressedFile,
+      dataUrl,
+      originalSize: file.size,
+      compressedSize: compressedFile.size
+    };
+  } catch (error) {
+    logger.error('Failed to compress waste report image:', error);
+    throw new Error('Failed to compress image');
+  }
+}
+
+/**
+ * Validate image file for waste reports
+ */
+export function validateWasteReportImage(file: File): { valid: boolean; error?: string } {
+  // Check file type
+  if (!file.type.startsWith('image/')) {
+    return { valid: false, error: 'File must be an image' };
+  }
+
+  // Check file size (max 20 MB before compression)
+  const maxSize = 20 * 1024 * 1024; // 20 MB
+  if (file.size > maxSize) {
+    return { valid: false, error: 'Image must be smaller than 20 MB' };
+  }
+
+  return { valid: true };
 }

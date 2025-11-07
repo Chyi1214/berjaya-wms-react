@@ -4,6 +4,8 @@ import { ItemMaster } from '../types';
 import { itemMasterService } from '../services/itemMaster';
 import { dataCleanupService } from '../services/dataCleanup';
 import { ItemForm } from './ItemForm';
+import * as XLSX from 'xlsx';
+import { ScannerLookupColumnMapper, ScannerColumnPreview, ScannerColumnMapping } from './operations/ScannerLookupColumnMapper';
 
 interface ItemMasterTabProps {
   items: ItemMaster[];
@@ -29,10 +31,23 @@ export function ItemMasterTab({
   const [searchTerm, setSearchTerm] = useState('');
   const [showItemForm, setShowItemForm] = useState(false);
   const [editingItem, setEditingItem] = useState<ItemMaster | null>(null);
-  
+
   // CSV Import state
   const [isUploading, setIsUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState<any>(null);
+
+  // Excel sheet selector state
+  const [showSheetSelector, setShowSheetSelector] = useState(false);
+  const [xlsxSheetNames, setXlsxSheetNames] = useState<string[]>([]);
+  const [selectedSheet, setSelectedSheet] = useState<string>('');
+  const [pendingWorkbook, setPendingWorkbook] = useState<XLSX.WorkBook | null>(null);
+  const [pendingReplaceMode, setPendingReplaceMode] = useState(false);
+
+  // Column mapping state
+  const [showColumnMapper, setShowColumnMapper] = useState(false);
+  const [columnPreviews, setColumnPreviews] = useState<ScannerColumnPreview[]>([]);
+  const [pendingCsvText, setPendingCsvText] = useState<string>('');
+  const [pendingReplaceModeForMapper, setPendingReplaceModeForMapper] = useState(false);
 
   // Filter items based on search
   const filteredItems = items.filter(item =>
@@ -94,44 +109,187 @@ export function ItemMasterTab({
     }
   };
 
+  // Convert Excel worksheet to UTF-8 CSV (preserves Chinese characters)
+  const sheetToUtf8Csv = (worksheet: XLSX.WorkSheet): string => {
+    const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false, defval: '' }) as any[][];
+    return jsonData.map((row: any[]) => {
+      return row.map((cell: any) => {
+        const cellStr = cell?.toString() || '';
+        // Escape quotes and wrap in quotes if contains comma, newline, or quote
+        if (cellStr.includes(',') || cellStr.includes('\n') || cellStr.includes('"')) {
+          return `"${cellStr.replace(/"/g, '""')}"`;
+        }
+        return cellStr;
+      }).join(',');
+    }).join('\n');
+  };
+
+  // Generate column previews from CSV text
+  const generateColumnPreviews = (csvText: string): ScannerColumnPreview[] => {
+    const lines = csvText.split('\n').filter(line => line.trim());
+    if (lines.length < 2) {
+      return [];
+    }
+
+    const headers = lines[0].split(',').map(h => h.trim().replace(/^"(.*)"$/, '$1'));
+    const previews: ScannerColumnPreview[] = [];
+
+    for (let colIndex = 0; colIndex < headers.length; colIndex++) {
+      const samples: string[] = [];
+      for (let rowIndex = 1; rowIndex < Math.min(6, lines.length); rowIndex++) {
+        const parts = lines[rowIndex].split(',').map(p => p.trim().replace(/^"(.*)"$/, '$1'));
+        if (parts[colIndex]) {
+          samples.push(parts[colIndex]);
+        }
+      }
+
+      previews.push({
+        columnIndex: colIndex,
+        headerName: headers[colIndex] || `Column ${colIndex + 1}`,
+        sampleValues: samples
+      });
+    }
+
+    return previews;
+  };
+
   // CSV Import functions
   const handleCSVUpload = async (event: React.ChangeEvent<HTMLInputElement>, replaceMode: boolean = false) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    setIsUploading(true);
-    setUploadResult(null);
+    try {
+      const isXlsx = file.name.endsWith('.xlsx') || file.name.endsWith('.xls');
+
+      // If Excel file, parse it and show sheet selector
+      if (isXlsx) {
+        const arrayBuffer = await file.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+
+        // Get all sheet names
+        const sheetNames = workbook.SheetNames;
+
+        if (sheetNames.length === 0) {
+          alert('❌ No sheets found in Excel file.');
+          event.target.value = '';
+          return;
+        }
+
+        // If only one sheet, use it directly
+        if (sheetNames.length === 1) {
+          const worksheet = workbook.Sheets[sheetNames[0]];
+          const csvText = sheetToUtf8Csv(worksheet); // UTF-8 safe conversion
+          const previews = generateColumnPreviews(csvText);
+
+          if (previews.length === 0) {
+            alert('❌ Could not parse Excel file. Please check the file format.');
+            event.target.value = '';
+            return;
+          }
+
+          setPendingCsvText(csvText);
+          setColumnPreviews(previews);
+          setPendingReplaceModeForMapper(replaceMode);
+          setShowColumnMapper(true);
+        } else {
+          // Multiple sheets - show selector
+          setPendingWorkbook(workbook);
+          setXlsxSheetNames(sheetNames);
+          setSelectedSheet(sheetNames[0]); // Default to first sheet
+          setPendingReplaceMode(replaceMode);
+          setShowSheetSelector(true);
+        }
+        event.target.value = '';
+        return;
+      }
+
+      // Handle regular CSV file - show column mapper
+      const text = await file.text();
+      const previews = generateColumnPreviews(text);
+
+      if (previews.length === 0) {
+        alert('❌ Could not parse CSV file. Please check the file format.');
+        event.target.value = '';
+        return;
+      }
+
+      setPendingCsvText(text);
+      setColumnPreviews(previews);
+      setPendingReplaceModeForMapper(replaceMode);
+      setShowColumnMapper(true);
+      event.target.value = '';
+
+    } catch (error) {
+      console.error('File upload failed:', error);
+      alert(`❌ Upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      event.target.value = '';
+    }
+  };
+
+  // Handle sheet selection confirmation
+  const handleSheetSelect = async () => {
+    if (!pendingWorkbook || !selectedSheet) return;
 
     try {
-      console.log(`📥 Uploading Items CSV file: ${file.name} (Replace mode: ${replaceMode})`);
-      
-      const text = await file.text();
-      const lines = text.split('\n').filter(line => line.trim());
-      
+      const worksheet = pendingWorkbook.Sheets[selectedSheet];
+      const csvText = sheetToUtf8Csv(worksheet); // UTF-8 safe conversion
+
+      // Close sheet selector
+      setShowSheetSelector(false);
+      setPendingWorkbook(null);
+
+      // Generate column previews and show mapper
+      const previews = generateColumnPreviews(csvText);
+
+      if (previews.length === 0) {
+        alert('❌ Could not parse selected sheet.');
+        return;
+      }
+
+      setPendingCsvText(csvText);
+      setColumnPreviews(previews);
+      setPendingReplaceModeForMapper(pendingReplaceMode);
+      setShowColumnMapper(true);
+    } catch (error) {
+      console.error('Sheet processing failed:', error);
+      alert('❌ Failed to process selected sheet.');
+    }
+  };
+
+  // Handle column mapping cancellation
+  const handleColumnMappingCancel = () => {
+    setShowColumnMapper(false);
+    setPendingCsvText('');
+    setColumnPreviews([]);
+  };
+
+  // Handle column mapping confirmation and process the file
+  const handleColumnMappingConfirm = async (mapping: ScannerColumnMapping) => {
+    setIsUploading(true);
+    setUploadResult(null);
+    setShowColumnMapper(false);
+
+    try {
+      const replaceMode = pendingReplaceModeForMapper;
+      console.log(`📥 Uploading Items file (Replace mode: ${replaceMode})`);
+
+      const lines = pendingCsvText.split('\n').filter(line => line.trim());
+
       if (lines.length === 0) {
         throw new Error('CSV file is empty');
       }
 
-      // Parse CSV headers
-      const headers = lines[0].split(',').map(h => h.trim().replace(/['"]/g, ''));
-      console.log('📊 CSV Headers:', headers);
-      console.log('📊 First few lines of CSV:', lines.slice(0, 5));
-      
-      // Find column indices (look for exact matches first, then partial)
-      let skuIndex = headers.findIndex(h => h.toLowerCase().trim() === 'sku');
-      if (skuIndex === -1) skuIndex = headers.findIndex(h => h.toLowerCase().includes('sku'));
-      
-      let nameIndex = headers.findIndex(h => h.toLowerCase().trim() === 'name');  
-      if (nameIndex === -1) nameIndex = headers.findIndex(h => h.toLowerCase().includes('name'));
-      
-      const categoryIndex = headers.findIndex(h => h.toLowerCase().includes('category'));
-      const unitIndex = headers.findIndex(h => h.toLowerCase().includes('unit'));
+      // Use the user-confirmed mapping
+      const skuIndex = mapping.sku;
+      const nameIndex = mapping.itemName; // itemName maps to Name for Item Master
+      const categoryIndex = mapping.zone >= 0 ? mapping.zone : -1; // zone maps to Category for Item Master
+      const unitIndex = mapping.expectedQuantity >= 0 ? mapping.expectedQuantity : -1; // expectedQuantity maps to Unit for Item Master
 
-      console.log('📊 Column indices found:', { skuIndex, nameIndex, categoryIndex, unitIndex });
-      
-      if (skuIndex === -1 || nameIndex === -1) {
-        throw new Error(`CSV must contain SKU and Name columns. Found headers: ${headers.join(', ')}`);
-      }
+      console.log(`📋 User-Confirmed Column Mapping:`);
+      console.log(`   SKU: Column ${skuIndex + 1}`);
+      console.log(`   Name: Column ${nameIndex + 1}`);
+      console.log(`   Category: Column ${categoryIndex >= 0 ? categoryIndex + 1 : 'not mapped'}`);
+      console.log(`   Unit: Column ${unitIndex >= 0 ? unitIndex + 1 : 'not mapped'}`);
 
       // Parse data rows
       const itemsToImport: Omit<ItemMaster, 'createdAt' | 'updatedAt'>[] = [];
@@ -213,7 +371,6 @@ export function ItemMasterTab({
       });
     } finally {
       setIsUploading(false);
-      event.target.value = '';
     }
   };
 
@@ -324,7 +481,7 @@ export function ItemMasterTab({
             <div className="flex items-center space-x-1">
               <input
                 type="file"
-                accept=".csv"
+                accept=".csv,.xlsx,.xls"
                 onChange={(e) => handleCSVUpload(e, false)}
                 disabled={isUploading}
                 className="hidden"
@@ -339,7 +496,7 @@ export function ItemMasterTab({
 
               <input
                 type="file"
-                accept=".csv"
+                accept=".csv,.xlsx,.xls"
                 onChange={(e) => handleCSVUpload(e, true)}
                 disabled={isUploading}
                 className="hidden"
@@ -509,6 +666,74 @@ export function ItemMasterTab({
           onSave={handleFormSave}
           isLoading={isLoading}
           setIsLoading={setIsLoading}
+        />
+      )}
+
+      {/* Excel Sheet Selector Modal */}
+      {showSheetSelector && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <span className="text-3xl">📊</span>
+              <h3 className="text-xl font-bold text-gray-900">Select Excel Sheet</h3>
+            </div>
+            <p className="text-sm text-gray-600 mb-4">
+              This Excel file contains multiple sheets. Please select which sheet contains the item master data:
+            </p>
+            <div className="mb-6 max-h-64 overflow-y-auto border border-gray-200 rounded-lg">
+              {xlsxSheetNames.map((sheetName, idx) => (
+                <label
+                  key={idx}
+                  className={`flex items-center gap-3 p-3 cursor-pointer hover:bg-gray-50 transition-colors ${
+                    idx !== xlsxSheetNames.length - 1 ? 'border-b border-gray-200' : ''
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="sheet-select"
+                    value={sheetName}
+                    checked={selectedSheet === sheetName}
+                    onChange={(e) => setSelectedSheet(e.target.value)}
+                    className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="flex-1 text-sm font-medium text-gray-900">{sheetName}</span>
+                  {idx === 0 && (
+                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">First</span>
+                  )}
+                </label>
+              ))}
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowSheetSelector(false);
+                  setPendingWorkbook(null);
+                  setXlsxSheetNames([]);
+                  setSelectedSheet('');
+                }}
+                className="flex-1 bg-gray-500 hover:bg-gray-600 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSheetSelect}
+                disabled={!selectedSheet}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors"
+              >
+                Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Column Mapper Modal */}
+      {showColumnMapper && (
+        <ScannerLookupColumnMapper
+          previews={columnPreviews}
+          onConfirm={handleColumnMappingConfirm}
+          onCancel={handleColumnMappingCancel}
+          mode="itemMaster"
         />
       )}
     </>

@@ -29,7 +29,13 @@ export interface Car {
   carType?: string;         // Optional: Computed car type for batch management (e.g., "TK1_Red_High")
   status: CarStatus;
   currentZone: number | null; // Current zone (1-23) or null if not in production
-  
+
+  // QA Location tracking
+  qaLocation?: string;          // Current QA bay/zone (e.g., "Bay-A1", "Zone-B2")
+  qaLocationAssignedAt?: Date;  // When car was assigned to QA location
+  qaLocationAssignedBy?: string; // User email who assigned location
+  qaLocationAssignedByName?: string; // User display name who assigned location
+
   // Timeline tracking
   zoneHistory: ZoneEntry[];   // Complete journey through production line
   createdAt: Date;           // When car entered production system
@@ -308,4 +314,32 @@ export interface QAInspectionProps {
   checklist: QAChecklist;
   onComplete: (inspection: QAInspection) => void;
   onBack: () => void;
+}
+
+// QA Location Management Types - v7.39.0
+
+// QA Location Configuration
+export interface QALocation {
+  id: string;                    // Unique location ID (auto-generated)
+  name: string;                  // Location name (e.g., "Bay-A1", "Zone-B2")
+  description?: string;          // Optional description
+  isActive: boolean;             // Whether location is currently in use
+  order: number;                 // Display order for sorting
+  createdAt: Date;
+  createdBy: string;             // User who created location
+  updatedAt?: Date;
+  updatedBy?: string;            // User who last updated location
+}
+
+// QA Location Assignment Log
+export interface QALocationAssignment {
+  id: string;                    // Unique assignment ID
+  vin: string;                   // Car VIN
+  locationId: string;            // QA Location ID
+  locationName: string;          // Location name (cached for queries)
+  assignedAt: Date;
+  assignedBy: string;            // User email who assigned
+  removedAt?: Date;              // When car left this location
+  removedBy?: string;            // User who removed car
+  notes?: string;
 }

@@ -48,7 +48,6 @@ const QAInspectionContainer: React.FC<QAInspectionContainerProps> = ({
   return (
     <QAInspectionDashboard
       userEmail={userEmail}
-      userName={userName}
       onStartInspection={handleStartInspection}
     />
   );

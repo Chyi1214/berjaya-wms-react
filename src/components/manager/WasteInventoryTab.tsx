@@ -1,15 +1,21 @@
 // Waste Inventory Tab - Shows individual waste/lost/defect reports
 import { useState, useEffect } from 'react';
 import { wasteReportService, type WasteReport } from '../../services/wasteReportService';
+import { useAuth } from '../../contexts/AuthContext';
+import { userManagementService } from '../../services/userManagement';
 
 export function WasteInventoryTab() {
+  const { user } = useAuth();
   const [wasteReports, setWasteReports] = useState<WasteReport[]>([]);
   const [filteredReports, setFilteredReports] = useState<WasteReport[]>([]);
   const [selectedReport, setSelectedReport] = useState<WasteReport | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedTypeFilter, setSelectedTypeFilter] = useState<'ALL' | 'WASTE' | 'LOST' | 'DEFECT'>('ALL');
+  const [selectedTypeFilter, setSelectedTypeFilter] = useState<'ALL' | 'WASTE' | 'LOST' | 'DEFECT' | 'UNPLANNED_USAGE'>('ALL');
   const [selectedBatchFilter, setSelectedBatchFilter] = useState<string>('ALL'); // v7.18.0: Batch filter
+  const [selectedApprovalFilter, setSelectedApprovalFilter] = useState<'ALL' | 'PENDING' | 'APPROVED'>('ALL'); // Approval filter
   const [availableBatches, setAvailableBatches] = useState<string[]>([]); // v7.18.0: List of batches
+  const [approvingReport, setApprovingReport] = useState(false); // Loading state for approval
+  const [userDisplayNames, setUserDisplayNames] = useState<Map<string, string>>(new Map()); // Email to display name mapping
   const [summary, setSummary] = useState({
     totalItems: 0,
     totalQuantity: 0,
@@ -19,16 +25,68 @@ export function WasteInventoryTab() {
     defectCount: 0
   });
 
+  // Handle opening report modal - track image download when modal opens
+  const openReportModal = (report: WasteReport) => {
+    setSelectedReport(report);
+
+    // Track image download cost (only when user actually views images)
+    if (report.labelImageUrl || report.damageImageUrl) {
+      wasteReportService.trackReportImageView(report);
+    }
+  };
+
+  // Handle approving a report
+  const handleApproveReport = async (reportId: string) => {
+    if (!user?.email) return;
+
+    setApprovingReport(true);
+    try {
+      await wasteReportService.approveWasteReport(reportId, user.email);
+
+      // Get approver's display name
+      let approverName = user.email.split('@')[0];
+      try {
+        const userRecord = await userManagementService.getUserRecord(user.email);
+        if (userRecord?.displayName && userRecord?.useDisplayName) {
+          approverName = userRecord.displayName;
+        }
+      } catch (error) {
+        // Use fallback
+      }
+
+      // Update user display names map
+      setUserDisplayNames(prev => new Map(prev).set(user.email, approverName));
+
+      // Reload reports to get updated data
+      await loadWasteReports();
+
+      // Update the selected report to show approved status
+      if (selectedReport && selectedReport.id === reportId) {
+        setSelectedReport({
+          ...selectedReport,
+          approved: true,
+          approvedBy: user.email,
+          approvedAt: new Date()
+        });
+      }
+    } catch (error) {
+      console.error('Failed to approve report:', error);
+      alert('Failed to approve report. Please try again.');
+    } finally {
+      setApprovingReport(false);
+    }
+  };
+
   useEffect(() => {
     loadWasteReports();
   }, []);
 
   useEffect(() => {
-    applyFilters(wasteReports, selectedTypeFilter, selectedBatchFilter);
-  }, [selectedTypeFilter, selectedBatchFilter, wasteReports]);
+    applyFilters(wasteReports, selectedTypeFilter, selectedBatchFilter, selectedApprovalFilter);
+  }, [selectedTypeFilter, selectedBatchFilter, selectedApprovalFilter, wasteReports]);
 
-  // v7.18.0: Combined filter function for type and batch
-  const applyFilters = (reports: WasteReport[], typeFilter: string, batchFilter: string) => {
+  // v7.18.0: Combined filter function for type, batch, and approval
+  const applyFilters = (reports: WasteReport[], typeFilter: string, batchFilter: string, approvalFilter: string) => {
     let filtered = reports;
 
     // Apply type filter
@@ -41,6 +99,9 @@ export function WasteInventoryTab() {
         break;
       case 'DEFECT':
         filtered = filtered.filter(report => report.type === 'DEFECT');
+        break;
+      case 'UNPLANNED_USAGE':
+        filtered = filtered.filter(report => report.type === 'UNPLANNED_USAGE');
         break;
       case 'ALL':
       default:
@@ -57,6 +118,20 @@ export function WasteInventoryTab() {
         // Show reports from specific batch
         filtered = filtered.filter(report => report.batchId === batchFilter);
       }
+    }
+
+    // Apply approval filter
+    switch (approvalFilter) {
+      case 'PENDING':
+        filtered = filtered.filter(report => !report.approved);
+        break;
+      case 'APPROVED':
+        filtered = filtered.filter(report => report.approved === true);
+        break;
+      case 'ALL':
+      default:
+        // No approval filtering
+        break;
     }
 
     setFilteredReports(filtered);
@@ -95,8 +170,32 @@ export function WasteInventoryTab() {
       }) as string[];
       setAvailableBatches(batches);
 
+      // Load display names for all approvers
+      const uniqueApprovers = Array.from(new Set(
+        reports
+          .filter(r => r.approvedBy)
+          .map(r => r.approvedBy!)
+      ));
+
+      const namesMap = new Map<string, string>();
+      for (const email of uniqueApprovers) {
+        try {
+          const userRecord = await userManagementService.getUserRecord(email);
+          if (userRecord?.displayName && userRecord?.useDisplayName) {
+            namesMap.set(email, userRecord.displayName);
+          } else {
+            // Fallback to email username
+            namesMap.set(email, email.split('@')[0]);
+          }
+        } catch (error) {
+          // Fallback to email username
+          namesMap.set(email, email.split('@')[0]);
+        }
+      }
+      setUserDisplayNames(namesMap);
+
       // Apply initial filters
-      applyFilters(reports, selectedTypeFilter, selectedBatchFilter);
+      applyFilters(reports, selectedTypeFilter, selectedBatchFilter, selectedApprovalFilter);
 
     } catch (error) {
       console.error('Failed to load waste reports:', error);
@@ -129,6 +228,7 @@ export function WasteInventoryTab() {
       case 'WASTE': return 'bg-red-100 text-red-800 border-red-200';
       case 'LOST': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
       case 'DEFECT': return 'bg-purple-100 text-purple-800 border-purple-200';
+      case 'UNPLANNED_USAGE': return 'bg-blue-100 text-blue-800 border-blue-200';
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
@@ -138,6 +238,7 @@ export function WasteInventoryTab() {
       case 'WASTE': return '🔥';
       case 'LOST': return '❓';
       case 'DEFECT': return '⚠️';
+      case 'UNPLANNED_USAGE': return '📋';
       default: return '📦';
     }
   };
@@ -209,7 +310,7 @@ export function WasteInventoryTab() {
         <div className="mb-4">
           <label className="block text-sm font-medium text-gray-700 mb-2">Filter by Type</label>
           <div className="flex flex-wrap gap-2">
-            {(['ALL', 'WASTE', 'LOST', 'DEFECT'] as const).map((filter) => (
+            {(['ALL', 'WASTE', 'LOST', 'DEFECT', 'UNPLANNED_USAGE'] as const).map((filter) => (
               <button
                 key={filter}
                 onClick={() => setSelectedTypeFilter(filter)}
@@ -219,17 +320,18 @@ export function WasteInventoryTab() {
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
-                {filter === 'ALL' && '📋 All Reports'}
+                {filter === 'ALL' && '📊 All Reports'}
                 {filter === 'WASTE' && '🔥 Waste'}
                 {filter === 'LOST' && '❓ Lost'}
                 {filter === 'DEFECT' && '⚠️ Defect'}
+                {filter === 'UNPLANNED_USAGE' && '📋 Unplanned Usage'}
               </button>
             ))}
           </div>
         </div>
 
         {/* Batch Filter Dropdown (v7.18.0) */}
-        <div>
+        <div className="mb-4">
           <label className="block text-sm font-medium text-gray-700 mb-2">📦 Filter by Batch</label>
           <select
             value={selectedBatchFilter}
@@ -244,6 +346,28 @@ export function WasteInventoryTab() {
               </option>
             ))}
           </select>
+        </div>
+
+        {/* Approval Filter Buttons */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700 mb-2">✓ Filter by Approval</label>
+          <div className="flex flex-wrap gap-2">
+            {(['ALL', 'PENDING', 'APPROVED'] as const).map((filter) => (
+              <button
+                key={filter}
+                onClick={() => setSelectedApprovalFilter(filter)}
+                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  selectedApprovalFilter === filter
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                {filter === 'ALL' && '📋 All'}
+                {filter === 'PENDING' && '⏳ Pending'}
+                {filter === 'APPROVED' && '✅ Approved'}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="mt-3 text-sm text-gray-600">
@@ -269,6 +393,9 @@ export function WasteInventoryTab() {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Date & Time
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -276,6 +403,9 @@ export function WasteInventoryTab() {
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Type
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    📸
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     📦 Batch
@@ -297,6 +427,26 @@ export function WasteInventoryTab() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredReports.map((report) => (
                   <tr key={report.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col gap-1">
+                        {report.approved ? (
+                          <>
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                              ✓ Approved
+                            </span>
+                            {report.approvedBy && (
+                              <span className="text-xs text-gray-500">
+                                {userDisplayNames.get(report.approvedBy) || report.approvedBy.split('@')[0]}
+                              </span>
+                            )}
+                          </>
+                        ) : (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                            ⏳ Pending
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {formatDateTime(report.reportedAt)}
                     </td>
@@ -310,6 +460,21 @@ export function WasteInventoryTab() {
                         <span className="mr-1">{getTypeEmoji(report.type)}</span>
                         {report.type}
                       </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-center">
+                      {(report.labelImageUrl || report.damageImageUrl) ? (
+                        <span className="text-green-600" title="Has photo evidence">
+                          <svg className="w-5 h-5 inline" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
+                          </svg>
+                        </span>
+                      ) : (
+                        <span className="text-gray-300" title="No photos">
+                          <svg className="w-5 h-5 inline" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M3 5a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2h-2.22l.123.489.804.804A1 1 0 0113 18H7a1 1 0 01-.707-1.707l.804-.804L7.22 15H5a2 2 0 01-2-2V5zm5.771 7H5V5h10v7H8.771z" clipRule="evenodd" />
+                          </svg>
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {report.batchId ? (
@@ -335,7 +500,7 @@ export function WasteInventoryTab() {
                           {report.reason || 'No reason provided'}
                         </div>
                         <button
-                          onClick={() => setSelectedReport(report)}
+                          onClick={() => openReportModal(report)}
                           className="text-blue-600 hover:text-blue-800 text-xs font-medium underline"
                         >
                           View Details
@@ -457,6 +622,58 @@ export function WasteInventoryTab() {
                 </div>
               </div>
 
+              {/* Images (v7.38.2) */}
+              {(selectedReport.labelImageUrl || selectedReport.damageImageUrl) && (
+                <div className="border-t pt-4">
+                  <h4 className="font-medium text-gray-900 mb-3 flex items-center">
+                    <span className="mr-2">📸</span>
+                    Photo Evidence
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {selectedReport.labelImageUrl && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Label Photo</label>
+                        <a
+                          href={selectedReport.labelImageUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block relative group"
+                        >
+                          <img
+                            src={selectedReport.labelImageUrl}
+                            alt="Label"
+                            className="w-full h-48 object-cover rounded-lg border border-gray-300 group-hover:opacity-90 transition-opacity"
+                          />
+                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black bg-opacity-40 rounded-lg">
+                            <span className="text-white text-sm font-medium">🔍 Click to view full size</span>
+                          </div>
+                        </a>
+                      </div>
+                    )}
+                    {selectedReport.damageImageUrl && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Damage Photo</label>
+                        <a
+                          href={selectedReport.damageImageUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block relative group"
+                        >
+                          <img
+                            src={selectedReport.damageImageUrl}
+                            alt="Damage"
+                            className="w-full h-48 object-cover rounded-lg border border-gray-300 group-hover:opacity-90 transition-opacity"
+                          />
+                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black bg-opacity-40 rounded-lg">
+                            <span className="text-white text-sm font-medium">🔍 Click to view full size</span>
+                          </div>
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Reason */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Reason</label>
@@ -551,8 +768,36 @@ export function WasteInventoryTab() {
               )}
             </div>
 
-            {/* Close Button */}
-            <div className="flex justify-end mt-6">
+            {/* Action Buttons */}
+            <div className="flex justify-between items-center mt-6">
+              {/* Approval Status / Button */}
+              <div>
+                {selectedReport.approved ? (
+                  <div className="text-sm">
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                      ✓ Approved
+                    </span>
+                    <div className="text-xs text-gray-500 mt-1">
+                      By: {selectedReport.approvedBy ? (userDisplayNames.get(selectedReport.approvedBy) || selectedReport.approvedBy.split('@')[0]) : 'Unknown'}
+                      {selectedReport.approvedAt && (
+                        <span className="ml-2">
+                          {new Date(selectedReport.approvedAt).toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => selectedReport.id && handleApproveReport(selectedReport.id)}
+                    disabled={approvingReport}
+                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {approvingReport ? 'Approving...' : '✓ Approve Report'}
+                  </button>
+                )}
+              </div>
+
+              {/* Close Button */}
               <button
                 onClick={() => setSelectedReport(null)}
                 className="btn-primary"

@@ -11,7 +11,7 @@ import type {
 import { createModuleLogger } from '../../../services/logger';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { getLocalizedText } from '../../../utils/multilingualHelper';
-import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from '../../../services/costTracking/storageWrapper';
 import { compressImageIfNeeded } from '../../../utils/imageCompression';
 
 const logger = createModuleLogger('VisualTemplateEditor');
@@ -633,8 +633,8 @@ export default function VisualTemplateEditor() {
       // Upload to Firebase Storage
       const storage = getStorage();
       const storageRef = ref(storage, storagePath);
-      await uploadBytes(storageRef, processedFile);
-      const downloadURL = await getDownloadURL(storageRef);
+      await uploadBytes(storageRef, processedFile, 'VisualTemplateEditor', 'uploadSectionImage');
+      const downloadURL = await getDownloadURL(storageRef, 'VisualTemplateEditor', 'uploadSectionImage');
 
       // Create SectionImage object
       const newImage: SectionImage = {

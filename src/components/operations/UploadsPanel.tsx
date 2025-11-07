@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { batchManagementService } from '../../services/batchManagement';
+import * as XLSX from 'xlsx';
 
 interface UploadResult {
   success: number;
@@ -17,7 +18,25 @@ export function UploadsPanel({ userEmail, onRefresh }: { userEmail?: string | nu
     setBusy(true);
     setResult(null);
     try {
-      const text = await file.text();
+      let text: string;
+
+      // Check if file is Excel
+      const isXlsx = file.name.endsWith('.xlsx') || file.name.endsWith('.xls');
+
+      if (isXlsx) {
+        // Parse Excel file
+        const arrayBuffer = await file.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+
+        // Use first sheet (simple approach for this panel)
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        text = XLSX.utils.sheet_to_csv(worksheet);
+      } else {
+        // Handle regular CSV
+        text = await file.text();
+      }
+
       let r: UploadResult;
       if (kind === 'vinPlans') {
         r = await batchManagementService.uploadVinPlansFromCSV(text, userEmail);
@@ -62,7 +81,7 @@ export function UploadsPanel({ userEmail, onRefresh }: { userEmail?: string | nu
             </button>
             <label className={`px-3 py-2 text-xs text-white rounded ${busy ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 cursor-pointer'}`}>
               📤 Upload
-              <input type="file" accept=".csv" className="hidden" disabled={busy} onChange={(e) => handleUpload(e, 'vinPlans')} />
+              <input type="file" accept=".csv,.xlsx,.xls" className="hidden" disabled={busy} onChange={(e) => handleUpload(e, 'vinPlans')} />
             </label>
           </div>
         </div>
@@ -84,7 +103,7 @@ export function UploadsPanel({ userEmail, onRefresh }: { userEmail?: string | nu
             </button>
             <label className={`px-3 py-2 text-xs text-white rounded ${busy ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 cursor-pointer'}`}>
               📤 Upload
-              <input type="file" accept=".csv" className="hidden" disabled={busy} onChange={(e) => handleUpload(e, 'packing')} />
+              <input type="file" accept=".csv,.xlsx,.xls" className="hidden" disabled={busy} onChange={(e) => handleUpload(e, 'packing')} />
             </label>
           </div>
         </div>

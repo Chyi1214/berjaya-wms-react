@@ -26,6 +26,7 @@ const QAInspectionAnalytics: React.FC = () => {
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('30days');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
+  const [gateFilter, setGateFilter] = useState<string>('all'); // Filter by gate
 
   useEffect(() => {
     loadInspections();
@@ -43,40 +44,67 @@ const QAInspectionAnalytics: React.FC = () => {
     }
   };
 
-  // Filter inspections by time range
+  // Get unique gates for filtering
+  const availableGates = useMemo(() => {
+    const gates = new Set<string>();
+    inspections.forEach((i) => {
+      if (i.gateId && i.gateName) {
+        gates.add(JSON.stringify({ gateId: i.gateId, gateName: i.gateName }));
+      }
+    });
+    return Array.from(gates).map((g) => JSON.parse(g));
+  }, [inspections]);
+
+  // Filter inspections by time range and gate
   const filteredInspections = useMemo(() => {
     const now = new Date();
     let startDate: Date;
+    let timeFiltered: CarInspection[];
 
     switch (timeFilter) {
       case 'today':
         startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        timeFiltered = inspections.filter(
+          (i) => i.createdAt && new Date(i.createdAt) >= startDate
+        );
         break;
       case '7days':
         startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        timeFiltered = inspections.filter(
+          (i) => i.createdAt && new Date(i.createdAt) >= startDate
+        );
         break;
       case '30days':
         startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        timeFiltered = inspections.filter(
+          (i) => i.createdAt && new Date(i.createdAt) >= startDate
+        );
         break;
       case 'custom':
-        if (!customStartDate || !customEndDate) return inspections;
-        startDate = new Date(customStartDate);
-        const endDate = new Date(customEndDate);
-        return inspections.filter(
-          (i) =>
-            i.createdAt &&
-            new Date(i.createdAt) >= startDate &&
-            new Date(i.createdAt) <= endDate
-        );
+        if (!customStartDate || !customEndDate) {
+          timeFiltered = inspections;
+        } else {
+          startDate = new Date(customStartDate);
+          const endDate = new Date(customEndDate);
+          timeFiltered = inspections.filter(
+            (i) =>
+              i.createdAt &&
+              new Date(i.createdAt) >= startDate &&
+              new Date(i.createdAt) <= endDate
+          );
+        }
+        break;
       case 'all':
       default:
-        return inspections;
+        timeFiltered = inspections;
     }
 
-    return inspections.filter(
-      (i) => i.createdAt && new Date(i.createdAt) >= startDate
-    );
-  }, [inspections, timeFilter, customStartDate, customEndDate]);
+    // Apply gate filter
+    if (gateFilter === 'all') {
+      return timeFiltered;
+    }
+    return timeFiltered.filter((i) => i.gateId === gateFilter);
+  }, [inspections, timeFilter, customStartDate, customEndDate, gateFilter]);
 
   // Calculate analytics
   const analytics = useMemo(() => {
@@ -154,6 +182,43 @@ const QAInspectionAnalytics: React.FC = () => {
               dailyDefects[date] = (dailyDefects[date] || 0) + 1;
             }
           }
+
+          // Count additional defects (backwards compatibility: treat undefined as empty array)
+          const additionalDefects = result.additionalDefects || [];
+          additionalDefects.forEach((additionalDefect) => {
+            // Initialize counter if this defect type hasn't been seen yet
+            if (!defectsByType[additionalDefect.defectType]) {
+              defectsByType[additionalDefect.defectType] = 0;
+            }
+            defectsByType[additionalDefect.defectType]++;
+
+            // Additional defects are always actual defects (never "Ok")
+            totalDefects++;
+
+            // Track by section
+            if (!defectsBySection[sectionId]) {
+              defectsBySection[sectionId] = 0;
+            }
+            defectsBySection[sectionId]++;
+
+            // Track by item and section combined
+            const itemKey = `${itemName} (${sectionId.replace(/_/g, ' ')})`;
+            if (!defectsByItemAndSection[itemKey]) {
+              defectsByItemAndSection[itemKey] = 0;
+            }
+            defectsByItemAndSection[itemKey]++;
+
+            // Track inspector defects
+            if (section.inspector) {
+              inspectorStats[section.inspector].defectsFound++;
+            }
+
+            // Track daily trend
+            if (inspection.createdAt) {
+              const date = new Date(inspection.createdAt).toLocaleDateString();
+              dailyDefects[date] = (dailyDefects[date] || 0) + 1;
+            }
+          });
         });
       });
     });
@@ -192,6 +257,12 @@ const QAInspectionAnalytics: React.FC = () => {
       defects: count,
     }))
     .sort((a, b) => b.defects - a.defects);
+
+  // Top problem items chart data
+  const topProblemsChartData = analytics.topProblemItems.map(([item, count]) => ({
+    name: item,
+    count: count,
+  }));
 
   if (loading) {
     return (
@@ -302,6 +373,38 @@ const QAInspectionAnalytics: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* Gate Filter */}
+        <div className="mt-4">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Filter by Gate
+          </label>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setGateFilter('all')}
+              className={`px-4 py-2 rounded-lg font-medium ${
+                gateFilter === 'all'
+                  ? 'bg-green-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              All Gates
+            </button>
+            {availableGates.map((gate) => (
+              <button
+                key={gate.gateId}
+                onClick={() => setGateFilter(gate.gateId)}
+                className={`px-4 py-2 rounded-lg font-medium ${
+                  gateFilter === gate.gateId
+                    ? 'bg-green-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                {gate.gateName}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* Summary Cards */}
@@ -416,6 +519,32 @@ const QAInspectionAnalytics: React.FC = () => {
                 strokeWidth={2}
               />
             </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Top 10 Problem Items Bar Chart */}
+      {topProblemsChartData.length > 0 && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">
+            Top 10 Problem Items (Item + Position)
+          </h2>
+          <p className="text-sm text-gray-600 mb-4">
+            Most frequent defects classified by item name and inspection section
+          </p>
+          <ResponsiveContainer width="100%" height={400}>
+            <BarChart data={topProblemsChartData} layout="vertical">
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis type="number" />
+              <YAxis
+                type="category"
+                dataKey="name"
+                width={250}
+                tick={{ fontSize: 11 }}
+              />
+              <Tooltip />
+              <Bar dataKey="count" fill="#dc2626" />
+            </BarChart>
           </ResponsiveContainer>
         </div>
       )}

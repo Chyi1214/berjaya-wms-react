@@ -97,4 +97,4 @@ temp/
 # Local development
 .firebase/
 firebase-debug.log
-.vite/
+.vite/*-firebase-adminsdk-*.json

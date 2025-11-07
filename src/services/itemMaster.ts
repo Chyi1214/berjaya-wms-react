@@ -1,17 +1,17 @@
 // Item Master Service - Firebase operations for Item Master List (catalog)
-import { 
-  collection, 
-  doc, 
-  setDoc, 
-  getDocs, 
+import {
+  collection,
+  doc,
+  setDoc,
+  getDocs,
   deleteDoc,
-  onSnapshot, 
-  query, 
+  onSnapshot,
+  query,
   orderBy,
   where,
   Timestamp,
   writeBatch
-} from 'firebase/firestore';
+} from './costTracking/firestoreWrapper';
 import { db } from './firebase';
 import { ItemMaster, SearchableItem } from '../types';
 import { createModuleLogger } from './logger';
@@ -221,33 +221,46 @@ class ItemMasterService {
     };
     
     try {
+      // Fetch all existing items once for efficient lookup
+      console.log('🔍 Fetching existing items for efficient comparison...');
+      const existingItems = mode === 'replace' ? [] : await this.getAllItems();
+      const existingItemsMap = new Map<string, ItemMaster>();
+      existingItems.forEach(item => {
+        existingItemsMap.set(item.sku.toUpperCase(), item);
+      });
+      console.log(`✅ Loaded ${existingItems.length} existing items into memory`);
+
       if (mode === 'replace') {
         // Replace mode: clear all existing data first
         logger.info('Replace mode: clearing all existing items...');
         await this.clearAllItems();
       }
-      
+
       const batch = writeBatch(db);
       const now = new Date();
-      
+
+      console.log(`📝 Processing ${items.length} items...`);
+      let processedCount = 0;
+
       for (const item of items) {
         try {
+          processedCount++;
+
+          // Log progress every 100 items
+          if (processedCount % 100 === 0 || processedCount === items.length) {
+            console.log(`⏳ Processing row ${processedCount}/${items.length} (${Math.round(processedCount/items.length*100)}%)`);
+          }
+
           // Validate required fields
           if (!item.sku || !item.name) {
             result.errors.push(`Row: Missing required SKU or Name`);
             result.stats.skippedRows++;
             continue;
           }
-          
-          const existingItem = await this.getItemBySKU(item.sku);
-          
-          if (mode === 'update' && existingItem) {
-            // Update mode: skip existing items
-            logger.debug(`Skipping existing item: ${item.sku}`);
-            result.stats.skippedRows++;
-            continue;
-          }
-          
+
+          // Check if item exists (in-memory lookup, no Firebase query)
+          const existingItem = existingItemsMap.get(item.sku.toUpperCase());
+
           // Prepare item data
           const itemData: ItemMaster = {
             ...item,
@@ -255,24 +268,36 @@ class ItemMasterService {
             createdAt: existingItem?.createdAt || now,
             updatedAt: now
           };
-          
+
           const docRef = doc(db, ITEM_MASTER_COLLECTION, item.sku.toUpperCase());
           const firestoreData = mapItemMasterToFirestore(itemData);
-          
+
+          // In 'update' mode: update existing items, create new ones
+          // In 'replace' mode: everything is new (since we cleared all items first)
           batch.set(docRef, firestoreData);
-          
+
           if (existingItem) {
             result.stats.updated++;
+            // Log first few updates for verification
+            if (result.stats.updated <= 3) {
+              console.log(`🔄 Updating: ${item.sku} - "${item.name}"`);
+            }
           } else {
             result.stats.created++;
+            // Log first few creates for verification
+            if (result.stats.created <= 3) {
+              console.log(`✨ Creating: ${item.sku} - "${item.name}"`);
+            }
           }
           result.success++;
-          
+
         } catch (error) {
           result.errors.push(`SKU ${item.sku}: ${error instanceof Error ? error.message : 'Unknown error'}`);
           result.stats.skippedRows++;
         }
       }
+
+      console.log(`📊 Processing complete: ${result.stats.updated} updated, ${result.stats.created} created, ${result.stats.skippedRows} skipped`);
       
       // Commit all changes
       if (result.success > 0) {

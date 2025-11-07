@@ -2,6 +2,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { User, ItemMaster, Transaction, TransactionType, TransactionStatus } from '../../types';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { scannerService } from '../../services/scannerService';
 import { scanLookupService } from '../../services/scanLookupService';
 import { transactionService } from '../../services/transactions';
@@ -15,7 +16,7 @@ import { SearchAutocomplete } from '../common/SearchAutocomplete';
 
 interface UnifiedScannerViewProps {
   user: User;
-  onBack: () => void;
+  onBatchChange?: (batchId: string) => void; // Callback when batch selection changes
 }
 
 interface UnifiedScanResult {
@@ -30,8 +31,9 @@ interface UnifiedScanResult {
   timestamp: Date;
 }
 
-export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
+export function UnifiedScannerView({ user, onBatchChange }: UnifiedScannerViewProps) {
   const { t } = useLanguage();
+  const { getUserDisplayName } = useAuth();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [scanResult, setScanResult] = useState<UnifiedScanResult | null>(null);
@@ -42,6 +44,11 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
   const [cameraPermission, setCameraPermission] = useState<'unknown' | 'granted' | 'denied'>('unknown');
   const [selectedSearchResult, setSelectedSearchResult] = useState<any>(null);
   const [rawQRCode, setRawQRCode] = useState<string>(''); // Track raw QR code for supplier box tracking
+
+  // Double scan confirmation states
+  const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
+  const [duplicateInfo, setDuplicateInfo] = useState<any>(null);
+  const [confirmationText, setConfirmationText] = useState('');
 
   // Car type selection (v7.19.0)
   const [availableCarTypes, setAvailableCarTypes] = useState<Array<{carCode: string; name: string}>>([]);
@@ -70,6 +77,13 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
       clearResult();
     };
   }, []);
+
+  // Notify parent when batch changes (for logistics monitor sync)
+  useEffect(() => {
+    if (selectedBatch && onBatchChange) {
+      onBatchChange(selectedBatch);
+    }
+  }, [selectedBatch, onBatchChange]);
 
   const checkCameraSupport = async () => {
     const isAvailable = await scannerService.isCameraAvailable();
@@ -421,22 +435,11 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
           const duplicate = await supplierBoxScanService.checkDuplicate(rawQRCode, selectedBatch);
 
           if (duplicate) {
-            // Show warning dialog with previous scan details
-            const proceed = window.confirm(
-              `⚠️ This supplier box was already scanned!\n\n` +
-              `📅 Date: ${duplicate.scannedAt.toLocaleDateString()} ${duplicate.scannedAt.toLocaleTimeString()}\n` +
-              `👤 By: ${duplicate.scannedBy}\n` +
-              `📦 SKU: ${duplicate.sku}\n` +
-              `🔢 Quantity: ${duplicate.quantity} units\n` +
-              `📍 Box: ${duplicate.caseNo || 'DEFAULT'}\n\n` +
-              `⚡ Click OK to scan again anyway, or Cancel to stop.`
-            );
-
-            if (!proceed) {
-              setIsProcessing(false);
-              setError('Scan cancelled - duplicate supplier box detected');
-              return;
-            }
+            // Show custom confirmation dialog - requires typing confirmation text
+            setDuplicateInfo(duplicate);
+            setShowDuplicateDialog(true);
+            // Keep isProcessing = true to prevent other actions
+            return; // Wait for user confirmation
           }
         } catch (dupCheckError: any) {
           // Silently handle permission errors - QR tracking is optional
@@ -447,6 +450,24 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
         }
       }
 
+      // No duplicate detected, proceed with scan
+      await proceedWithScan();
+
+    } catch (error) {
+      console.error('Failed to save inventory:', error);
+      setError('Failed to save inventory. Please try again.');
+      setIsProcessing(false);
+    }
+  };
+
+  // Continue with scan after duplicate confirmation
+  const proceedWithScan = async () => {
+    if (!scanResult) return;
+
+    const qty = parseFloat(quantity);
+    const isDefaultBatch = selectedBatch === 'DEFAULT';
+
+    try {
       // NO MORE STRICT VALIDATION
       // We track what actually happens, not enforce what should happen
       // Workers can put any item in any box
@@ -454,25 +475,17 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
       // Use the optimized method to add to inventory
       const { previousAmount, newAmount } = await tableStateService.addToInventoryCountOptimized(
         scanResult.sku,
-        scanResult.item.name,
+        scanResult.item!.name,
         qty,
         'logistics',
         user.email
-      );
-
-      // NEW: Add to batch allocation tracking
-      await batchAllocationService.addToBatchAllocation(
-        scanResult.sku,
-        'logistics',
-        selectedBatch,
-        qty
       );
 
       // Create transaction for audit trail
       const transaction: Transaction = {
         id: `txn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         sku: scanResult.sku,
-        itemName: scanResult.item.name,
+        itemName: scanResult.item!.name,
         amount: qty,
         previousAmount: previousAmount,
         newAmount: newAmount,
@@ -480,17 +493,29 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
         transactionType: TransactionType.TRANSFER_IN,
         status: TransactionStatus.COMPLETED,
         performedBy: user.email,
+        performedByName: getUserDisplayName(),
         timestamp: new Date(),
         notes: `Unified scanner → logistics (Batch: ${selectedBatch})`,
         batchId: selectedBatch
       };
 
-      await transactionService.saveTransaction(transaction);
+      // PERFORMANCE FIX: Run all independent writes in parallel
+      const parallelWrites: Promise<any>[] = [
+        // 1. Add to batch allocation tracking
+        batchAllocationService.addToBatchAllocation(
+          scanResult.sku,
+          'logistics',
+          selectedBatch,
+          qty
+        ),
+        // 2. Save transaction
+        transactionService.saveTransaction(transaction)
+      ];
 
-      // SUPPLIER BOX QR TRACKING: Record this scan for audit trail (only if QR code exists)
+      // 3. SUPPLIER BOX QR TRACKING (optional, only if QR code exists)
       if (rawQRCode && rawQRCode.trim().length > 0) {
-        try {
-          await supplierBoxScanService.recordScan({
+        parallelWrites.push(
+          supplierBoxScanService.recordScan({
             supplierBoxQR: rawQRCode,
             batchId: selectedBatch,
             scannedBy: user.email,
@@ -498,36 +523,38 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
             quantity: qty,
             caseNo: isDefaultBatch ? null : (selectedBox || null),
             transactionId: transaction.id
-          });
-          console.log('✅ Supplier box QR scan recorded:', rawQRCode);
-        } catch (recordError: any) {
-          // Silently handle permission errors - QR tracking is optional
-          if (recordError?.code !== 'permission-denied') {
-            console.error('Failed to record supplier box scan:', recordError);
-          }
-          // Don't fail the whole transaction if scan recording fails
-        }
+          }).catch((recordError: any) => {
+            // Silently handle permission errors - QR tracking is optional
+            if (recordError?.code !== 'permission-denied') {
+              console.error('Failed to record supplier box scan:', recordError);
+            }
+          })
+        );
       }
 
-      // Update packing box progress (optional, only for non-DEFAULT batches with box)
+      // 4. Update packing box progress (optional, only for non-DEFAULT batches with box)
       if (!isDefaultBatch && selectedBox) {
-        try {
-          // Track box contents without validation (flexible mode)
-          await packingBoxesService.applyScan(selectedBatch, selectedBox, scanResult.sku, qty, user.email);
-          try { localStorage.setItem(`wms-active-box:${selectedBatch}`, selectedBox); } catch {}
-        } catch (e: any) {
-          console.error('Box tracking failed:', e);
-          // Don't show error to user - box tracking is now optional
-        }
+        parallelWrites.push(
+          packingBoxesService.applyScan(selectedBatch, selectedBox, scanResult.sku, qty, user.email)
+            .then(() => {
+              try { localStorage.setItem(`wms-active-box:${selectedBatch}`, selectedBox); } catch {}
+            })
+            .catch((e: any) => {
+              console.error('Box tracking failed:', e);
+              // Don't show error to user - box tracking is now optional
+            })
+        );
       }
 
-      // Success!
-      setSuccess(`✅ Added ${qty} x ${scanResult.item.name} to inventory (Batch: ${selectedBatch}, Total: ${newAmount})`);
+      // Execute all writes in parallel - much faster!
+      await Promise.all(parallelWrites);
 
-      // Clear after 3 seconds
-      setTimeout(() => {
-        setSuccess(null);
-      }, 3000);
+      if (rawQRCode && rawQRCode.trim().length > 0) {
+        console.log('✅ Supplier box QR scan recorded:', rawQRCode);
+      }
+
+      // Success! (message will clear when worker starts next scan)
+      setSuccess(`✅ Added ${qty} x ${scanResult.item!.name} to inventory (Batch: ${selectedBatch}, Total: ${newAmount})`);
 
     } catch (error) {
       console.error('Failed to save inventory:', error);
@@ -535,6 +562,28 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  // Handle duplicate scan confirmation
+  const handleDuplicateConfirm = () => {
+    if (confirmationText.trim() === 'Double scan with no duplication.') {
+      setShowDuplicateDialog(false);
+      setConfirmationText('');
+      setDuplicateInfo(null);
+      // Continue with scan
+      proceedWithScan();
+    } else {
+      setError('Please type the exact confirmation text: "Double scan with no duplication."');
+    }
+  };
+
+  // Handle duplicate scan cancellation
+  const handleDuplicateCancel = () => {
+    setShowDuplicateDialog(false);
+    setConfirmationText('');
+    setDuplicateInfo(null);
+    setIsProcessing(false);
+    setError('Scan cancelled - duplicate supplier box detected');
   };
 
   const clearResult = () => {
@@ -552,134 +601,64 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
   // };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center h-16">
-            <button
-              onClick={onBack}
-              className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
-            <div className="flex items-center space-x-2 ml-4">
-              <span className="text-2xl">📱</span>
-              <h1 className="text-lg font-bold text-gray-900">{t('logistics.inboundScanner')}</h1>
-            </div>
-          </div>
-        </div>
-      </header>
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
 
-      {/* Main Content */}
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-
-        {/* Car Type Selector (v7.19.0) */}
-        <div className="mb-4 bg-white border-2 border-purple-300 rounded-lg p-4 shadow-sm">
-          <div className="text-center">
-            <div className="text-3xl mb-2">🚗</div>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4">
-              <div className="text-center">
-                <p className="text-xs sm:text-sm text-gray-500 mb-1">Car Type</p>
-                <div className="text-xl sm:text-2xl font-bold text-purple-600">
-                  {carTypesLoading ? '⏳ Loading...' : selectedCarType || 'Not Set'}
-                </div>
-              </div>
-
+        {/* Compact Badge Style - Car Type & Batch (v7.19.0) */}
+        <div className="mb-4 bg-white rounded-lg p-3 shadow-sm border border-gray-200">
+          <div className="space-y-2">
+            {/* Car Type Badge Line */}
+            <div className="flex items-center gap-2 text-sm flex-wrap">
+              <span className="text-gray-600">Car Type:</span>
+              <span>🚗</span>
+              <span className="font-semibold text-purple-700">
+                {carTypesLoading ? '⏳ Loading...' : selectedCarType || 'Not Set'}
+              </span>
               {!carTypesLoading && availableCarTypes.length > 1 && (
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => {
-                      const dropdown = document.getElementById('car-type-selector');
-                      if (dropdown) {
-                        (dropdown as HTMLSelectElement).focus();
-                      }
-                    }}
-                    className="text-xs sm:text-sm text-purple-600 hover:text-purple-700 underline"
-                  >
-                    Change
-                  </button>
-                  <select
-                    id="car-type-selector"
-                    value={selectedCarType}
-                    onChange={(e) => {
-                      const newCarType = e.target.value;
-                      setSelectedCarType(newCarType);
-                      // Save to localStorage
-                      try {
-                        localStorage.setItem('wms-scanner-car-type', newCarType);
-                      } catch (err) {
-                        console.error('Failed to save car type to localStorage:', err);
-                      }
-                    }}
-                    className="text-xs sm:text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  >
-                    {availableCarTypes.map(carType => (
-                      <option key={carType.carCode} value={carType.carCode}>
-                        {carType.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <select
+                  id="car-type-selector"
+                  value={selectedCarType}
+                  onChange={(e) => {
+                    const newCarType = e.target.value;
+                    setSelectedCarType(newCarType);
+                    try {
+                      localStorage.setItem('wms-scanner-car-type', newCarType);
+                    } catch (err) {
+                      console.error('Failed to save car type to localStorage:', err);
+                    }
+                  }}
+                  className="text-xs border border-purple-300 bg-purple-50 rounded px-2 py-1 text-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                >
+                  {availableCarTypes.map(carType => (
+                    <option key={carType.carCode} value={carType.carCode}>
+                      Change ▼ {carType.name}
+                    </option>
+                  ))}
+                </select>
               )}
             </div>
 
-            {!carTypesLoading && (
-              <p className="text-xs text-gray-500 mt-2">
-                Zone lookups will be specific to this car type
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* Batch Display Section */}
-        <div className="mb-4 bg-white border-2 border-orange-300 rounded-lg p-4 shadow-sm">
-          <div className="text-center">
-            <div className="text-3xl mb-2">📦</div>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4">
-              <div className="text-center">
-                <p className="text-xs sm:text-sm text-gray-500 mb-1">Current Batch</p>
-                <div className="text-xl sm:text-2xl font-bold text-orange-600">
-                  {batchConfigLoading ? '⏳ Loading...' : selectedBatch || 'Not Set'}
-                </div>
-              </div>
-
+            {/* Batch Badge Line */}
+            <div className="flex items-center gap-2 text-sm flex-wrap">
+              <span className="text-gray-600">Batch:</span>
+              <span>📦</span>
+              <span className="font-semibold text-orange-700">
+                {batchConfigLoading ? '⏳ Loading...' : selectedBatch || 'Not Set'}
+              </span>
               {!batchConfigLoading && availableBatches.length > 1 && (
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => {
-                      const dropdown = document.getElementById('batch-selector');
-                      if (dropdown) {
-                        (dropdown as HTMLSelectElement).focus();
-                      }
-                    }}
-                    className="text-xs sm:text-sm text-orange-600 hover:text-orange-700 underline"
-                  >
-                    Change
-                  </button>
-                  <select
-                    id="batch-selector"
-                    value={selectedBatch}
-                    onChange={(e) => setSelectedBatch(e.target.value)}
-                    className="text-xs sm:text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  >
-                    {availableBatches.map(batchId => (
-                      <option key={batchId} value={batchId}>
-                        Batch {batchId}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <select
+                  id="batch-selector"
+                  value={selectedBatch}
+                  onChange={(e) => setSelectedBatch(e.target.value)}
+                  className="text-xs border border-orange-300 bg-orange-50 rounded px-2 py-1 text-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                >
+                  {availableBatches.map(batchId => (
+                    <option key={batchId} value={batchId}>
+                      Change ▼ Batch {batchId}
+                    </option>
+                  ))}
+                </select>
               )}
             </div>
-
-            {!batchConfigLoading && (
-              <p className="text-xs text-gray-500 mt-2">
-                All scanned items will be assigned to this batch
-              </p>
-            )}
           </div>
         </div>
 
@@ -726,46 +705,39 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
           </div>
         )}
 
-        {/* Success Message */}
-        {success && (
-          <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4">
-            <div className="flex items-center">
-              <span className="text-green-600 text-lg mr-2">✅</span>
-              <p className="text-green-800 font-medium">{success}</p>
-            </div>
-          </div>
-        )}
-
-        {/* Error Message */}
-        {error && (
-          <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
-            <div className="flex items-center">
-              <span className="text-red-600 text-lg mr-2">⚠️</span>
-              <p className="text-red-700">{error}</p>
-            </div>
-          </div>
-        )}
-
         {/* Scan Result Display */}
         {scanResult && (
           <div className="mb-6 bg-white rounded-lg border-2 border-blue-500 shadow-lg p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">📍 {t('scanner.scanResult')}</h3>
 
+            {/* Action Required Warning */}
+            {scanResult.item && !success && (
+              <div className="mb-4 bg-orange-50 border-2 border-orange-400 rounded-lg p-4">
+                <div className="flex items-start">
+                  <span className="text-orange-600 text-2xl mr-3">⚠️</span>
+                  <div>
+                    <p className="text-orange-900 font-bold text-lg">{t('scanner.actionRequired')}</p>
+                    <p className="text-orange-800 text-sm mt-1">{t('scanner.scanNotComplete')}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* SKU Info */}
             <div className="space-y-3 mb-6">
               <div className="flex justify-between">
-                <span className="text-gray-600">SKU:</span>
+                <span className="text-gray-600">{t('scanner.sku')}</span>
                 <span className="font-mono font-bold">{scanResult.sku}</span>
               </div>
               {scanResult.item && (
                 <>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Name:</span>
+                    <span className="text-gray-600">{t('scanner.name')}</span>
                     <span className="font-medium">{scanResult.item.name}</span>
                   </div>
                   {scanResult.item.category && (
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Category:</span>
+                      <span className="text-gray-600">{t('scanner.category')}</span>
                       <span>{scanResult.item.category}</span>
                     </div>
                   )}
@@ -775,7 +747,7 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
 
             {/* Zone Information */}
             <div className="mb-6">
-              <h4 className="font-medium text-gray-900 mb-3">📍 Zone Information:</h4>
+              <h4 className="font-medium text-gray-900 mb-3">📍 {t('scanner.zoneInformation')}</h4>
               {scanResult.zones.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {scanResult.zones.map((zoneInfo, index) => (
@@ -794,18 +766,18 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
                   ))}
                 </div>
               ) : (
-                <div className="text-gray-500 italic">No zone information available</div>
+                <div className="text-gray-500 italic">{t('scanner.noZoneInfo')}</div>
               )}
             </div>
 
             {/* Quantity Input - Only show if item is found in Item Master */}
             {scanResult.item && (
               <div className="space-y-4 border-t border-gray-200 pt-4">
-                <h4 className="font-medium text-gray-900 mb-4">📥 Add to Inventory</h4>
+                <h4 className="font-medium text-gray-900 mb-4">📥 {t('scanner.addToInventory')}</h4>
 
                 <div>
                   <label htmlFor="quantity-input" className="block text-sm font-medium text-gray-700 mb-2">
-                    Enter Quantity to Add:
+                    {t('scanner.enterQuantityToAdd')}
                   </label>
                   <input
                     id="quantity-input"
@@ -814,7 +786,7 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
                     onChange={(e) => setQuantity(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && handleAddToInventory()}
                     className="w-full px-4 py-3 text-lg border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                    placeholder="Enter quantity..."
+                    placeholder={t('scanner.enterQuantityPlaceholder')}
                     min="0.01"
                     step="any"
                     autoFocus
@@ -822,26 +794,46 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
                 </div>
 
                 {/* Batch Information */}
-                <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                  <div className="text-sm text-green-700">
-                    ✅ Will be added to: <span className="font-semibold text-green-800">Batch {selectedBatch}</span>
+                <div className="bg-blue-50 border border-blue-300 rounded-lg p-3">
+                  <div className="text-sm text-blue-800">
+                    📦 {t('scanner.targetBatch')} <span className="font-bold text-blue-900">Batch {selectedBatch}</span>
                   </div>
                 </div>
+
+                {/* Success Message - Moved to bottom for visibility */}
+                {success && (
+                  <div className="bg-green-50 border-2 border-green-500 rounded-lg p-4 animate-pulse">
+                    <div className="flex items-center">
+                      <span className="text-green-600 text-2xl mr-3">✅</span>
+                      <p className="text-green-800 font-bold">{success}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Error Message - Moved to bottom for visibility */}
+                {error && (
+                  <div className="bg-red-50 border-2 border-red-500 rounded-lg p-4">
+                    <div className="flex items-center">
+                      <span className="text-red-600 text-2xl mr-3">⚠️</span>
+                      <p className="text-red-800 font-bold">{error}</p>
+                    </div>
+                  </div>
+                )}
 
                 <div className="flex space-x-3">
                   <button
                     onClick={handleAddToInventory}
                     disabled={!quantity || isProcessing || !selectedBatch}
-                    className="flex-1 bg-green-500 hover:bg-green-600 disabled:bg-gray-300 text-white font-medium py-3 px-4 rounded-lg transition-colors"
+                    className="flex-1 bg-green-500 hover:bg-green-600 disabled:bg-gray-300 text-white font-bold py-3 px-4 rounded-lg transition-colors text-lg"
                   >
-                    {isProcessing ? '⏳ Adding...' : `✅ Add to Batch {selectedBatch}`}
+                    {isProcessing ? `⏳ ${t('scanner.adding')}` : `➕ ${t('scanner.addToBatch')} ${selectedBatch}`}
                   </button>
                   <button
                     onClick={clearResult}
                     disabled={isProcessing}
                     className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white font-medium py-3 px-4 rounded-lg transition-colors"
                   >
-                    📷 New Scan
+                    📷 {t('scanner.newScan')}
                   </button>
                 </div>
               </div>
@@ -854,7 +846,7 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
                   onClick={clearResult}
                   className="w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-3 px-4 rounded-lg transition-colors"
                 >
-                  📷 New Scan
+                  📷 {t('scanner.newScan')}
                 </button>
               </div>
             )}
@@ -867,12 +859,26 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
 
             {/* Camera Scanner */}
             <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-              <div className="p-4 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900">📷 Barcode Scanner</h3>
-                <p className="text-sm text-gray-500">Scan to see zones and optionally add to inventory</p>
+              {/* Prominent Start Scanning Button */}
+              <div className="p-4">
+                {!isScanning ? (
+                  <button
+                    onClick={startScanning}
+                    className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-lg transition-colors text-lg shadow-md"
+                  >
+                    📱 Start Scanning
+                  </button>
+                ) : (
+                  <button
+                    onClick={stopScanning}
+                    className="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-4 px-6 rounded-lg transition-colors text-lg shadow-md"
+                  >
+                    ⏹️ Stop Scanner
+                  </button>
+                )}
               </div>
 
-              <div className="p-6">
+              <div className="p-6 pt-0">
                 {/* Video Element */}
                 <div className="relative bg-black rounded-lg overflow-hidden mb-4" style={{ aspectRatio: '4/3' }}>
                   <video
@@ -900,25 +906,8 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
                   )}
                 </div>
 
-                {/* Scanner Controls */}
+                {/* Camera Permission Status */}
                 <div className="space-y-4">
-                  {!isScanning ? (
-                    <button
-                      onClick={startScanning}
-                      className="w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-3 px-4 rounded-lg transition-colors text-lg"
-                    >
-                      📱 {t('scanner.startScanner')}
-                    </button>
-                  ) : (
-                    <button
-                      onClick={stopScanning}
-                      className="w-full bg-red-500 hover:bg-red-600 text-white font-medium py-3 px-4 rounded-lg transition-colors text-lg"
-                    >
-                      ⏹️ Stop Scanner
-                    </button>
-                  )}
-
-                  {/* Camera Permission Status */}
                   {cameraPermission === 'denied' && (
                     <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                       <h4 className="text-red-800 font-semibold mb-3">📱 Camera Permission Required</h4>
@@ -993,7 +982,66 @@ export function UnifiedScannerView({ user, onBack }: UnifiedScannerViewProps) {
           </div>
         )}
 
-      </main>
+        {/* Duplicate Scan Confirmation Modal */}
+        {showDuplicateDialog && duplicateInfo && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+              {/* Header */}
+              <div className="flex items-center gap-3 mb-4">
+                <span className="text-4xl">⚠️</span>
+                <h3 className="text-xl font-bold text-red-600">Duplicate Scan Detected!</h3>
+              </div>
+
+              {/* Previous Scan Details */}
+              <div className="mb-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <p className="text-sm font-semibold text-yellow-900 mb-2">This supplier box was already scanned:</p>
+                <div className="space-y-1 text-sm text-yellow-800">
+                  <p>📅 Date: {duplicateInfo.scannedAt.toLocaleDateString()} {duplicateInfo.scannedAt.toLocaleTimeString()}</p>
+                  <p>👤 By: {duplicateInfo.scannedBy}</p>
+                  <p>📦 SKU: {duplicateInfo.sku}</p>
+                  <p>🔢 Quantity: {duplicateInfo.quantity} units</p>
+                  <p>📍 Box: {duplicateInfo.caseNo || 'DEFAULT'}</p>
+                </div>
+              </div>
+
+              {/* Confirmation Input */}
+              <div className="mb-6">
+                <label className="block text-sm font-semibold text-gray-900 mb-2">
+                  To proceed, type the following text exactly:
+                </label>
+                <p className="text-sm font-mono bg-gray-100 border border-gray-300 rounded p-2 mb-3 text-center">
+                  Double scan with no duplication.
+                </p>
+                <input
+                  type="text"
+                  value={confirmationText}
+                  onChange={(e) => setConfirmationText(e.target.value)}
+                  placeholder="Type here..."
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  autoFocus
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3">
+                <button
+                  onClick={handleDuplicateCancel}
+                  className="flex-1 bg-gray-500 hover:bg-gray-600 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDuplicateConfirm}
+                  disabled={confirmationText.trim() !== 'Double scan with no duplication.'}
+                  className="flex-1 bg-red-500 hover:bg-red-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                >
+                  Confirm Duplicate Scan
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
     </div>
   );
 }

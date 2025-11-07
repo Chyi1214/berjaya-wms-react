@@ -162,7 +162,22 @@ const bengaliTranslations: Translation = {
     enterBarcodeOrQRPlaceholder: 'বারকোড বা QR কোডের বিষয়বস্তু প্রবেশ করান...',
     processEntry: 'এন্ট্রি প্রক্রিয়া করুন',
     smartSearch: 'স্মার্ট অনুসন্ধান',
-    searchItemsNotAvailable: 'স্ক্যানিং উপলব্ধ না থাকলে আইটেম খুঁজুন'
+    searchItemsNotAvailable: 'স্ক্যানিং উপলব্ধ না থাকলে আইটেম খুঁজুন',
+    // New scanner translations
+    actionRequired: 'পদক্ষেপ প্রয়োজন!',
+    scanNotComplete: 'স্ক্যান সফল, কিন্তু সম্পূর্ণ নয়। অনুগ্রহ করে পরিমাণ প্রবেশ করান এবং নিচে "ব্যাচে যোগ করুন" ক্লিক করুন।',
+    sku: 'SKU:',
+    name: 'নাম:',
+    category: 'বিভাগ:',
+    zoneInformation: 'জোন তথ্য:',
+    noZoneInfo: 'কোনো জোন তথ্য উপলব্ধ নেই',
+    addToInventory: 'ইনভেন্টরিতে যোগ করুন',
+    enterQuantityToAdd: 'যোগ করার জন্য পরিমাণ প্রবেশ করান:',
+    targetBatch: 'লক্ষ্য ব্যাচ:',
+    addToBatch: 'ব্যাচে যোগ করুন',
+    adding: 'যোগ করা হচ্ছে...',
+    newScan: 'নতুন স্ক্যান',
+    startScanning: 'স্ক্যান শুরু করুন'
   },
 
   // Production
@@ -324,7 +339,21 @@ const bengaliTranslations: Translation = {
     pleaseEnterOTP: 'অনুগ্রহ করে OTP লিখুন',
     pleaseProvideReason: 'অনুগ্রহ করে প্রত্যাখ্যানের কারণ দিন',
     failedToConfirm: 'লেনদেন নিশ্চিত করতে ব্যর্থ',
-    failedToReject: 'লেনদেন প্রত্যাখ্যান করতে ব্যর্থ। অনুগ্রহ করে আবার চেষ্টা করুন।'
+    failedToReject: 'লেনদেন প্রত্যাখ্যান করতে ব্যর্থ। অনুগ্রহ করে আবার চেষ্টা করুন।',
+
+    // Transaction types (missing keys)
+    count: 'গণনা',
+    adjustment: 'সমন্বয়',
+    transferIn: 'স্থানান্তর ইন',
+    transferOut: 'স্থানান্তর আউট',
+    initialStock: 'প্রাথমিক স্টক',
+
+    // Additional actions
+    filterTransactions: 'লেনদেন ফিল্টার করুন',
+    createTransaction: 'লেনদেন তৈরি করুন',
+    viewDetails: 'বিস্তারিত দেখুন',
+    approve: 'অনুমোদন করুন',
+    cancel: 'বাতিল করুন'
   },
 
   // Translation Chat System
@@ -447,7 +476,13 @@ const bengaliTranslations: Translation = {
       takePhoto: 'ফটো তুলুন',
       removePhoto: 'ফটো সরান',
       enterNotes: 'নোট লিখুন...',
-      selectDefectType: 'ত্রুটির ধরন নির্বাচন করুন...'
+      selectDefectType: 'ত্রুটির ধরন নির্বাচন করুন...',
+
+      // Additional defects feature
+      markExtraIssues: 'অতিরিক্ত সমস্যা চিহ্নিত করুন',
+      tapDefectLocation: 'আপনি যেখানে ত্রুটি দেখছেন সেখানে আলতো চাপুন',
+      selectRelatedItem: 'এই ত্রুটিটি কোন আইটেমের সাথে সম্পর্কিত?',
+      additionalDefectsAdded: '{count} টি অতিরিক্ত ত্রুটি যোগ করা হয়েছে'
     },
 
     // Defect types
@@ -499,6 +534,108 @@ const bengaliTranslations: Translation = {
   footer: {
     copyright: '© 2025 Berjaya Autotech - গুদাম ব্যবস্থাপনা সিস্টেম',
     version: 'v{version} - {feature}'
+  },
+
+  // বর্জ্য/হারিয়ে/ত্রুটি রিপোর্ট
+  wasteLostDefectReport: {
+    title: 'আইটেম রিপোর্ট করুন',
+    itemStatus: 'আইটেম স্ট্যাটাস',
+    waste: 'বর্জ্য',
+    lost: 'হারিয়ে',
+    defect: 'ত্রুটি',
+    unplanned_usage: 'অপরিকল্পিত ব্যবহার',
+    searchForItem: 'আইটেম খুঁজুন',
+    searchPlaceholder: 'আইটেম SKU বা নাম টাইপ করুন...',
+    quantity: 'পরিমাণ',
+    currentStock: 'বর্তমান স্টক',
+    quantityExceedsStock: 'পরিমাণ উপলব্ধ স্টক অতিক্রম করেছে!',
+    basicReason: 'মূল কারণ',
+    reasonPlaceholder: 'সংক্ষিপ্ত বর্ণনা...',
+
+    // ছবির প্রমাণ
+    photoEvidence: 'ছবির প্রমাণ',
+    photoEvidenceRequired: 'জমা দেওয়ার আগে প্রয়োজন',
+    photoInstructions: 'একবার ছবি আপলোড করুন - এটি এই ব্যাচ জমার সমস্ত আইটেমের সাথে সংযুক্ত হবে।',
+    labelPhoto: 'লেবেল ছবি',
+    damagePhoto: 'ক্ষতির ছবি',
+    takePhotoOrUpload: 'ছবি তুলুন বা ছবি আপলোড করুন',
+    labelPhotoHelp: 'আইটেম লেবেল/পার্ট নম্বর',
+    damagePhotoHelp: 'প্রকৃত ক্ষতি/ত্রুটি',
+    imageCompressed: 'ছবি সংকুচিত এবং প্রস্তুত',
+    compressingImage: 'ছবি সংকুচিত করা হচ্ছে...',
+
+    // ব্যাচ নির্বাচন
+    selectBatch: 'ব্যাচ নির্বাচন করুন',
+    selectBatchPrompt: '-- একটি ব্যাচ নির্বাচন করুন --',
+    batchDefault: 'ডিফল্ট',
+    unitsAvailable: 'ইউনিট উপলব্ধ',
+    validBatch: 'বৈধ - ব্যাচে আছে',
+    units: 'ইউনিট',
+    quantityExceedsBatch: 'পরিমাণ ব্যাচ বরাদ্দ অতিক্রম করেছে!',
+
+    // ত্রুটির বিবরণ
+    claimReportDetails: 'দাবি রিপোর্ট বিবরণ',
+    totalLotQuantity: 'মোট লট পরিমাণ',
+    totalReceived: 'মোট প্রাপ্ত',
+    shift: 'শিফট',
+    shiftPlaceholder: 'যেমন, সকাল, A-শিফট',
+    reasonForRejection: 'প্রত্যাখ্যানের কারণ',
+    rejectionReasons: {
+      defect: 'ত্রুটি (স্ক্র্যাচ, ডেন্ট, ক্র্যাক, ইত্যাদি)',
+      wrongDimension: 'ভুল মাত্রা / স্পেসিফিকেশনের বাইরে',
+      missingComponent: 'কম্পোনেন্ট অনুপস্থিত',
+      contamination: 'দূষণ (তেল, ময়লা, মরিচা, ইত্যাদি)'
+    },
+    others: 'অন্যান্য',
+    specifyOtherReason: 'অন্য কারণ নির্দিষ্ট করুন...',
+    detectedBy: 'সনাক্তকারী',
+    detectedByPlaceholder: 'নাম / বিভাগ',
+    actionTaken: 'গৃহীত পদক্ষেপ',
+    selectAction: 'পদক্ষেপ নির্বাচন করুন...',
+    actions: {
+      rework: 'পুনরায় কাজ',
+      scrap: 'বাতিল',
+      returnToSupplier: 'সরবরাহকারীর কাছে ফেরত',
+      holdForInspection: 'আরও পরিদর্শনের জন্য আটকে রাখুন'
+    },
+
+    // বাটন
+    addWasteItem: 'বর্জ্য আইটেম যোগ করুন',
+    addLostItem: 'হারিয়ে আইটেম যোগ করুন',
+    addDefectItem: 'ত্রুটি আইটেম যোগ করুন',
+    reportItems: '{count} আইটেম রিপোর্ট করুন',
+    cancel: 'বাতিল',
+    backTo: '{location} এ ফিরে যান',
+
+    // আইটেম তালিকা
+    itemsToReport: 'রিপোর্ট করার আইটেম',
+
+    // যাচাইকরণ বার্তা
+    pleaseAddItem: 'অনুগ্রহ করে কমপক্ষে একটি আইটেম যোগ করুন',
+    missingFields: 'অনুগ্রহ করে নিম্নলিখিত প্রয়োজনীয় ক্ষেত্রগুলি পূরণ করুন:',
+    itemSelection: 'আইটেম নির্বাচন',
+    validQuantity: 'বৈধ পরিমাণ (০ এর চেয়ে বড় হতে হবে)',
+    reason: 'কারণ',
+    labelPhotoRequired: 'লেবেল ছবি (প্রয়োজনীয়)',
+    damagePhotoRequired: 'ক্ষতির ছবি (প্রয়োজনীয়)',
+    bothPhotosRequired: 'জমা দেওয়ার আগে লেবেল ছবি এবং ক্ষতির ছবি উভয়ই প্রয়োজন।',
+    batchSelection: 'ব্যাচ নির্বাচন',
+    atLeastOneRejectionReason: 'কমপক্ষে একটি প্রত্যাখ্যানের কারণ (চেকবক্স বা কাস্টম কারণ)',
+    insufficientStock: '{sku} - {itemName} এর জন্য অপর্যাপ্ত স্টক। উপলব্ধ: {available} ইউনিট, রিপোর্ট করার চেষ্টা: {quantity} ইউনিট। অনুগ্রহ করে পরিমাণ সামঞ্জস্য করুন বা স্টক স্তর যাচাই করুন।',
+    insufficientBatchStock: '{batch} এ অপর্যাপ্ত স্টক। উপলব্ধ: {available}, রিপোর্ট করার চেষ্টা: {quantity}',
+
+    // সফলতার বার্তা
+    successfullyReported: '{location} থেকে সফলভাবে রিপোর্ট করা হয়েছে:',
+    wasteItems: '{count} বর্জ্য',
+    lostItems: '{count} হারিয়ে',
+    defectItems: '{count} ত্রুটি আইটেম',
+
+    // ত্রুটি বার্তা
+    failedToSubmit: 'জমা দিতে ব্যর্থ',
+    failedToUploadImages: 'ছবি আপলোড করতে ব্যর্থ। অনুগ্রহ করে আবার চেষ্টা করুন।',
+    invalidImage: 'অবৈধ ছবি',
+    fileMustBeImage: 'ফাইল অবশ্যই একটি ছবি হতে হবে',
+    imageTooLarge: 'ছবি অবশ্যই ২০ MB এর চেয়ে ছোট হতে হবে'
   }
 };
 

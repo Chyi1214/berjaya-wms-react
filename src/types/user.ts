@@ -38,6 +38,7 @@ export interface UserRecord {
   // v5.6 Personal Settings
   displayName?: string;             // User's preferred display name
   useDisplayName?: boolean;         // Whether to show display name instead of email
+  hasConfirmedName?: boolean;       // Whether user has confirmed their name (one-time prompt)
 }
 
 // Granular Permissions System

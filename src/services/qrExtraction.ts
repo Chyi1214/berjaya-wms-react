@@ -1,11 +1,13 @@
 // QR Code Extraction Service - Universal QR code processing for SKU extraction
 import { scanLookupService } from './scanLookupService';
-import { ScanLookup } from '../types';
+import { itemMasterService } from './itemMaster';
+import { ScanLookup, ItemMaster } from '../types';
 
 export interface QRExtractionResult {
   success: boolean;
   extractedSKU?: string;
   lookupData?: ScanLookup[];
+  itemMaster?: ItemMaster;
   attemptedLookups: string[];
 }
 
@@ -14,8 +16,9 @@ export class QRExtractionService {
   /**
    * Universal QR code processing that extracts SKU from complex QR codes
    * Uses the same logic as Inbound Scanner for consistency
+   * Now checks both Scanner Lookup AND Item Master (like UnifiedScannerView)
    */
-  async extractSKUFromQRCode(rawCode: string): Promise<QRExtractionResult> {
+  async extractSKUFromQRCode(rawCode: string, carType: string = 'TK1'): Promise<QRExtractionResult> {
     console.log('🌍 Processing universal QR code...');
     const attemptedLookups: string[] = [];
     
@@ -26,20 +29,34 @@ export class QRExtractionService {
     
     console.log('✨ Basic cleaned code:', JSON.stringify(cleanedCode));
 
-    // First, always try the exact cleaned code as-is (v7.19.0: default to TK1)
+    // First, always try the exact cleaned code as-is
     const exactCleanCode = cleanedCode.toUpperCase();
     console.log('🎯 Trying exact cleaned code lookup:', exactCleanCode);
     attemptedLookups.push(exactCleanCode);
 
     try {
-      const allLookups = await scanLookupService.getAllLookupsBySKU(exactCleanCode, 'TK1');
-      if (allLookups.length > 0) {
-        console.log(`✅ SUCCESS! Found ${allLookups.length} zone(s) for:`, exactCleanCode);
-        
+      // Check both scanner lookup AND item master (like UnifiedScannerView)
+      const allLookups = await scanLookupService.getAllLookupsBySKU(exactCleanCode, carType);
+
+      let masterItem: ItemMaster | undefined;
+      try {
+        const foundItem = await itemMasterService.getItemBySKU(exactCleanCode);
+        masterItem = foundItem || undefined;
+      } catch (error) {
+        console.log('⚠️ Item Master lookup failed for:', exactCleanCode);
+        masterItem = undefined;
+      }
+
+      // Success if we found zones OR item master (or both)
+      if (allLookups.length > 0 || masterItem) {
+        console.log(`✅ SUCCESS! Found data for: ${exactCleanCode}`);
+        console.log(`📍 Zones: ${allLookups.length}, Item Master: ${masterItem ? 'Yes' : 'No'}`);
+
         return {
           success: true,
           extractedSKU: exactCleanCode,
-          lookupData: allLookups,
+          lookupData: allLookups.length > 0 ? allLookups : undefined,
+          itemMaster: masterItem,
           attemptedLookups
         };
       }
@@ -91,24 +108,35 @@ export class QRExtractionService {
     console.log('📋 Sorted candidates:', sortedCandidates);
     console.log('📋 Final candidates to test:', candidates);
 
-    // Step 4: Try lookup for each candidate until one succeeds (v7.19.0: default to TK1)
+    // Step 4: Try lookup for each candidate until one succeeds
     for (let i = 0; i < candidates.length; i++) {
       const candidate = candidates[i];
       console.log(`🔍 Testing candidate ${i + 1}/${candidates.length}: ${candidate}`);
       attemptedLookups.push(candidate);
 
       try {
-        const allLookups = await scanLookupService.getAllLookupsBySKU(candidate, 'TK1');
-        
-        if (allLookups.length > 0) {
-          console.log(`✅ SUCCESS! Found ${allLookups.length} zone(s) for:`, candidate);
-          console.log('🎯 Lookup data:', allLookups);
-          
+        // Check both scanner lookup AND item master (like UnifiedScannerView)
+        const allLookups = await scanLookupService.getAllLookupsBySKU(candidate, carType);
+
+        let masterItem: ItemMaster | undefined;
+        try {
+          const foundItem = await itemMasterService.getItemBySKU(candidate);
+          masterItem = foundItem || undefined;
+        } catch (error) {
+          masterItem = undefined;
+        }
+
+        // Success if we found zones OR item master (or both)
+        if (allLookups.length > 0 || masterItem) {
+          console.log(`✅ SUCCESS! Found data for: ${candidate}`);
+          console.log(`📍 Zones: ${allLookups.length}, Item Master: ${masterItem ? 'Yes' : 'No'}`);
+
           // Return immediately on first successful match to avoid confusion
           return {
             success: true,
             extractedSKU: candidate,
-            lookupData: allLookups,
+            lookupData: allLookups.length > 0 ? allLookups : undefined,
+            itemMaster: masterItem,
             attemptedLookups
           };
         } else {

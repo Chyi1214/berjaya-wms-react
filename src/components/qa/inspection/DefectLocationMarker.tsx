@@ -27,10 +27,22 @@ export const DefectLocationMarker: React.FC<DefectLocationMarkerProps> = ({
   const [dotPosition, setDotPosition] = useState<{ x: number; y: number } | null>(
     existingLocation ? { x: existingLocation.x, y: existingLocation.y } : null
   );
+  const [isMobile, setIsMobile] = useState<boolean>(false);
   const imageRef = useRef<HTMLImageElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Track touch start position to detect swipes
+  const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
+
   const selectedImage = images.find((img) => img.imageId === selectedImageId);
+
+  // Detect if device is mobile
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile('ontouchstart' in window || navigator.maxTouchPoints > 0);
+    };
+    checkMobile();
+  }, []);
 
   useEffect(() => {
     // Reset dot position when switching images (unless we're loading existing location)
@@ -39,14 +51,72 @@ export const DefectLocationMarker: React.FC<DefectLocationMarkerProps> = ({
     }
   }, [selectedImageId, existingLocation]);
 
-  const handleImageClick = (event: React.MouseEvent<HTMLImageElement>) => {
-    if (!imageRef.current || !containerRef.current) return;
+  // Handle touch start - record initial position
+  const handleTouchStart = (event: React.TouchEvent<HTMLImageElement>) => {
+    // Only record single touch, ignore multi-touch (zoom/pinch)
+    if (event.touches.length !== 1) return;
+
+    const touch = event.touches[0];
+    touchStartRef.current = {
+      x: touch.clientX,
+      y: touch.clientY,
+      time: Date.now(),
+    };
+  };
+
+  // Handle touch end - only place dot if it's a tap (not a swipe/pan)
+  const handleTouchEnd = (event: React.TouchEvent<HTMLImageElement>) => {
+    if (!imageRef.current || !touchStartRef.current) return;
+
+    // Only handle single touch
+    if (event.changedTouches.length !== 1) return;
+
+    const touch = event.changedTouches[0];
+    const touchStart = touchStartRef.current;
+
+    // Calculate how much the touch moved
+    const deltaX = Math.abs(touch.clientX - touchStart.x);
+    const deltaY = Math.abs(touch.clientY - touchStart.y);
+    const deltaTime = Date.now() - touchStart.time;
+
+    // If moved more than 10px or took more than 500ms, it's a swipe/pan, not a tap
+    const MOVEMENT_THRESHOLD = 10;
+    const TIME_THRESHOLD = 500;
+
+    if (deltaX > MOVEMENT_THRESHOLD || deltaY > MOVEMENT_THRESHOLD || deltaTime > TIME_THRESHOLD) {
+      console.log('🚫 Ignoring gesture - movement or time exceeded:', { deltaX, deltaY, deltaTime });
+      touchStartRef.current = null;
+      return;
+    }
+
+    // It's a tap! Place the dot at the END position
+    const rect = imageRef.current.getBoundingClientRect();
+    const clientX = touch.clientX;
+    const clientY = touch.clientY;
+
+    const x = ((clientX - rect.left) / rect.width) * 100;
+    const y = ((clientY - rect.top) / rect.height) * 100;
+
+    const clampedX = Math.max(0, Math.min(100, x));
+    const clampedY = Math.max(0, Math.min(100, y));
+
+    console.log('✅ Tap detected - placing dot:', { finalX: clampedX, finalY: clampedY });
+
+    setDotPosition({ x: clampedX, y: clampedY });
+    touchStartRef.current = null;
+  };
+
+  // Handle mouse click (desktop)
+  const handleMouseClick = (event: React.MouseEvent<HTMLImageElement>) => {
+    if (!imageRef.current) return;
 
     const rect = imageRef.current.getBoundingClientRect();
-    const x = ((event.clientX - rect.left) / rect.width) * 100;
-    const y = ((event.clientY - rect.top) / rect.height) * 100;
+    const clientX = event.clientX;
+    const clientY = event.clientY;
 
-    // Clamp values between 0 and 100
+    const x = ((clientX - rect.left) / rect.width) * 100;
+    const y = ((clientY - rect.top) / rect.height) * 100;
+
     const clampedX = Math.max(0, Math.min(100, x));
     const clampedY = Math.max(0, Math.min(100, y));
 
@@ -150,7 +220,9 @@ export const DefectLocationMarker: React.FC<DefectLocationMarkerProps> = ({
               ref={imageRef}
               src={selectedImage.imageUrl}
               alt={selectedImage.imageName}
-              onClick={handleImageClick}
+              onClick={handleMouseClick}
+              onTouchStart={handleTouchStart}
+              onTouchEnd={handleTouchEnd}
               className="w-full h-auto cursor-crosshair select-none"
               draggable={false}
             />
@@ -165,11 +237,19 @@ export const DefectLocationMarker: React.FC<DefectLocationMarkerProps> = ({
                 }}
               >
                 <div className="relative">
-                  {/* Outer glow */}
-                  <div className="absolute inset-0 bg-red-500 rounded-full w-6 h-6 -translate-x-1/2 -translate-y-1/2 opacity-30 animate-ping"></div>
-                  {/* Dot circle */}
-                  <div className="relative bg-red-600 border-2 border-white rounded-full w-5 h-5 flex items-center justify-center shadow-lg -translate-x-1/2 -translate-y-1/2">
-                    <span className="text-white font-bold text-xs">{dotNumber}</span>
+                  {/* Outer glow - 30% smaller on mobile */}
+                  <div
+                    className={`absolute inset-0 bg-red-500 rounded-full opacity-30 animate-ping ${
+                      isMobile ? 'w-[17px] h-[17px]' : 'w-6 h-6'
+                    }`}
+                  ></div>
+                  {/* Dot circle - 30% smaller on mobile */}
+                  <div
+                    className={`relative bg-red-600 border-2 border-white rounded-full flex items-center justify-center shadow-lg ${
+                      isMobile ? 'w-[14px] h-[14px]' : 'w-5 h-5'
+                    }`}
+                  >
+                    <span className={`text-white font-bold ${isMobile ? 'text-[8px]' : 'text-xs'}`}>{dotNumber}</span>
                   </div>
                 </div>
               </div>

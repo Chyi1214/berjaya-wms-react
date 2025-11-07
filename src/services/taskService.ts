@@ -1,18 +1,18 @@
 // Task Service - Firebase operations for the Task Management System
-import { 
-  collection, 
+import {
+  collection,
   doc,
-  updateDoc, 
-  deleteDoc, 
-  getDocs, 
+  updateDoc,
+  deleteDoc,
+  getDocs,
   getDoc,
-  query, 
-  where, 
+  query,
+  where,
   orderBy,
   onSnapshot,
   Timestamp,
   setDoc
-} from 'firebase/firestore';
+} from './costTracking/firestoreWrapper';
 import { db } from './firebase';
 import {
   Task,

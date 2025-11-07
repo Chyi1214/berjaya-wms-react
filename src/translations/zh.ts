@@ -162,7 +162,22 @@ const chineseTranslations: Translation = {
     enterBarcodeOrQRPlaceholder: '输入条码或二维码内容...',
     processEntry: '处理输入',
     smartSearch: '智能搜索',
-    searchItemsNotAvailable: '当扫描不可用时搜索物品'
+    searchItemsNotAvailable: '当扫描不可用时搜索物品',
+    // New scanner translations
+    actionRequired: '需要操作！',
+    scanNotComplete: '扫描成功，但未完成。请输入数量并点击下方的"添加到批次"。',
+    sku: 'SKU:',
+    name: '名称:',
+    category: '类别:',
+    zoneInformation: '区域信息:',
+    noZoneInfo: '无可用区域信息',
+    addToInventory: '添加到库存',
+    enterQuantityToAdd: '输入要添加的数量:',
+    targetBatch: '目标批次:',
+    addToBatch: '添加到批次',
+    adding: '添加中...',
+    newScan: '新扫描',
+    startScanning: '开始扫描'
   },
 
   // Production
@@ -324,7 +339,21 @@ const chineseTranslations: Translation = {
     pleaseEnterOTP: '请输入 OTP',
     pleaseProvideReason: '请输入拒绝原因',
     failedToConfirm: '确认事务失败',
-    failedToReject: '拒绝事务失败。请重试。'
+    failedToReject: '拒绝事务失败。请重试。',
+
+    // Transaction types (missing keys)
+    count: '盘点',
+    adjustment: '调整',
+    transferIn: '转入',
+    transferOut: '转出',
+    initialStock: '初始库存',
+
+    // Additional actions
+    filterTransactions: '筛选交易',
+    createTransaction: '创建交易',
+    viewDetails: '查看详情',
+    approve: '批准',
+    cancel: '取消'
   },
 
   // Translation Chat System
@@ -447,7 +476,13 @@ const chineseTranslations: Translation = {
       takePhoto: '拍照',
       removePhoto: '删除照片',
       enterNotes: '输入备注...',
-      selectDefectType: '选择缺陷类型...'
+      selectDefectType: '选择缺陷类型...',
+
+      // Additional defects feature
+      markExtraIssues: '标记额外问题',
+      tapDefectLocation: '点击您看到缺陷的位置',
+      selectRelatedItem: '此缺陷与哪个项目相关？',
+      additionalDefectsAdded: '已添加 {count} 个额外缺陷'
     },
 
     // Defect types
@@ -499,6 +534,108 @@ const chineseTranslations: Translation = {
   footer: {
     copyright: '© 2025 Berjaya Autotech - 仓库管理系统',
     version: 'v{version} - {feature}'
+  },
+
+  // 废品/丢失/缺陷报告
+  wasteLostDefectReport: {
+    title: '报告物品',
+    itemStatus: '物品状态',
+    waste: '废品',
+    lost: '丢失',
+    defect: '缺陷',
+    unplanned_usage: '計劃外用料',
+    searchForItem: '搜索物品',
+    searchPlaceholder: '输入物品SKU或名称...',
+    quantity: '数量',
+    currentStock: '当前库存',
+    quantityExceedsStock: '数量超过可用库存！',
+    basicReason: '基本原因',
+    reasonPlaceholder: '简要描述...',
+
+    // 照片证据
+    photoEvidence: '照片证据',
+    photoEvidenceRequired: '提交前必须上传',
+    photoInstructions: '上传一次照片 - 它们将附加到此批次提交的所有物品。',
+    labelPhoto: '标签照片',
+    damagePhoto: '损坏照片',
+    takePhotoOrUpload: '拍照或上传图片',
+    labelPhotoHelp: '物品标签/零件号码',
+    damagePhotoHelp: '实际损坏/缺陷',
+    imageCompressed: '图片已压缩并准备就绪',
+    compressingImage: '正在压缩图片...',
+
+    // 批次选择
+    selectBatch: '选择批次',
+    selectBatchPrompt: '-- 选择批次 --',
+    batchDefault: '默认',
+    unitsAvailable: '个可用',
+    validBatch: '有效 - 批次有',
+    units: '个',
+    quantityExceedsBatch: '数量超过批次分配！',
+
+    // 缺陷详情
+    claimReportDetails: '索赔报告详情',
+    totalLotQuantity: '总批次数量',
+    totalReceived: '总接收',
+    shift: '班次',
+    shiftPlaceholder: '例如，早班，A班',
+    reasonForRejection: '拒绝原因',
+    rejectionReasons: {
+      defect: '缺陷（划痕、凹陷、裂纹等）',
+      wrongDimension: '尺寸错误/不符合规格',
+      missingComponent: '缺少部件',
+      contamination: '污染（油、污垢、锈蚀等）'
+    },
+    others: '其他',
+    specifyOtherReason: '指定其他原因...',
+    detectedBy: '检测人',
+    detectedByPlaceholder: '姓名/部门',
+    actionTaken: '采取的行动',
+    selectAction: '选择行动...',
+    actions: {
+      rework: '返工',
+      scrap: '报废',
+      returnToSupplier: '退回供应商',
+      holdForInspection: '暂扣待进一步检查'
+    },
+
+    // 按钮
+    addWasteItem: '添加废品物品',
+    addLostItem: '添加丢失物品',
+    addDefectItem: '添加缺陷物品',
+    reportItems: '报告{count}个物品',
+    cancel: '取消',
+    backTo: '返回{location}',
+
+    // 物品列表
+    itemsToReport: '待报告物品',
+
+    // 验证消息
+    pleaseAddItem: '请至少添加一个物品',
+    missingFields: '请填写以下必填字段：',
+    itemSelection: '物品选择',
+    validQuantity: '有效数量（必须大于0）',
+    reason: '原因',
+    labelPhotoRequired: '标签照片（必需）',
+    damagePhotoRequired: '损坏照片（必需）',
+    bothPhotosRequired: '提交前必须上传标签照片和损坏照片。',
+    batchSelection: '批次选择',
+    atLeastOneRejectionReason: '至少一个拒绝原因（复选框或自定义原因）',
+    insufficientStock: '{sku} - {itemName}库存不足。可用：{available}个，尝试报告：{quantity}个。请调整数量或验证库存水平。',
+    insufficientBatchStock: '{batch}库存不足。可用：{available}，尝试报告：{quantity}',
+
+    // 成功消息
+    successfullyReported: '成功从{location}报告：',
+    wasteItems: '{count}个废品',
+    lostItems: '{count}个丢失',
+    defectItems: '{count}个缺陷物品',
+
+    // 错误消息
+    failedToSubmit: '提交失败',
+    failedToUploadImages: '上传图片失败。请重试。',
+    invalidImage: '无效图片',
+    fileMustBeImage: '文件必须是图片',
+    imageTooLarge: '图片必须小于20 MB'
   }
 };
 

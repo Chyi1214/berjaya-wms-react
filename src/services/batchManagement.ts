@@ -1,5 +1,5 @@
 // Batch Management Service - Section 5.3 Implementation
-import { collection, getDocs, query, where, addDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, getDocs, query, where, addDoc, updateDoc, deleteDoc } from './costTracking/firestoreWrapper';
 import { db } from './firebase';
 import { CarType, Batch, ZoneBOMMapping, BatchHealthCheck, VinPlan, BatchVinHealthReport, VinHealthResult, BatchRequirement, BatchHealthStatus } from '../types/inventory';
 import { createModuleLogger } from './logger';
@@ -19,6 +19,10 @@ class BatchManagementService {
 
   async getAllCarTypes(): Promise<CarType[]> {
     return batchCoreService.getAllCarTypes();
+  }
+
+  async deleteCarType(carCode: string): Promise<void> {
+    return batchCoreService.deleteCarType(carCode);
   }
 
   // Ensure TK1 default car type exists (v7.19.0)
