@@ -1,8 +1,9 @@
 // Inspection Results Modal - View all gate inspection results for a car
 import { useState, useEffect } from 'react';
 import { inspectionService } from '../../../services/inspectionService';
-import type { CarInspection, InspectionItemResult } from '../../../types/inspection';
+import type { CarInspection, InspectionItemResult, InspectionTemplate, DefectLocation } from '../../../types/inspection';
 import { createModuleLogger } from '../../../services/logger';
+import { useAuth } from '../../../contexts/AuthContext';
 
 const logger = createModuleLogger('InspectionResultsModal');
 
@@ -13,9 +14,19 @@ interface InspectionResultsModalProps {
 
 export function InspectionResultsModal({ vin, onClose }: InspectionResultsModalProps) {
   const [inspections, setInspections] = useState<CarInspection[]>([]);
+  const [template, setTemplate] = useState<InspectionTemplate | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedGateIndex, setSelectedGateIndex] = useState<number>(0);
+  const [resolvingDefect, setResolvingDefect] = useState<string | null>(null);
+  const [showResolveDialog, setShowResolveDialog] = useState(false);
+  const [resolveDialogData, setResolveDialogData] = useState<{
+    sectionId: string;
+    itemName: string;
+    additionalDefectIndex?: number;
+  } | null>(null);
+  const [resolutionNote, setResolutionNote] = useState('');
+  const { authenticatedUser, getUserDisplayName } = useAuth();
 
   useEffect(() => {
     loadInspections();
@@ -30,9 +41,18 @@ export function InspectionResultsModal({ vin, onClose }: InspectionResultsModalP
 
       if (data.length === 0) {
         setError('No inspection results found for this car');
+        setIsLoading(false);
+        return;
       }
 
       setInspections(data);
+
+      // Load template to get section images
+      if (data[0]?.templateId) {
+        const tmpl = await inspectionService.getTemplate(data[0].templateId);
+        setTemplate(tmpl);
+      }
+
       logger.info('Loaded inspections for VIN:', { vin, count: data.length });
     } catch (err) {
       logger.error('Failed to load inspections:', err);
@@ -91,7 +111,72 @@ export function InspectionResultsModal({ vin, onClose }: InspectionResultsModalP
     return 'bg-red-100 text-red-800';
   };
 
+  // Collect all defect locations from inspection
+  const collectDefectLocations = (inspection: CarInspection): DefectLocation[] => {
+    const locations: DefectLocation[] = [];
+    Object.values(inspection.sections).forEach(sectionData => {
+      Object.values(sectionData.results).forEach(result => {
+        if (result.defectLocation) {
+          locations.push(result.defectLocation);
+        }
+        if (result.additionalDefects) {
+          result.additionalDefects.forEach(additional => {
+            if (additional.defectLocation) {
+              locations.push(additional.defectLocation);
+            }
+          });
+        }
+      });
+    });
+    return locations;
+  };
+
+  // Open resolve dialog
+  const handleMarkAsResolved = (
+    sectionId: string,
+    itemName: string,
+    additionalDefectIndex?: number
+  ) => {
+    setResolveDialogData({ sectionId, itemName, additionalDefectIndex });
+    setResolutionNote('');
+    setShowResolveDialog(true);
+  };
+
+  // Perform the resolution after dialog confirmation
+  const performResolve = async () => {
+    if (!selectedInspection || !authenticatedUser || !resolveDialogData) return;
+
+    const { sectionId, itemName, additionalDefectIndex } = resolveDialogData;
+    const defectKey = `${sectionId}_${itemName}_${additionalDefectIndex ?? 'main'}`;
+    setResolvingDefect(defectKey);
+    setShowResolveDialog(false);
+
+    try {
+      await inspectionService.markDefectAsResolved(
+        selectedInspection.inspectionId,
+        sectionId as any,
+        itemName,
+        authenticatedUser.email,
+        getUserDisplayName(),
+        resolutionNote.trim() || undefined,
+        additionalDefectIndex
+      );
+
+      // Reload inspections to show updated status
+      await loadInspections();
+      logger.info('Defect marked as resolved successfully');
+    } catch (err) {
+      logger.error('Failed to mark defect as resolved:', err);
+      alert('Failed to mark defect as resolved');
+    } finally {
+      setResolvingDefect(null);
+      setResolveDialogData(null);
+      setResolutionNote('');
+    }
+  };
+
   const selectedInspection = inspections[selectedGateIndex];
+  const defectLocations = selectedInspection ? collectDefectLocations(selectedInspection) : [];
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -199,6 +284,88 @@ export function InspectionResultsModal({ vin, onClose }: InspectionResultsModalP
                       </div>
                     </div>
 
+                    {/* Defect Location Images */}
+                    {template && defectLocations.length > 0 && (
+                      <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                        <div className="bg-gray-50 p-4 border-b border-gray-200">
+                          <h4 className="font-semibold text-gray-900">
+                            Defect Locations ({defectLocations.length} marked)
+                          </h4>
+                        </div>
+                        <div className="p-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {Object.entries(selectedInspection.sections).map(([sectionId]) => {
+                              const sectionTemplate = template.sections[sectionId];
+                              if (!sectionTemplate?.images || sectionTemplate.images.length === 0) return null;
+
+                              // Get locations for this section
+                              const sectionLocations = defectLocations.filter(loc =>
+                                sectionTemplate.images?.some(img => img.imageId === loc.imageId)
+                              );
+
+                              if (sectionLocations.length === 0) return null;
+
+                              // Group by imageId
+                              const imageGroups = new Map<string, DefectLocation[]>();
+                              sectionLocations.forEach(loc => {
+                                if (!imageGroups.has(loc.imageId)) {
+                                  imageGroups.set(loc.imageId, []);
+                                }
+                                imageGroups.get(loc.imageId)!.push(loc);
+                              });
+
+                              return Array.from(imageGroups.entries()).map(([imageId, locations]) => {
+                                const image = sectionTemplate.images?.find(img => img.imageId === imageId);
+                                if (!image) return null;
+
+                                return (
+                                  <div key={imageId} className="border border-gray-300 rounded-lg overflow-hidden">
+                                    <div className="bg-gray-100 p-2 text-sm font-medium text-gray-700">
+                                      {sectionId.replace(/_/g, ' ')} - {image.imageName}
+                                    </div>
+                                    <div className="relative">
+                                      <img src={image.imageUrl} alt={image.imageName} className="w-full" />
+                                      {/* Draw dots */}
+                                      <svg
+                                        className="absolute top-0 left-0 w-full h-full pointer-events-none"
+                                        style={{ position: 'absolute', top: 0, left: 0 }}
+                                      >
+                                        {locations.map((loc, idx) => (
+                                          <g key={idx}>
+                                            {/* White fill circle */}
+                                            <circle
+                                              cx={`${loc.x}%`}
+                                              cy={`${loc.y}%`}
+                                              r="12"
+                                              fill="white"
+                                              stroke="black"
+                                              strokeWidth="2.5"
+                                            />
+                                            {/* Dot number */}
+                                            <text
+                                              x={`${loc.x}%`}
+                                              y={`${loc.y}%`}
+                                              textAnchor="middle"
+                                              dominantBaseline="central"
+                                              fontSize="14"
+                                              fontWeight="bold"
+                                              fill="black"
+                                            >
+                                              {loc.dotNumber}
+                                            </text>
+                                          </g>
+                                        ))}
+                                      </svg>
+                                    </div>
+                                  </div>
+                                );
+                              });
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Sections */}
                     {Object.entries(selectedInspection.sections).map(([sectionId, sectionData]) => {
                       const defectCount = countDefects(sectionData.results);
@@ -235,28 +402,65 @@ export function InspectionResultsModal({ vin, onClose }: InspectionResultsModalP
                                 <p className="text-gray-500 text-center py-4">No items checked yet</p>
                               ) : (
                                 <div className="space-y-3">
-                                  {Object.entries(sectionData.results).map(([itemName, result]) => (
-                                    <div key={itemName} className="border border-gray-200 rounded-lg p-3">
-                                      <div className="flex items-start justify-between mb-2">
-                                        <div className="font-medium text-gray-900">{itemName}</div>
-                                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getDefectColor(result.defectType)}`}>
-                                          {result.defectType}
-                                        </span>
-                                      </div>
+                                  {Object.entries(sectionData.results).map(([itemName, result]) => {
+                                    const defectKey = `${sectionId}_${itemName}_main`;
+                                    const isResolved = result.status === 'Resolved';
+                                    const isDefect = result.defectType !== 'Ok';
 
-                                      {/* Main defect notes */}
-                                      {result.notes && (
-                                        <div className="text-sm text-gray-700 mb-2 bg-gray-50 p-2 rounded">
-                                          📝 {result.notes}
+                                    return (
+                                      <div key={itemName} className="border border-gray-200 rounded-lg p-3">
+                                        <div className="flex items-start justify-between mb-2">
+                                          <div className="font-medium text-gray-900">{itemName}</div>
+                                          <div className="flex items-center gap-2">
+                                            <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getDefectColor(result.defectType)}`}>
+                                              {result.defectType}
+                                            </span>
+                                            {isResolved && (
+                                              <span className="px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">
+                                                ✓ Resolved
+                                              </span>
+                                            )}
+                                          </div>
                                         </div>
-                                      )}
 
-                                      {/* Defect location */}
-                                      {result.defectLocation && (
-                                        <div className="text-xs text-gray-600 mb-2">
-                                          📍 Location marked on image (Dot #{result.defectLocation.dotNumber})
-                                        </div>
-                                      )}
+                                        {/* Resolution status */}
+                                        {isResolved && result.resolvedBy && result.resolvedAt && (
+                                          <div className="text-xs text-green-700 mb-2 bg-green-50 p-2 rounded border border-green-200">
+                                            <div>✓ Resolved by {result.resolvedBy} at {formatTimestamp(result.resolvedAt)}</div>
+                                            {result.resolutionNote && (
+                                              <div className="mt-1 text-green-800">
+                                                <strong>Note:</strong> {result.resolutionNote}
+                                              </div>
+                                            )}
+                                          </div>
+                                        )}
+
+                                        {/* Mark as resolved button */}
+                                        {isDefect && !isResolved && authenticatedUser && (
+                                          <div className="mb-2">
+                                            <button
+                                              onClick={() => handleMarkAsResolved(sectionId, itemName)}
+                                              disabled={resolvingDefect === defectKey}
+                                              className="px-3 py-1 text-xs bg-green-500 hover:bg-green-600 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                              {resolvingDefect === defectKey ? '⏳ Marking...' : '✓ Mark as Resolved'}
+                                            </button>
+                                          </div>
+                                        )}
+
+                                        {/* Main defect notes */}
+                                        {result.notes && (
+                                          <div className="text-sm text-gray-700 mb-2 bg-gray-50 p-2 rounded">
+                                            📝 {result.notes}
+                                          </div>
+                                        )}
+
+                                        {/* Defect location */}
+                                        {result.defectLocation && (
+                                          <div className="text-xs text-gray-600 mb-2">
+                                            📍 Location marked on image (Dot #{result.defectLocation.dotNumber})
+                                          </div>
+                                        )}
 
                                       {/* Photos */}
                                       {result.photoUrls && result.photoUrls.length > 0 && (
@@ -279,40 +483,79 @@ export function InspectionResultsModal({ vin, onClose }: InspectionResultsModalP
                                         </div>
                                       )}
 
-                                      {/* Additional defects */}
-                                      {result.additionalDefects && result.additionalDefects.length > 0 && (
-                                        <div className="mt-2 pl-4 border-l-2 border-orange-300 space-y-2">
-                                          <div className="text-xs font-semibold text-orange-700">
-                                            Additional Defects:
-                                          </div>
-                                          {result.additionalDefects.map((additional, idx) => (
-                                            <div key={idx} className="text-sm bg-orange-50 p-2 rounded">
-                                              <div className="flex items-center justify-between mb-1">
-                                                <span className="font-medium text-orange-900">
-                                                  {additional.defectType}
-                                                </span>
-                                                {additional.defectLocation && (
-                                                  <span className="text-xs text-orange-700">
-                                                    Dot #{additional.defectLocation.dotNumber}
-                                                  </span>
-                                                )}
-                                              </div>
-                                              {additional.notes && (
-                                                <div className="text-xs text-orange-800 mt-1">
-                                                  📝 {additional.notes}
-                                                </div>
-                                              )}
+                                        {/* Additional defects */}
+                                        {result.additionalDefects && result.additionalDefects.length > 0 && (
+                                          <div className="mt-2 pl-4 border-l-2 border-orange-300 space-y-2">
+                                            <div className="text-xs font-semibold text-orange-700">
+                                              Additional Defects:
                                             </div>
-                                          ))}
-                                        </div>
-                                      )}
+                                            {result.additionalDefects.map((additional, idx) => {
+                                              const additionalDefectKey = `${sectionId}_${itemName}_${idx}`;
+                                              const isAdditionalResolved = additional.status === 'Resolved';
 
-                                      {/* Metadata */}
-                                      <div className="text-xs text-gray-500 mt-2">
-                                        Checked by {result.checkedBy} at {formatTimestamp(result.checkedAt || null)}
+                                              return (
+                                                <div key={idx} className="text-sm bg-orange-50 p-2 rounded border border-orange-200">
+                                                  <div className="flex items-center justify-between mb-1">
+                                                    <span className="font-medium text-orange-900">
+                                                      {additional.defectType}
+                                                    </span>
+                                                    <div className="flex items-center gap-2">
+                                                      {additional.defectLocation && (
+                                                        <span className="text-xs text-orange-700">
+                                                          Dot #{additional.defectLocation.dotNumber}
+                                                        </span>
+                                                      )}
+                                                      {isAdditionalResolved && (
+                                                        <span className="px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">
+                                                          ✓ Resolved
+                                                        </span>
+                                                      )}
+                                                    </div>
+                                                  </div>
+
+                                                  {/* Resolution status for additional defect */}
+                                                  {isAdditionalResolved && additional.resolvedBy && additional.resolvedAt && (
+                                                    <div className="text-xs text-green-700 mb-1 bg-green-50 p-2 rounded border border-green-200">
+                                                      <div>✓ Resolved by {additional.resolvedBy} at {formatTimestamp(additional.resolvedAt)}</div>
+                                                      {additional.resolutionNote && (
+                                                        <div className="mt-1 text-green-800">
+                                                          <strong>Note:</strong> {additional.resolutionNote}
+                                                        </div>
+                                                      )}
+                                                    </div>
+                                                  )}
+
+                                                  {/* Mark as resolved button for additional defect */}
+                                                  {!isAdditionalResolved && authenticatedUser && (
+                                                    <div className="mb-1">
+                                                      <button
+                                                        onClick={() => handleMarkAsResolved(sectionId, itemName, idx)}
+                                                        disabled={resolvingDefect === additionalDefectKey}
+                                                        className="px-2 py-1 text-xs bg-green-500 hover:bg-green-600 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                                      >
+                                                        {resolvingDefect === additionalDefectKey ? '⏳ Marking...' : '✓ Mark as Resolved'}
+                                                      </button>
+                                                    </div>
+                                                  )}
+
+                                                  {additional.notes && (
+                                                    <div className="text-xs text-orange-800 mt-1">
+                                                      📝 {additional.notes}
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        )}
+
+                                        {/* Metadata */}
+                                        <div className="text-xs text-gray-500 mt-2">
+                                          Checked by {result.checkedBy} at {formatTimestamp(result.checkedAt || null)}
+                                        </div>
                                       </div>
-                                    </div>
-                                  ))}
+                                    );
+                                  })}
                                 </div>
                               )}
                             </div>
@@ -348,6 +591,45 @@ export function InspectionResultsModal({ vin, onClose }: InspectionResultsModalP
           </div>
         </div>
       </div>
+
+      {/* Resolve Dialog */}
+      {showResolveDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Mark Defect as Resolved
+            </h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Add a note about how this defect was resolved (optional):
+            </p>
+            <textarea
+              value={resolutionNote}
+              onChange={(e) => setResolutionNote(e.target.value)}
+              placeholder="e.g., Replaced the part, Fixed alignment, etc."
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-none"
+              rows={4}
+            />
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowResolveDialog(false);
+                  setResolveDialogData(null);
+                  setResolutionNote('');
+                }}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={performResolve}
+                className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg"
+              >
+                ✓ Mark as Resolved
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

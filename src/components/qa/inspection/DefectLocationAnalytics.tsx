@@ -21,12 +21,175 @@ interface HeatmapPoint {
   count: number;
 }
 
+interface ConsolidatedImage {
+  imageName: string;
+  imageUrl: string;
+  size?: number;
+  locations: DefectLocation[];
+  sectionNames: string[]; // Which sections use this image
+}
+
+// Component to render a single heatmap canvas
+const HeatmapCanvas: React.FC<{
+  imageData: ConsolidatedImage;
+  selectedDefectType: string;
+}> = ({ imageData, selectedDefectType }) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    drawHeatmap();
+  }, [imageData, selectedDefectType]);
+
+  const drawHeatmap = () => {
+    if (!canvasRef.current) return;
+
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      // Calculate canvas size maintaining aspect ratio
+      const maxWidth = 1200;
+      const maxHeight = 800;
+      let canvasWidth = img.width;
+      let canvasHeight = img.height;
+
+      // Scale down if larger than max dimensions
+      if (canvasWidth > maxWidth || canvasHeight > maxHeight) {
+        const widthRatio = maxWidth / canvasWidth;
+        const heightRatio = maxHeight / canvasHeight;
+        const ratio = Math.min(widthRatio, heightRatio);
+        canvasWidth = canvasWidth * ratio;
+        canvasHeight = canvasHeight * ratio;
+      }
+
+      // Set canvas size to match scaled image dimensions
+      canvas.width = canvasWidth;
+      canvas.height = canvasHeight;
+
+      // Draw base image
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+      // Get defect locations from imageData
+      const locations = imageData.locations;
+
+      if (locations.length === 0) {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.fillRect(0, canvas.height / 2 - 30, canvas.width, 60);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 24px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('No defects found for selected filters', canvas.width / 2, canvas.height / 2);
+        return;
+      }
+
+      // Group nearby points (within 5% radius)
+      const groupRadius = 5; // 5% of image
+      const heatmapPoints: HeatmapPoint[] = [];
+
+      locations.forEach(location => {
+        // Check if this location is close to an existing point
+        let foundNearby = false;
+        for (const point of heatmapPoints) {
+          const distance = Math.sqrt(
+            Math.pow(location.x - point.x, 2) + Math.pow(location.y - point.y, 2)
+          );
+          if (distance < groupRadius) {
+            point.count++;
+            foundNearby = true;
+            break;
+          }
+        }
+
+        if (!foundNearby) {
+          heatmapPoints.push({
+            x: location.x,
+            y: location.y,
+            count: 1,
+            intensity: 0, // Will be calculated later
+          });
+        }
+      });
+
+      // Calculate intensity (normalize to 0-1)
+      const maxCount = Math.max(...heatmapPoints.map(p => p.count));
+      heatmapPoints.forEach(point => {
+        point.intensity = point.count / maxCount;
+      });
+
+      // Draw heatmap circles
+      heatmapPoints.forEach(point => {
+        const x = (point.x / 100) * canvas.width;
+        const y = (point.y / 100) * canvas.height;
+        const radius = 30 + (point.intensity * 40); // 30-70px based on intensity
+
+        // Create radial gradient
+        const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+
+        // Color based on intensity: green (low) -> yellow (medium) -> red (high)
+        if (point.intensity < 0.3) {
+          gradient.addColorStop(0, `rgba(34, 197, 94, ${0.7 * point.intensity})`); // Green
+          gradient.addColorStop(1, 'rgba(34, 197, 94, 0)');
+        } else if (point.intensity < 0.7) {
+          gradient.addColorStop(0, `rgba(234, 179, 8, ${0.7 * point.intensity})`); // Yellow
+          gradient.addColorStop(1, 'rgba(234, 179, 8, 0)');
+        } else {
+          gradient.addColorStop(0, `rgba(239, 68, 68, ${0.7 * point.intensity})`); // Red
+          gradient.addColorStop(1, 'rgba(239, 68, 68, 0)');
+        }
+
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(x, y, radius, 0, 2 * Math.PI);
+        ctx.fill();
+
+        // Draw count label
+        ctx.fillStyle = '#ffffff';
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 3;
+        ctx.font = `bold ${16 + (point.intensity * 8)}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.strokeText(point.count.toString(), x, y);
+        ctx.fillText(point.count.toString(), x, y);
+      });
+    };
+
+    img.src = imageData.imageUrl;
+  };
+
+  return (
+    <div className="bg-white rounded-lg shadow p-4">
+      {/* Image Header */}
+      <div className="mb-3">
+        <h3 className="text-lg font-semibold text-gray-900">{imageData.imageName}</h3>
+        <p className="text-sm text-gray-600">
+          Used in: {imageData.sectionNames.join(', ')}
+        </p>
+        <p className="text-sm text-blue-600 font-medium mt-1">
+          {imageData.locations.length} defect{imageData.locations.length !== 1 ? 's' : ''} marked
+        </p>
+      </div>
+
+      {/* Canvas */}
+      <div className="flex justify-center">
+        <canvas
+          ref={canvasRef}
+          className="border border-gray-200 rounded-lg shadow-sm"
+        />
+      </div>
+    </div>
+  );
+};
+
 export const DefectLocationAnalytics: React.FC = () => {
   const [template, setTemplate] = useState<InspectionTemplate | null>(null);
   const [inspections, setInspections] = useState<CarInspection[]>([]);
   const [gates, setGates] = useState<QAGate[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedSection, setSelectedSection] = useState<InspectionSection>('right_outside');
+  const [selectedSection, setSelectedSection] = useState<InspectionSection | 'all'>('right_outside');
   const [selectedImage, setSelectedImage] = useState<SectionImage | null>(null);
   const [dateFrom, setDateFrom] = useState<string>(() => {
     const date = new Date();
@@ -47,13 +210,15 @@ export const DefectLocationAnalytics: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (template && selectedSection) {
+    if (template && selectedSection && selectedSection !== 'all') {
       const sectionTemplate = template.sections[selectedSection];
       if (sectionTemplate?.images && sectionTemplate.images.length > 0) {
         setSelectedImage(sectionTemplate.images[0]);
       } else {
         setSelectedImage(null);
       }
+    } else {
+      setSelectedImage(null);
     }
   }, [template, selectedSection]);
 
@@ -82,6 +247,92 @@ export const DefectLocationAnalytics: React.FC = () => {
     }
   };
 
+  // Consolidate images like PDF does: treat same name+size as same image
+  const getConsolidatedImages = (): ConsolidatedImage[] => {
+    if (!template) return [];
+
+    const consolidatedMap = new Map<string, ConsolidatedImage>();
+
+    // Filter inspections by date, gate, batch
+    const filtered = inspections.filter(insp => {
+      const createdAt = new Date(insp.createdAt);
+      const from = new Date(dateFrom);
+      from.setHours(0, 0, 0, 0);
+      const to = new Date(dateTo);
+      to.setHours(23, 59, 59, 999);
+      if (createdAt < from || createdAt > to) return false;
+      if (selectedGate !== 'all' && insp.gateId !== selectedGate) return false;
+      if (selectedBatch !== 'all' && insp.batchId !== selectedBatch) return false;
+      return true;
+    });
+
+    // Iterate through all sections (or selected section)
+    const sectionKeys: InspectionSection[] = selectedSection === 'all'
+      ? ['right_outside', 'left_outside', 'front_back', 'interior_right', 'interior_left']
+      : [selectedSection];
+
+    sectionKeys.forEach(sectionKey => {
+      const sectionTemplate = template.sections[sectionKey];
+      if (!sectionTemplate?.images) return;
+
+      const sectionName = typeof sectionTemplate.sectionName === 'string'
+        ? sectionTemplate.sectionName
+        : (sectionTemplate.sectionName as any)?.en || sectionKey;
+
+      // For each image in this section
+      sectionTemplate.images.forEach(image => {
+        // Create unique key like PDF does
+        const imageKey = image.size
+          ? `${image.imageName}_${image.size}`
+          : image.imageName;
+
+        // Get or create consolidated image
+        if (!consolidatedMap.has(imageKey)) {
+          consolidatedMap.set(imageKey, {
+            imageName: image.imageName,
+            imageUrl: image.imageUrl,
+            size: image.size,
+            locations: [],
+            sectionNames: [],
+          });
+        }
+
+        const consolidated = consolidatedMap.get(imageKey)!;
+        if (!consolidated.sectionNames.includes(sectionName)) {
+          consolidated.sectionNames.push(sectionName);
+        }
+
+        // Collect defects from all filtered inspections
+        filtered.forEach(inspection => {
+          const sectionResult = inspection.sections[sectionKey];
+          if (!sectionResult) return;
+
+          Object.values(sectionResult.results).forEach(result => {
+            // Main defect
+            if (result.defectType !== 'Ok' && result.defectLocation &&
+                result.defectLocation.imageId === image.imageId) {
+              if (selectedDefectType === 'all' || result.defectType === selectedDefectType) {
+                consolidated.locations.push(result.defectLocation);
+              }
+            }
+
+            // Additional defects
+            const additionalDefects = result.additionalDefects || [];
+            additionalDefects.forEach(additional => {
+              if (additional.defectLocation && additional.defectLocation.imageId === image.imageId) {
+                if (selectedDefectType === 'all' || additional.defectType === selectedDefectType) {
+                  consolidated.locations.push(additional.defectLocation);
+                }
+              }
+            });
+          });
+        });
+      });
+    });
+
+    return Array.from(consolidatedMap.values()).filter(img => img.locations.length > 0);
+  };
+
   const getFilteredDefectLocations = (): DefectLocation[] => {
     const filtered = inspections.filter(insp => {
       // Date filter
@@ -107,10 +358,16 @@ export const DefectLocationAnalytics: React.FC = () => {
     let defectsOnThisImage = 0;
 
     filtered.forEach(inspection => {
-      const sectionResult = inspection.sections[selectedSection];
-      if (!sectionResult) return;
+      // If "all" sections selected, iterate through all sections
+      const sectionsToCheck = selectedSection === 'all'
+        ? Object.keys(inspection.sections) as InspectionSection[]
+        : [selectedSection];
 
-      Object.values(sectionResult.results).forEach(result => {
+      sectionsToCheck.forEach(sectionKey => {
+        const sectionResult = inspection.sections[sectionKey];
+        if (!sectionResult) return;
+
+        Object.values(sectionResult.results).forEach(result => {
         // Count main defect
         if (result.defectType === 'Ok') return;
         totalDefectsInSection++;
@@ -140,6 +397,7 @@ export const DefectLocationAnalytics: React.FC = () => {
 
           locations.push(additionalDefect.defectLocation);
         });
+      });
       });
     });
 
@@ -332,20 +590,27 @@ export const DefectLocationAnalytics: React.FC = () => {
     let defectsOnCurrentImage = 0;
 
     inspections.forEach(inspection => {
-      const sectionResult = inspection.sections[selectedSection];
-      if (!sectionResult) return;
+      // If "all" sections selected, iterate through all sections
+      const sectionsToCheck = selectedSection === 'all'
+        ? Object.keys(inspection.sections) as InspectionSection[]
+        : [selectedSection];
 
-      Object.values(sectionResult.results).forEach(result => {
-        if (result.defectType === 'Ok') return;
-        totalDefectsInSection++;
+      sectionsToCheck.forEach(sectionKey => {
+        const sectionResult = inspection.sections[sectionKey];
+        if (!sectionResult) return;
 
-        if (result.defectLocation) {
-          defectsWithLocation++;
+        Object.values(sectionResult.results).forEach(result => {
+          if (result.defectType === 'Ok') return;
+          totalDefectsInSection++;
 
-          if (result.defectLocation.imageId === selectedImage?.imageId) {
-            defectsOnCurrentImage++;
+          if (result.defectLocation) {
+            defectsWithLocation++;
+
+            if (result.defectLocation.imageId === selectedImage?.imageId) {
+              defectsOnCurrentImage++;
+            }
           }
-        }
+        });
       });
     });
 
@@ -378,9 +643,10 @@ export const DefectLocationAnalytics: React.FC = () => {
             <label className="block text-sm font-medium text-gray-700 mb-2">Section</label>
             <select
               value={selectedSection}
-              onChange={(e) => setSelectedSection(e.target.value as InspectionSection)}
+              onChange={(e) => setSelectedSection(e.target.value as InspectionSection | 'all')}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
             >
+              <option value="all">All Sections</option>
               {sectionKeys.map(sectionKey => {
                 const sectionTemplate = template.sections[sectionKey];
                 const hasImages = sectionTemplate?.images && sectionTemplate.images.length > 0;
@@ -508,61 +774,49 @@ export const DefectLocationAnalytics: React.FC = () => {
             </div>
           </div>
         )}
-
-        {stats.defectsWithLocation > 0 && stats.defectsOnCurrentImage === 0 && (
-          <div className="mt-4 bg-amber-50 border border-amber-200 rounded-lg p-4">
-            <div className="flex items-start gap-3">
-              <span className="text-2xl">💡</span>
-              <div>
-                <p className="text-sm text-amber-900 font-medium">Defects marked on other images</p>
-                <p className="text-xs text-amber-700 mt-1">
-                  There are {stats.defectsWithLocation} defects with locations, but they're marked on different images in this section.
-                  Try selecting a different section or check which images were used during inspection.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Heatmap Canvas */}
-      {selectedImage ? (
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            Defect Heatmap - {selectedImage.imageName}
-          </h3>
+      {/* Show all consolidated images */}
+      {(() => {
+        const consolidatedImages = getConsolidatedImages();
 
-          <div className="bg-gray-100 rounded-lg p-4 flex items-center justify-center">
-            <canvas
-              ref={canvasRef}
-              className="max-w-full h-auto rounded-lg shadow-lg"
-              style={{ maxHeight: '600px' }}
-            />
-          </div>
+        return consolidatedImages.length > 0 ? (
+          <div className="space-y-6">
+            {consolidatedImages.map((imgData, index) => (
+              <HeatmapCanvas
+                key={`${imgData.imageName}_${index}`}
+                imageData={imgData}
+                selectedDefectType={selectedDefectType}
+              />
+            ))}
 
-          {/* Legend */}
-          <div className="mt-4 flex items-center justify-center gap-6">
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded-full bg-green-500"></div>
-              <span className="text-sm text-gray-600">Low Frequency</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded-full bg-yellow-500"></div>
-              <span className="text-sm text-gray-600">Medium Frequency</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded-full bg-red-500"></div>
-              <span className="text-sm text-gray-600">High Frequency</span>
+            {/* Legend */}
+            <div className="bg-white rounded-lg shadow p-4">
+              <div className="flex items-center justify-center gap-6">
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded-full bg-green-500"></div>
+                  <span className="text-sm text-gray-600">Low Frequency</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded-full bg-yellow-500"></div>
+                  <span className="text-sm text-gray-600">Medium Frequency</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded-full bg-red-500"></div>
+                  <span className="text-sm text-gray-600">High Frequency</span>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
       ) : (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
           <div className="text-yellow-800">
             ⚠️ No images available for this section. Please upload section images in the Visual Template Editor.
           </div>
         </div>
-      )}
+      );
+    })()}
     </div>
   );
 };

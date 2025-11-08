@@ -1,6 +1,6 @@
 [
   {
-    "origin": ["https://berjaya-autotech-4b4f4.web.app", "http://localhost:5173", "http://localhost:3000"],
+    "origin": ["https://berjaya-autotech-4b4f4.web.app", "https://berjaya-autotech-4b4f4.firebaseapp.com", "http://localhost:5173", "http://localhost:3000"],
     "method": ["GET", "HEAD", "PUT", "POST", "DELETE"],
     "maxAgeSeconds": 3600,
     "responseHeader": ["Content-Type", "Access-Control-Allow-Origin"]

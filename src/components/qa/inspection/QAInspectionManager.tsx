@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { inspectionService } from '../../../services/inspectionService';
 import { inspectionReportService } from '../../../services/inspectionReportService';
 import { gateService } from '../../../services/gateService';
+import { InspectionResultsModal } from '../stock/InspectionResultsModal';
 import type { CarInspection } from '../../../types/inspection';
 import type { QAGate } from '../../../types/gate';
 import { createModuleLogger } from '../../../services/logger';
@@ -18,6 +19,8 @@ const QAInspectionManager: React.FC = () => {
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterGate, setFilterGate] = useState<string>('all');
   const [searchVIN, setSearchVIN] = useState('');
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [detailsVIN, setDetailsVIN] = useState<string | null>(null);
 
   useEffect(() => {
     loadInspections();
@@ -373,6 +376,17 @@ const QAInspectionManager: React.FC = () => {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
+                            setDetailsVIN(inspection.vin);
+                            setShowDetailsModal(true);
+                          }}
+                          className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm flex items-center gap-1"
+                          title="View detailed defects and resolution status"
+                        >
+                          🔍 View Details
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
                             generatePDFReport(inspection);
                           }}
                           className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-sm flex items-center gap-1"
@@ -508,6 +522,17 @@ const QAInspectionManager: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Defect Details Modal */}
+      {showDetailsModal && detailsVIN && (
+        <InspectionResultsModal
+          vin={detailsVIN}
+          onClose={() => {
+            setShowDetailsModal(false);
+            setDetailsVIN(null);
+          }}
+        />
+      )}
     </div>
   );
 };

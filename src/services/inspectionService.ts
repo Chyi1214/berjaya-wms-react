@@ -392,11 +392,13 @@ export const inspectionService = {
     try {
       const q = query(
         collection(db, INSPECTIONS_COL),
-        where('vin', '==', vin),
-        orderBy('gateIndex', 'asc')
+        where('vin', '==', vin)
       );
       const snapshot = await getDocs(q);
-      return snapshot.docs.map(doc => convertTimestamps<CarInspection>(doc.data()));
+      const inspections = snapshot.docs.map(doc => convertTimestamps<CarInspection>(doc.data()));
+
+      // Sort by gateIndex in JavaScript (no index needed)
+      return inspections.sort((a, b) => (a.gateIndex || 0) - (b.gateIndex || 0));
     } catch (error) {
       logger.error('Failed to get inspections by VIN:', error);
       throw error;
@@ -770,6 +772,106 @@ export const inspectionService = {
       logger.info('Inspection deleted successfully:', inspectionId);
     } catch (error) {
       logger.error('Failed to delete inspection:', error);
+      throw error;
+    }
+  },
+
+  // Mark a defect as resolved
+  async markDefectAsResolved(
+    inspectionId: string,
+    section: InspectionSection,
+    itemName: string,
+    resolvedBy: string,
+    resolvedByName: string,
+    resolutionNote?: string,
+    additionalDefectIndex?: number
+  ): Promise<void> {
+    try {
+      logger.info('Marking defect as resolved:', {
+        inspectionId,
+        section,
+        itemName,
+        resolvedBy,
+        additionalDefectIndex,
+      });
+
+      return runTransaction(db, async (tx) => {
+        const docRef = doc(db, INSPECTIONS_COL, inspectionId);
+        const docSnap = await tx.get(docRef);
+
+        if (!docSnap.exists()) {
+          throw new Error(`Inspection not found: ${inspectionId}`);
+        }
+
+        const inspection = convertTimestamps<CarInspection>(docSnap.data());
+        const sanitizedItemName = sanitizeFieldName(itemName);
+        const existingResult = inspection.sections[section].results[sanitizedItemName];
+
+        if (!existingResult) {
+          throw new Error(`Item result not found: ${itemName}`);
+        }
+
+        const updates: Record<string, any> = {};
+
+        if (additionalDefectIndex !== undefined) {
+          // Marking an additional defect as resolved
+          if (
+            !existingResult.additionalDefects ||
+            additionalDefectIndex >= existingResult.additionalDefects.length
+          ) {
+            throw new Error(`Additional defect not found at index ${additionalDefectIndex}`);
+          }
+
+          // Update the specific additional defect in the array
+          const updatedAdditionalDefects = existingResult.additionalDefects.map((defect, idx) => {
+            if (idx === additionalDefectIndex) {
+              return {
+                defectType: defect.defectType,
+                notes: defect.notes || null,
+                checkedBy: defect.checkedBy,
+                checkedAt: defect.checkedAt instanceof Date ? Timestamp.fromDate(defect.checkedAt) : defect.checkedAt,
+                status: 'Resolved',
+                resolvedBy: resolvedByName,
+                resolvedAt: Timestamp.now(),
+                ...(resolutionNote && { resolutionNote }),
+                ...(defect.defectLocation && { defectLocation: defect.defectLocation }),
+              };
+            }
+            // For other defects, convert Date back to Timestamp if needed
+            return {
+              defectType: defect.defectType,
+              notes: defect.notes || null,
+              checkedBy: defect.checkedBy,
+              checkedAt: defect.checkedAt instanceof Date ? Timestamp.fromDate(defect.checkedAt) : defect.checkedAt,
+              ...(defect.status && { status: defect.status }),
+              ...(defect.resolvedBy && { resolvedBy: defect.resolvedBy }),
+              ...(defect.resolvedAt && {
+                resolvedAt: defect.resolvedAt instanceof Date ? Timestamp.fromDate(defect.resolvedAt) : defect.resolvedAt,
+              }),
+              ...(defect.resolutionNote && { resolutionNote: defect.resolutionNote }),
+              ...(defect.defectLocation && { defectLocation: defect.defectLocation }),
+            };
+          });
+
+          updates[`sections.${section}.results.${sanitizedItemName}.additionalDefects`] =
+            updatedAdditionalDefects;
+        } else {
+          // Marking the main defect as resolved
+          updates[`sections.${section}.results.${sanitizedItemName}.status`] = 'Resolved';
+          updates[`sections.${section}.results.${sanitizedItemName}.resolvedBy`] = resolvedByName;
+          updates[`sections.${section}.results.${sanitizedItemName}.resolvedAt`] = Timestamp.now();
+          if (resolutionNote) {
+            updates[`sections.${section}.results.${sanitizedItemName}.resolutionNote`] = resolutionNote;
+          }
+        }
+
+        updates.updatedAt = Timestamp.now();
+
+        tx.update(docRef, updates);
+        logger.info('Defect marked as resolved successfully');
+      });
+    } catch (error) {
+      logger.error('Failed to mark defect as resolved:', error);
       throw error;
     }
   },

@@ -141,19 +141,31 @@ function drawDotsOnImage(
       // Helper function to adjust X positions to prevent overlap
       const adjustXPositions = (targetXPositions: number[]) => {
         const adjusted = [...targetXPositions];
+        const circleRadius = fontSize * 0.8; // Same as used for drawing
+        const edgePadding = circleRadius + marginPadding; // Ensure full circle fits
+
+        // First pass: ensure minimum spacing between numbers
         for (let i = 1; i < adjusted.length; i++) {
           if (adjusted[i] - adjusted[i - 1] < minSpacing) {
             adjusted[i] = adjusted[i - 1] + minSpacing;
           }
         }
-        // If last number goes off right edge, redistribute spacing
-        if (adjusted[adjusted.length - 1] > imageWidth - marginPadding) {
-          const totalWidth = imageWidth - (marginPadding * 2);
-          const spacing = Math.min(minSpacing, totalWidth / (adjusted.length - 1));
+
+        // Second pass: check if numbers go off either edge
+        const firstX = adjusted[0];
+        const lastX = adjusted[adjusted.length - 1];
+        const goesOffLeftEdge = firstX < edgePadding;
+        const goesOffRightEdge = lastX > imageWidth - edgePadding;
+
+        // If numbers go off edges, redistribute spacing evenly
+        if (goesOffLeftEdge || goesOffRightEdge) {
+          const totalWidth = imageWidth - (edgePadding * 2);
+          const spacing = adjusted.length > 1 ? totalWidth / (adjusted.length - 1) : 0;
           for (let i = 0; i < adjusted.length; i++) {
-            adjusted[i] = marginPadding + (i * spacing);
+            adjusted[i] = edgePadding + (i * spacing);
           }
         }
+
         return adjusted;
       };
 
@@ -641,13 +653,36 @@ export const inspectionReportService = {
               ? (emailToNameMap.get(result.checkedBy) || result.checkedBy)
               : '-';
 
+            // Format resolution status
+            let statusText = '';
+            if (result.status === 'Resolved' && result.resolvedBy && result.resolvedAt) {
+              const resolvedDate = result.resolvedAt instanceof Date
+                ? result.resolvedAt
+                : new Date(result.resolvedAt);
+              const formattedDate = resolvedDate.toLocaleString('en-MY', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              });
+              // Put "Resolved" with name on first line, date on second line
+              if (result.resolutionNote) {
+                statusText = `Resolved ${result.resolvedBy}\n${formattedDate}\n${result.resolutionNote}`;
+              } else {
+                statusText = `Resolved ${result.resolvedBy}\n${formattedDate}`;
+              }
+            } else if (result.status) {
+              statusText = result.status;
+            }
+
             sectionDefectRows.push({
               row: [
                 dotPrefix + itemName,
                 result.defectType,
                 result.notes || '-',
                 inspectorDisplay,
-                result.status || '',  // Empty by default for someone to fill in later
+                statusText,
               ],
               sortNumber: pdfDotNumber !== null ? pdfDotNumber : 9999, // Sort items without dots to the end
             });
@@ -671,13 +706,36 @@ export const inspectionReportService = {
               ? (emailToNameMap.get(additionalDefect.checkedBy) || additionalDefect.checkedBy)
               : '-';
 
+            // Format resolution status for additional defect
+            let statusText = '';
+            if (additionalDefect.status === 'Resolved' && additionalDefect.resolvedBy && additionalDefect.resolvedAt) {
+              const resolvedDate = additionalDefect.resolvedAt instanceof Date
+                ? additionalDefect.resolvedAt
+                : new Date(additionalDefect.resolvedAt);
+              const formattedDate = resolvedDate.toLocaleString('en-MY', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              });
+              // Put "Resolved" with name on first line, date on second line
+              if (additionalDefect.resolutionNote) {
+                statusText = `Resolved ${additionalDefect.resolvedBy}\n${formattedDate}\n${additionalDefect.resolutionNote}`;
+              } else {
+                statusText = `Resolved ${additionalDefect.resolvedBy}\n${formattedDate}`;
+              }
+            } else if (additionalDefect.status) {
+              statusText = additionalDefect.status;
+            }
+
             sectionDefectRows.push({
               row: [
                 `${dotPrefix} ${itemName}`,
                 additionalDefect.defectType,
                 additionalDefect.notes || '-',
                 inspectorDisplay,
-                additionalDefect.status || '',
+                statusText,
               ],
               sortNumber: pdfDotNumber !== null ? pdfDotNumber : 9999,
             });
@@ -712,11 +770,11 @@ export const inspectionReportService = {
             margin: { left: PDF_CONSTANTS.MARGIN_LEFT, right: PDF_CONSTANTS.MARGIN_RIGHT },
             styles: { cellPadding: 2 },
             columnStyles: {
-              0: { cellWidth: 40 },
-              1: { cellWidth: 28 },
-              2: { cellWidth: 45 },
-              3: { cellWidth: 35 },
-              4: { cellWidth: 22 },
+              0: { cellWidth: 38 },
+              1: { cellWidth: 26 },
+              2: { cellWidth: 40 },
+              3: { cellWidth: 30 },
+              4: { cellWidth: 36 },
             },
           });
           // Type-safe access to lastAutoTable

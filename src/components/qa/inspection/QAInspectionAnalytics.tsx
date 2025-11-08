@@ -27,6 +27,7 @@ const QAInspectionAnalytics: React.FC = () => {
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [gateFilter, setGateFilter] = useState<string>('all'); // Filter by gate
+  const [sectionFilter, setSectionFilter] = useState<string>('all'); // Filter by section
 
   useEffect(() => {
     loadInspections();
@@ -53,6 +54,17 @@ const QAInspectionAnalytics: React.FC = () => {
       }
     });
     return Array.from(gates).map((g) => JSON.parse(g));
+  }, [inspections]);
+
+  // Get available sections
+  const availableSections = useMemo(() => {
+    const sections = new Set<string>();
+    inspections.forEach((i) => {
+      Object.keys(i.sections).forEach((sectionId) => {
+        sections.add(sectionId);
+      });
+    });
+    return Array.from(sections);
   }, [inspections]);
 
   // Filter inspections by time range and gate
@@ -135,6 +147,11 @@ const QAInspectionAnalytics: React.FC = () => {
 
     filteredInspections.forEach((inspection) => {
       Object.entries(inspection.sections).forEach(([sectionId, section]) => {
+        // Apply section filter
+        if (sectionFilter !== 'all' && sectionId !== sectionFilter) {
+          return; // Skip this section if it doesn't match the filter
+        }
+
         // Track inspector activity
         if (section.inspector) {
           if (!inspectorStats[section.inspector]) {
@@ -244,7 +261,7 @@ const QAInspectionAnalytics: React.FC = () => {
       inspectorStats: Object.values(inspectorStats),
       trendData,
     };
-  }, [filteredInspections]);
+  }, [filteredInspections, sectionFilter]);
 
   // Chart data preparation
   const defectTypeChartData = Object.entries(analytics.defectsByType)
@@ -401,6 +418,38 @@ const QAInspectionAnalytics: React.FC = () => {
                 }`}
               >
                 {gate.gateName}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Section Filter */}
+        <div className="mt-4">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Filter by Section
+          </label>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setSectionFilter('all')}
+              className={`px-4 py-2 rounded-lg font-medium ${
+                sectionFilter === 'all'
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              All Sections
+            </button>
+            {availableSections.map((section) => (
+              <button
+                key={section}
+                onClick={() => setSectionFilter(section)}
+                className={`px-4 py-2 rounded-lg font-medium ${
+                  sectionFilter === section
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                {section.replace(/_/g, ' ')}
               </button>
             ))}
           </div>

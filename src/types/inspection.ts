@@ -46,7 +46,10 @@ export interface AdditionalDefect {
   notes?: string;
   checkedBy: string;
   checkedAt: Date;
-  status?: string;            // Track defect resolution status
+  status?: string;            // Track defect resolution status (e.g., "Pending", "Resolved")
+  resolvedBy?: string;        // Who marked the defect as resolved
+  resolvedAt?: Date;          // When the defect was marked as resolved
+  resolutionNote?: string;    // Note added when resolving the defect
 }
 
 // Section image for defect location marking
@@ -66,7 +69,10 @@ export interface InspectionItemResult {
   photoUrls?: string[];
   checkedAt?: Date;
   checkedBy?: string;
-  status?: string;  // Track defect resolution status (e.g., "Pending", "Fixed", "Acknowledged")
+  status?: string;  // Track defect resolution status (e.g., "Pending", "Resolved")
+  resolvedBy?: string;  // Who marked the defect as resolved
+  resolvedAt?: Date;  // When the defect was marked as resolved
+  resolutionNote?: string;  // Note added when resolving the defect
   defectLocation?: DefectLocation;  // Location marked on section image (required for defects, not for "Ok")
   additionalDefects?: AdditionalDefect[];  // Additional defects found at same item (max 20)
 }
@@ -99,6 +105,7 @@ export interface InspectionTemplate {
   templateName: string | MultilingualText;  // Support both legacy and new format
   version: string;
   sections: Record<string, InspectionSectionTemplate>;
+  sectionOrder?: string[];  // Custom order of section IDs (optional, for manual reordering)
   defectTypes?: (string | MultilingualText)[];  // Global defect types (legacy support)
   createdAt: Date;
   updatedAt: Date;

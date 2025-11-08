@@ -175,13 +175,43 @@ const CarInspectionView: React.FC<CarInspectionViewProps> = ({
     );
   }
 
-  const sectionEntries: [InspectionSection, string][] = [
-    ['right_outside', 'Right Outside'],
-    ['left_outside', 'Left Outside'],
-    ['front_back', 'Front & Back'],
-    ['interior_right', 'Interior Right'],
-    ['interior_left', 'Interior Left'],
-  ];
+  // Get section order from template (respects custom ordering)
+  const getSectionOrder = (): string[] => {
+    if (!template) return [];
+
+    // If custom sectionOrder exists, use it
+    if (template.sectionOrder && template.sectionOrder.length > 0) {
+      return template.sectionOrder;
+    }
+
+    // Otherwise, use default order
+    const defaultOrder = [
+      'right_outside',
+      'left_outside',
+      'front_back',
+      'interior_right',
+      'interior_left'
+    ];
+
+    return Object.keys(template.sections).sort((idA, idB) => {
+      const indexA = defaultOrder.indexOf(idA);
+      const indexB = defaultOrder.indexOf(idB);
+      if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+      if (indexA !== -1) return -1;
+      if (indexB !== -1) return 1;
+      return idA.localeCompare(idB);
+    });
+  };
+
+  const sectionEntries: [InspectionSection, string][] = getSectionOrder()
+    .filter(sectionId => template.sections[sectionId as InspectionSection])
+    .map(sectionId => {
+      const section = template.sections[sectionId as InspectionSection];
+      const sectionName = typeof section.sectionName === 'string'
+        ? section.sectionName
+        : section.sectionName.en || sectionId;
+      return [sectionId as InspectionSection, sectionName];
+    });
 
   return (
     <div className="max-w-7xl mx-auto p-4 space-y-6">

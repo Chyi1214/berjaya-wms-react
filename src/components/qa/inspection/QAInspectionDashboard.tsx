@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { inspectionService } from '../../../services/inspectionService';
 import { gateService } from '../../../services/gateService';
-import type { InspectionSection } from '../../../types/inspection';
+import type { InspectionSection, InspectionTemplate } from '../../../types/inspection';
 import type { QAGate } from '../../../types/gate';
 import { createModuleLogger } from '../../../services/logger';
 import { BarcodeScanner } from '../../common/BarcodeScanner';
@@ -23,6 +23,7 @@ const QAInspectionDashboard: React.FC<QAInspectionDashboardProps> = ({
   const [selectedSection, setSelectedSection] = useState<InspectionSection | null>(null);
   const [selectedGate, setSelectedGate] = useState<QAGate | null>(null);
   const [gates, setGates] = useState<QAGate[]>([]);
+  const [template, setTemplate] = useState<InspectionTemplate | null>(null);
   const [vinInput, setVinInput] = useState('');
   const [scanning, setScanning] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
@@ -41,6 +42,10 @@ const QAInspectionDashboard: React.FC<QAInspectionDashboardProps> = ({
       // Load active gates
       const activeGates = await gateService.getActiveGates();
       setGates(activeGates);
+
+      // Load template to get section order
+      const tmpl = await inspectionService.getTemplate('vehicle_inspection_v1');
+      setTemplate(tmpl);
 
       // Auto-select if only one gate exists
       if (activeGates.length === 1) {
@@ -176,6 +181,17 @@ const QAInspectionDashboard: React.FC<QAInspectionDashboardProps> = ({
   };
 
   const getSectionName = (section: InspectionSection): string => {
+    // If template is loaded, use the section name from template (supports custom names)
+    if (template && template.sections[section]) {
+      const sectionData = template.sections[section];
+      if (typeof sectionData.sectionName === 'string') {
+        return sectionData.sectionName;
+      } else {
+        return sectionData.sectionName.en || section;
+      }
+    }
+
+    // Fallback to translations
     const names: Record<string, string> = {
       right_outside: t('qa.sections.rightOutside'),
       left_outside: t('qa.sections.leftOutside'),
@@ -197,6 +213,13 @@ const QAInspectionDashboard: React.FC<QAInspectionDashboardProps> = ({
     return icons[section] || '📋';
   };
 
+  const getSectionItemCount = (section: InspectionSection): number => {
+    if (!template || !template.sections[section]) {
+      return 0;
+    }
+    return template.sections[section].items.length;
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -208,13 +231,44 @@ const QAInspectionDashboard: React.FC<QAInspectionDashboardProps> = ({
     );
   }
 
-  const sections: InspectionSection[] = [
-    'right_outside',
-    'left_outside',
-    'front_back',
-    'interior_right',
-    'interior_left',
-  ];
+  // Get section order from template (respects custom ordering)
+  const getSectionOrder = (): InspectionSection[] => {
+    if (!template) {
+      // Fallback to default order if template not loaded
+      return [
+        'right_outside',
+        'left_outside',
+        'front_back',
+        'interior_right',
+        'interior_left',
+      ];
+    }
+
+    // If custom sectionOrder exists, use it
+    if (template.sectionOrder && template.sectionOrder.length > 0) {
+      return template.sectionOrder as InspectionSection[];
+    }
+
+    // Otherwise, use default order
+    const defaultOrder = [
+      'right_outside',
+      'left_outside',
+      'front_back',
+      'interior_right',
+      'interior_left'
+    ];
+
+    return Object.keys(template.sections).sort((idA, idB) => {
+      const indexA = defaultOrder.indexOf(idA);
+      const indexB = defaultOrder.indexOf(idB);
+      if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+      if (indexA !== -1) return -1;
+      if (indexB !== -1) return 1;
+      return idA.localeCompare(idB);
+    }) as InspectionSection[];
+  };
+
+  const sections: InspectionSection[] = getSectionOrder();
 
   return (
     <div className="max-w-4xl mx-auto p-4 space-y-6">
@@ -290,11 +344,7 @@ const QAInspectionDashboard: React.FC<QAInspectionDashboardProps> = ({
                   <div className="text-left">
                     <div className="font-semibold">{getSectionName(section)}</div>
                     <div className="text-sm text-gray-600">
-                      {section === 'right_outside' || section === 'left_outside'
-                        ? `28 ${t('qa.points')}`
-                        : section === 'front_back'
-                        ? `28 ${t('qa.points')}`
-                        : `~27 ${t('qa.points')}`}
+                      {getSectionItemCount(section)} {t('qa.points')}
                     </div>
                   </div>
                   {selectedSection === section && (

@@ -350,6 +350,32 @@ export default function VisualTemplateEditor() {
     });
   };
 
+  const moveDefaultDefectTypeUp = (index: number) => {
+    if (!template || !template.defectTypes) return;
+    if (index <= 0) return; // Already at top
+
+    const newDefectTypes = [...template.defectTypes];
+    [newDefectTypes[index - 1], newDefectTypes[index]] = [newDefectTypes[index], newDefectTypes[index - 1]];
+
+    setTemplate({
+      ...template,
+      defectTypes: newDefectTypes,
+    });
+  };
+
+  const moveDefaultDefectTypeDown = (index: number) => {
+    if (!template || !template.defectTypes) return;
+    if (index >= template.defectTypes.length - 1) return; // Already at bottom
+
+    const newDefectTypes = [...template.defectTypes];
+    [newDefectTypes[index], newDefectTypes[index + 1]] = [newDefectTypes[index + 1], newDefectTypes[index]];
+
+    setTemplate({
+      ...template,
+      defectTypes: newDefectTypes,
+    });
+  };
+
   const applyDefaultsToAllItems = () => {
     if (!template || !template.defectTypes) return;
     const confirm = window.confirm(
@@ -391,6 +417,10 @@ export default function VisualTemplateEditor() {
       return;
     }
 
+    // Add to section order
+    const currentOrder = template.sectionOrder || getSectionOrder();
+    const newOrder = [...currentOrder, sectionId];
+
     setTemplate({
       ...template,
       sections: {
@@ -401,6 +431,7 @@ export default function VisualTemplateEditor() {
           items: [],
         },
       },
+      sectionOrder: newOrder,
     });
   };
 
@@ -413,9 +444,104 @@ export default function VisualTemplateEditor() {
 
     const newSections = { ...template.sections };
     delete newSections[sectionId];
+
+    // Remove from section order
+    const currentOrder = template.sectionOrder || getSectionOrder();
+    const newOrder = currentOrder.filter(id => id !== sectionId);
+
     setTemplate({
       ...template,
       sections: newSections,
+      sectionOrder: newOrder,
+    });
+  };
+
+  const renameSection = (sectionId: InspectionSection) => {
+    if (!template) return;
+    const section = template.sections[sectionId];
+    const currentName = typeof section.sectionName === 'string'
+      ? section.sectionName
+      : (section.sectionName as any).en;
+
+    const newName = prompt('Enter new section name:', currentName);
+    if (!newName || !newName.trim() || newName === currentName) return;
+
+    const newSections = {
+      ...template.sections,
+      [sectionId]: {
+        ...section,
+        sectionName: newName.trim(),
+      },
+    };
+
+    setTemplate({
+      ...template,
+      sections: newSections,
+    });
+  };
+
+  const getSectionOrder = () => {
+    if (!template) return [];
+
+    // If custom sectionOrder exists, use it
+    if (template.sectionOrder && template.sectionOrder.length > 0) {
+      return template.sectionOrder;
+    }
+
+    // Otherwise, use default order
+    const defaultOrder = [
+      'right_outside',
+      'left_outside',
+      'front_back',
+      'interior_right',
+      'interior_left'
+    ];
+
+    return Object.keys(template.sections).sort((idA, idB) => {
+      const indexA = defaultOrder.indexOf(idA);
+      const indexB = defaultOrder.indexOf(idB);
+      if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+      if (indexA !== -1) return -1;
+      if (indexB !== -1) return 1;
+      return idA.localeCompare(idB);
+    });
+  };
+
+  const moveSectionUp = (sectionId: InspectionSection) => {
+    if (!template) return;
+
+    // Get or initialize section order
+    const currentOrder = template.sectionOrder || getSectionOrder();
+    const currentIndex = currentOrder.indexOf(sectionId);
+
+    if (currentIndex <= 0) return; // Already at top
+
+    // Swap with previous section
+    const newOrder = [...currentOrder];
+    [newOrder[currentIndex - 1], newOrder[currentIndex]] = [newOrder[currentIndex], newOrder[currentIndex - 1]];
+
+    setTemplate({
+      ...template,
+      sectionOrder: newOrder,
+    });
+  };
+
+  const moveSectionDown = (sectionId: InspectionSection) => {
+    if (!template) return;
+
+    // Get or initialize section order
+    const currentOrder = template.sectionOrder || getSectionOrder();
+    const currentIndex = currentOrder.indexOf(sectionId);
+
+    if (currentIndex === -1 || currentIndex >= currentOrder.length - 1) return; // Already at bottom
+
+    // Swap with next section
+    const newOrder = [...currentOrder];
+    [newOrder[currentIndex], newOrder[currentIndex + 1]] = [newOrder[currentIndex + 1], newOrder[currentIndex]];
+
+    setTemplate({
+      ...template,
+      sectionOrder: newOrder,
     });
   };
 
@@ -509,6 +635,64 @@ export default function VisualTemplateEditor() {
     });
   };
 
+  const moveItemUp = (sectionId: InspectionSection, itemIndex: number) => {
+    if (!template) return;
+    if (itemIndex <= 0) return; // Already at top
+
+    const section = template.sections[sectionId];
+    const newItems = [...section.items];
+
+    // Swap with previous item
+    [newItems[itemIndex - 1], newItems[itemIndex]] = [newItems[itemIndex], newItems[itemIndex - 1]];
+
+    // Renumber items
+    newItems.forEach((item, idx) => {
+      item.itemNumber = idx + 1;
+    });
+
+    const newSections = {
+      ...template.sections,
+      [sectionId]: {
+        ...section,
+        items: newItems,
+      },
+    };
+
+    setTemplate({
+      ...template,
+      sections: newSections,
+    });
+  };
+
+  const moveItemDown = (sectionId: InspectionSection, itemIndex: number) => {
+    if (!template) return;
+    const section = template.sections[sectionId];
+    if (itemIndex >= section.items.length - 1) return; // Already at bottom
+
+    const newItems = [...section.items];
+
+    // Swap with next item
+    [newItems[itemIndex], newItems[itemIndex + 1]] = [newItems[itemIndex + 1], newItems[itemIndex]];
+
+    // Renumber items
+    newItems.forEach((item, idx) => {
+      item.itemNumber = idx + 1;
+    });
+
+    const newSections = {
+      ...template.sections,
+      [sectionId]: {
+        ...section,
+        items: newItems,
+      },
+    };
+
+    setTemplate({
+      ...template,
+      sections: newSections,
+    });
+  };
+
   // ===== ITEM DEFECT TYPES MANAGEMENT =====
 
   const addItemDefectType = (sectionId: InspectionSection, itemIndex: number) => {
@@ -554,6 +738,76 @@ export default function VisualTemplateEditor() {
 
     const newDefects = [...itemDefects];
     newDefects.splice(defectIndex, 1);
+
+    const newItems = [...section.items];
+    newItems[itemIndex] = {
+      ...item,
+      defectTypes: newDefects as DefectType[],
+    };
+
+    const newSections = {
+      ...template.sections,
+      [sectionId]: {
+        ...section,
+        items: newItems,
+      },
+    };
+
+    setTemplate({
+      ...template,
+      sections: newSections,
+    });
+  };
+
+  const moveItemDefectTypeUp = (
+    sectionId: InspectionSection,
+    itemIndex: number,
+    defectIndex: number
+  ) => {
+    if (!template) return;
+    if (defectIndex <= 0) return; // Already at top
+
+    const section = template.sections[sectionId];
+    const item = section.items[itemIndex];
+    const itemDefects = item.defectTypes || template.defectTypes || [];
+
+    const newDefects = [...itemDefects];
+    [newDefects[defectIndex - 1], newDefects[defectIndex]] = [newDefects[defectIndex], newDefects[defectIndex - 1]];
+
+    const newItems = [...section.items];
+    newItems[itemIndex] = {
+      ...item,
+      defectTypes: newDefects as DefectType[],
+    };
+
+    const newSections = {
+      ...template.sections,
+      [sectionId]: {
+        ...section,
+        items: newItems,
+      },
+    };
+
+    setTemplate({
+      ...template,
+      sections: newSections,
+    });
+  };
+
+  const moveItemDefectTypeDown = (
+    sectionId: InspectionSection,
+    itemIndex: number,
+    defectIndex: number
+  ) => {
+    if (!template) return;
+    const section = template.sections[sectionId];
+    const item = section.items[itemIndex];
+    const itemDefects = item.defectTypes || template.defectTypes || [];
+
+    if (defectIndex >= itemDefects.length - 1) return; // Already at bottom
+
+    const newDefects = [...itemDefects];
+    [newDefects[defectIndex], newDefects[defectIndex + 1]] = [newDefects[defectIndex + 1], newDefects[defectIndex]];
 
     const newItems = [...section.items];
     newItems[itemIndex] = {
@@ -810,31 +1064,54 @@ export default function VisualTemplateEditor() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-          {(template.defectTypes || []).map((defect, index) => (
-            <div
-              key={index}
-              className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg p-3"
-            >
-              <div className="flex-1 font-medium text-gray-900">
-                {typeof defect === 'string' ? defect : (defect as any).en}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {(template.defectTypes || []).map((defect, index) => {
+            const isFirst = index === 0;
+            const isLast = index === (template.defectTypes?.length || 0) - 1;
+
+            return (
+              <div
+                key={index}
+                className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg p-3"
+              >
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => moveDefaultDefectTypeUp(index)}
+                    disabled={isFirst}
+                    className="text-blue-600 hover:text-blue-700 disabled:text-gray-300 disabled:cursor-not-allowed"
+                    title="Move Up"
+                  >
+                    ⬆️
+                  </button>
+                  <button
+                    onClick={() => moveDefaultDefectTypeDown(index)}
+                    disabled={isLast}
+                    className="text-blue-600 hover:text-blue-700 disabled:text-gray-300 disabled:cursor-not-allowed"
+                    title="Move Down"
+                  >
+                    ⬇️
+                  </button>
+                </div>
+                <div className="flex-1 font-medium text-gray-900">
+                  {typeof defect === 'string' ? defect : (defect as any).en}
+                </div>
+                <button
+                  onClick={() => editDefaultDefectType(index)}
+                  className="text-blue-600 hover:text-blue-700"
+                  title="Edit"
+                >
+                  ✏️
+                </button>
+                <button
+                  onClick={() => removeDefaultDefectType(index)}
+                  className="text-red-600 hover:text-red-700"
+                  title="Remove"
+                >
+                  🗑️
+                </button>
               </div>
-              <button
-                onClick={() => editDefaultDefectType(index)}
-                className="text-blue-600 hover:text-blue-700"
-                title="Edit"
-              >
-                ✏️
-              </button>
-              <button
-                onClick={() => removeDefaultDefectType(index)}
-                className="text-red-600 hover:text-red-700"
-                title="Remove"
-              >
-                🗑️
-              </button>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {(!template.defectTypes || template.defectTypes.length === 0) && (
@@ -857,36 +1134,17 @@ export default function VisualTemplateEditor() {
         </div>
 
         <div className="space-y-4">
-          {Object.entries(template.sections)
-            .sort(([idA], [idB]) => {
-              // Define consistent section order
-              const sectionOrder = [
-                'right_outside',
-                'left_outside',
-                'front_back',
-                'interior_right',
-                'interior_left'
-              ];
-              const indexA = sectionOrder.indexOf(idA);
-              const indexB = sectionOrder.indexOf(idB);
-
-              // If both sections are in the predefined order, sort by that order
-              if (indexA !== -1 && indexB !== -1) {
-                return indexA - indexB;
-              }
-              // If only A is in the predefined order, put it first
-              if (indexA !== -1) return -1;
-              // If only B is in the predefined order, put it first
-              if (indexB !== -1) return 1;
-              // For custom sections not in the order, sort alphabetically
-              return idA.localeCompare(idB);
-            })
-            .map(([sectionId, section]) => {
+          {getSectionOrder()
+            .map((sectionId, sectionIndex, allSections) => {
+            const section = template.sections[sectionId as InspectionSection];
+            if (!section) return null;
             const isExpanded = expandedSection === sectionId;
             const sectionName =
               typeof section.sectionName === 'string'
                 ? section.sectionName
                 : getLocalizedText(section.sectionName, langCode);
+            const isFirstSection = sectionIndex === 0;
+            const isLastSection = sectionIndex === allSections.length - 1;
 
             return (
               <div
@@ -910,6 +1168,38 @@ export default function VisualTemplateEditor() {
                     </div>
                   </div>
                   <div className="flex gap-2">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        moveSectionUp(sectionId as InspectionSection);
+                      }}
+                      disabled={isFirstSection}
+                      className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                      title="Move Up"
+                    >
+                      ⬆️
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        moveSectionDown(sectionId as InspectionSection);
+                      }}
+                      disabled={isLastSection}
+                      className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                      title="Move Down"
+                    >
+                      ⬇️
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        renameSection(sectionId as InspectionSection);
+                      }}
+                      className="px-3 py-1 bg-purple-600 text-white rounded text-sm hover:bg-purple-700"
+                      title="Rename"
+                    >
+                      ✏️ Rename
+                    </button>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -997,6 +1287,8 @@ export default function VisualTemplateEditor() {
                       const isItemExpanded = expandedItem === itemKey;
                       const itemDefects = item.defectTypes || template.defectTypes || [];
                       const usingCustomDefects = !!item.defectTypes;
+                      const isFirstItem = itemIndex === 0;
+                      const isLastItem = itemIndex === section.items.length - 1;
 
                       return (
                         <div
@@ -1028,6 +1320,28 @@ export default function VisualTemplateEditor() {
                               </div>
                             </div>
                             <div className="flex gap-2">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  moveItemUp(sectionId as InspectionSection, itemIndex);
+                                }}
+                                disabled={isFirstItem}
+                                className="px-2 py-1 text-blue-600 hover:text-blue-700 text-sm disabled:text-gray-300 disabled:cursor-not-allowed"
+                                title="Move Up"
+                              >
+                                ⬆️
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  moveItemDown(sectionId as InspectionSection, itemIndex);
+                                }}
+                                disabled={isLastItem}
+                                className="px-2 py-1 text-blue-600 hover:text-blue-700 text-sm disabled:text-gray-300 disabled:cursor-not-allowed"
+                                title="Move Down"
+                              >
+                                ⬇️
+                              </button>
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -1084,17 +1398,50 @@ export default function VisualTemplateEditor() {
                                 </div>
                               </div>
 
-                              <div className="grid grid-cols-2 gap-2">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                                 {itemDefects.map((defect, defectIndex) => {
                                   const defectName =
                                     typeof defect === 'string'
                                       ? defect
                                       : (defect as any).en;
+                                  const isFirst = defectIndex === 0;
+                                  const isLast = defectIndex === itemDefects.length - 1;
+
                                   return (
                                     <div
                                       key={defectIndex}
-                                      className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded p-2"
+                                      className="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded p-2"
                                     >
+                                      <div className="flex gap-1">
+                                        <button
+                                          onClick={() =>
+                                            moveItemDefectTypeUp(
+                                              sectionId as InspectionSection,
+                                              itemIndex,
+                                              defectIndex
+                                            )
+                                          }
+                                          disabled={isFirst}
+                                          className="text-blue-600 hover:text-blue-700 disabled:text-gray-300 disabled:cursor-not-allowed text-xs"
+                                          title="Move Up"
+                                        >
+                                          ⬆️
+                                        </button>
+                                        <button
+                                          onClick={() =>
+                                            moveItemDefectTypeDown(
+                                              sectionId as InspectionSection,
+                                              itemIndex,
+                                              defectIndex
+                                            )
+                                          }
+                                          disabled={isLast}
+                                          className="text-blue-600 hover:text-blue-700 disabled:text-gray-300 disabled:cursor-not-allowed text-xs"
+                                          title="Move Down"
+                                        >
+                                          ⬇️
+                                        </button>
+                                      </div>
                                       <div className="flex-1 text-sm text-gray-900">
                                         {defectName}
                                       </div>
