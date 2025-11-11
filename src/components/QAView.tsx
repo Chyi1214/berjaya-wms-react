@@ -6,17 +6,19 @@ import QAStockView from './qa/stock/QAStockView';
 import { ElaMenu } from './ela/ElaMenu';
 import { ElaChat } from './ela/ElaChat';
 import { TranslationChannels } from './chat/TranslationChannels';
+import { useAuth } from '../contexts/AuthContext';
 
 type QATabType = 'inspection' | 'stock';
 
 const QAView: React.FC<QAViewProps> = ({ user, onBack }) => {
+  const { getUserDisplayName } = useAuth();
   const [activeTab, setActiveTab] = useState<QATabType>('inspection');
   const [showElaMenu, setShowElaMenu] = useState(false);
   const [showElaChat, setShowElaChat] = useState(false);
   const [showTranslationChannels, setShowTranslationChannels] = useState(false);
 
-  // Get user display name or email
-  const userName = user.displayName || user.email || 'QA Worker';
+  // Get user display name from auth context (includes custom display name)
+  const userName = getUserDisplayName();
 
   return (
     <div className="min-h-screen bg-gray-50">
