@@ -2,13 +2,22 @@
 import { useState, useEffect } from 'react';
 import { qaLocationService } from '../../services/qaLocationService';
 import { carTrackingService } from '../../services/carTrackingService';
+import { inspectionService } from '../../services/inspectionService';
 import type { Car } from '../../types/production';
+import type { CarInspection, InspectionItemResult, AdditionalDefect } from '../../types/inspection';
 import { createModuleLogger } from '../../services/logger';
 import { InspectionResultsModal } from '../qa/stock/InspectionResultsModal';
 import { AssignLocationModal } from '../qa/inspection/AssignLocationModal';
 import { useAuth } from '../../contexts/AuthContext';
 
 const logger = createModuleLogger('QAStockManager');
+
+// Defect stats for a car
+interface DefectStats {
+  totalDefects: number;
+  resolvedDefects: number;
+  unresolvedDefects: number;
+}
 
 export default function QAStockManager() {
   const { user } = useAuth();
@@ -19,6 +28,8 @@ export default function QAStockManager() {
   const [selectedVINForResults, setSelectedVINForResults] = useState<string | null>(null);
   const [showAssignLocationModal, setShowAssignLocationModal] = useState(false);
   const [deletingVIN, setDeletingVIN] = useState<string | null>(null);
+  const [defectStatsMap, setDefectStatsMap] = useState<Map<string, DefectStats>>(new Map());
+  const [defectFilter, setDefectFilter] = useState<'all' | 'has_defects' | 'all_fixed'>('all');
 
   useEffect(() => {
     loadData();
@@ -31,11 +42,64 @@ export default function QAStockManager() {
     return () => unsubscribe();
   }, []);
 
+  // Calculate defect stats from inspections
+  const calculateDefectStats = (inspections: CarInspection[]): DefectStats => {
+    let totalDefects = 0;
+    let resolvedDefects = 0;
+
+    inspections.forEach(inspection => {
+      Object.values(inspection.sections).forEach(section => {
+        Object.values(section.results).forEach((result: InspectionItemResult) => {
+          // Count main defect if not Ok
+          if (result.defectType !== 'Ok') {
+            totalDefects++;
+            if (result.status === 'Resolved') {
+              resolvedDefects++;
+            }
+          }
+
+          // Count additional defects
+          if (result.additionalDefects) {
+            result.additionalDefects.forEach((additional: AdditionalDefect) => {
+              totalDefects++;
+              if (additional.status === 'Resolved') {
+                resolvedDefects++;
+              }
+            });
+          }
+        });
+      });
+    });
+
+    return {
+      totalDefects,
+      resolvedDefects,
+      unresolvedDefects: totalDefects - resolvedDefects
+    };
+  };
+
   const loadData = async () => {
     setIsLoading(true);
     try {
       const carsData = await qaLocationService.getAllCarsInQA();
       setCars(carsData);
+
+      // Load defect stats for each car
+      const statsMap = new Map<string, DefectStats>();
+      await Promise.all(
+        carsData.map(async (car) => {
+          try {
+            const inspections = await inspectionService.getInspectionsByVIN(car.vin);
+            const stats = calculateDefectStats(inspections);
+            statsMap.set(car.vin, stats);
+          } catch (error) {
+            logger.error('Failed to load defect stats for car:', { vin: car.vin, error });
+            statsMap.set(car.vin, { totalDefects: 0, resolvedDefects: 0, unresolvedDefects: 0 });
+          }
+        })
+      );
+      setDefectStatsMap(statsMap);
+
       logger.info('QA Stock loaded', { carsCount: carsData.length });
     } catch (error) {
       logger.error('Failed to load QA stock:', error);
@@ -108,7 +172,7 @@ export default function QAStockManager() {
     }
   };
 
-  // Filter cars based on search and location
+  // Filter cars based on search, location, and defect status
   const filteredCars = cars.filter(car => {
     const matchesSearch = searchVIN === '' ||
       car.vin.toLowerCase().includes(searchVIN.toLowerCase());
@@ -116,7 +180,16 @@ export default function QAStockManager() {
     const matchesLocation = selectedLocation === 'all' ||
       car.qaLocation === selectedLocation;
 
-    return matchesSearch && matchesLocation;
+    // Defect filter
+    const stats = defectStatsMap.get(car.vin);
+    let matchesDefectFilter = true;
+    if (defectFilter === 'has_defects' && stats) {
+      matchesDefectFilter = stats.unresolvedDefects > 0;
+    } else if (defectFilter === 'all_fixed' && stats) {
+      matchesDefectFilter = stats.totalDefects > 0 && stats.unresolvedDefects === 0;
+    }
+
+    return matchesSearch && matchesLocation && matchesDefectFilter;
   });
 
   // Get unique location names from cars
@@ -178,9 +251,9 @@ export default function QAStockManager() {
 
       {/* Search and Filter Bar */}
       <div className="bg-white rounded-lg shadow p-4 mb-6">
-        <div className="flex gap-4 flex-wrap">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Search by VIN */}
-          <div className="flex-1 min-w-[200px]">
+          <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Search by VIN
             </label>
@@ -188,15 +261,15 @@ export default function QAStockManager() {
               type="text"
               value={searchVIN}
               onChange={(e) => setSearchVIN(e.target.value)}
-              placeholder="Enter VIN to search..."
+              placeholder="Enter VIN..."
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
 
           {/* Filter by Location */}
-          <div className="w-64">
+          <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Filter by Location
+              Location
             </label>
             <select
               value={selectedLocation}
@@ -212,20 +285,37 @@ export default function QAStockManager() {
             </select>
           </div>
 
+          {/* Filter by Defect Status */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Defect Status
+            </label>
+            <select
+              value={defectFilter}
+              onChange={(e) => setDefectFilter(e.target.value as any)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="all">All Cars</option>
+              <option value="has_defects">Has Unfixed Defects</option>
+              <option value="all_fixed">All Defects Fixed</option>
+            </select>
+          </div>
+
           {/* Clear Filters Button */}
-          {(searchVIN || selectedLocation !== 'all') && (
-            <div className="flex items-end">
+          <div className="flex items-end">
+            {(searchVIN || selectedLocation !== 'all' || defectFilter !== 'all') && (
               <button
                 onClick={() => {
                   setSearchVIN('');
                   setSelectedLocation('all');
+                  setDefectFilter('all');
                 }}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+                className="w-full px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
               >
                 Clear Filters
               </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
 
@@ -257,7 +347,8 @@ export default function QAStockManager() {
         </div>
       ) : (
         <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* Desktop Table View */}
+          <div className="hidden lg:block overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
@@ -265,22 +356,16 @@ export default function QAStockManager() {
                     VIN
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Type
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Color
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Series
+                    Car Info
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     QA Location
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Time in Location
+                    Time
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Assigned By
+                    Defects
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
@@ -288,58 +373,158 @@ export default function QAStockManager() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {filteredCars.map((car) => (
-                  <tr key={car.vin} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-mono font-medium text-gray-900">
-                        {car.vin}
+                {filteredCars.map((car) => {
+                  const stats = defectStatsMap.get(car.vin);
+                  const isAllFixed = stats && stats.totalDefects > 0 && stats.unresolvedDefects === 0;
+
+                  return (
+                    <tr
+                      key={car.vin}
+                      className={`transition-colors ${
+                        isAllFixed
+                          ? 'bg-green-50 hover:bg-green-100'
+                          : 'hover:bg-gray-50'
+                      }`}
+                    >
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-mono font-medium text-gray-900">
+                          {car.vin}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">{car.type}</div>
+                        <div className="text-xs text-gray-500">{car.color} • {car.series}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="inline-flex px-3 py-1 text-sm font-semibold rounded-full bg-purple-100 text-purple-800">
+                          📍 {car.qaLocation}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">
+                          {getTimeInLocation(car.qaLocationAssignedAt)}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {car.qaLocationAssignedByName || car.qaLocationAssignedBy?.split('@')[0] || '-'}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {stats ? (
+                          <div className="flex items-center gap-2">
+                            <span className={`inline-flex items-center px-3 py-1 text-sm font-bold rounded-full ${
+                              stats.totalDefects === 0
+                                ? 'bg-gray-100 text-gray-600'
+                                : stats.unresolvedDefects === 0
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-red-100 text-red-800'
+                            }`}>
+                              {stats.unresolvedDefects === 0 && stats.totalDefects > 0 && '✓ '}
+                              {stats.resolvedDefects}/{stats.totalDefects}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-sm text-gray-400">-</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right">
+                        <div className="flex flex-col gap-1">
+                          <button
+                            onClick={() => setSelectedVINForResults(car.vin)}
+                            className="text-blue-600 hover:text-blue-900 font-medium text-sm hover:underline"
+                          >
+                            View Results
+                          </button>
+                          <button
+                            onClick={() => handleDeleteCar(car.vin)}
+                            disabled={deletingVIN === car.vin}
+                            className={`text-red-600 hover:text-red-900 font-medium text-sm hover:underline ${
+                              deletingVIN === car.vin ? 'opacity-50 cursor-not-allowed' : ''
+                            }`}
+                          >
+                            {deletingVIN === car.vin ? 'Deleting...' : 'Delete'}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mobile Card View */}
+          <div className="lg:hidden divide-y divide-gray-200">
+            {filteredCars.map((car) => {
+              const stats = defectStatsMap.get(car.vin);
+              const isAllFixed = stats && stats.totalDefects > 0 && stats.unresolvedDefects === 0;
+
+              return (
+                <div
+                  key={car.vin}
+                  className={`p-4 ${isAllFixed ? 'bg-green-50' : 'bg-white'}`}
+                >
+                  <div className="space-y-3">
+                    {/* VIN and Status */}
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="text-sm font-mono font-bold text-gray-900">
+                          {car.vin}
+                        </div>
+                        <div className="text-sm text-gray-600 mt-1">
+                          {car.type} • {car.color} • {car.series}
+                        </div>
                       </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{car.type}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{car.color}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{car.series}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                      {stats && (
+                        <span className={`inline-flex items-center px-3 py-1 text-sm font-bold rounded-full ${
+                          stats.totalDefects === 0
+                            ? 'bg-gray-100 text-gray-600'
+                            : stats.unresolvedDefects === 0
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {stats.unresolvedDefects === 0 && stats.totalDefects > 0 && '✓ '}
+                          {stats.resolvedDefects}/{stats.totalDefects}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Location and Time */}
+                    <div className="flex flex-wrap items-center gap-2">
                       <span className="inline-flex px-3 py-1 text-sm font-semibold rounded-full bg-purple-100 text-purple-800">
                         📍 {car.qaLocation}
                       </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
+                      <span className="text-sm text-gray-600">
                         {getTimeInLocation(car.qaLocationAssignedAt)}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-600">
-                        {car.qaLocationAssignedByName || car.qaLocationAssignedBy?.split('@')[0] || '-'}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right space-x-2">
+                      </span>
+                    </div>
+
+                    {/* Assigned by */}
+                    <div className="text-xs text-gray-500">
+                      By: {car.qaLocationAssignedByName || car.qaLocationAssignedBy?.split('@')[0] || '-'}
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex gap-2 pt-2 border-t border-gray-200">
                       <button
                         onClick={() => setSelectedVINForResults(car.vin)}
-                        className="text-blue-600 hover:text-blue-900 font-medium text-sm hover:underline"
+                        className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
                       >
                         View Results
                       </button>
                       <button
                         onClick={() => handleDeleteCar(car.vin)}
                         disabled={deletingVIN === car.vin}
-                        className={`text-red-600 hover:text-red-900 font-medium text-sm hover:underline ${
+                        className={`px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium ${
                           deletingVIN === car.vin ? 'opacity-50 cursor-not-allowed' : ''
                         }`}
                       >
-                        {deletingVIN === car.vin ? 'Deleting...' : 'Delete'}
+                        {deletingVIN === car.vin ? '⏳' : '🗑️'}
                       </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -387,8 +572,14 @@ export default function QAStockManager() {
           onClose={() => setShowAssignLocationModal(false)}
           onSuccess={(vin, locationName) => {
             logger.info('Location assigned successfully', { vin, locationName });
+            // Close assign modal
+            setShowAssignLocationModal(false);
             // Reload the data to show the newly assigned car
             loadData();
+            // Auto-open inspection results for this car
+            setTimeout(() => {
+              setSelectedVINForResults(vin);
+            }, 500);
           }}
         />
       )}
