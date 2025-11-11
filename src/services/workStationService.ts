@@ -375,6 +375,19 @@ class WorkStationService {
   private async createDefaultWorkStation(zoneId: number): Promise<WorkStation> {
     const defaultStation: WorkStation = {
       zoneId,
+      status: 'paused' as any, // Temporary until migration to V5
+      causedStopTime: {
+        current: 0,
+        total: 0,
+        starveTimeBlame: 0,
+        blockTimeBlame: 0,
+      },
+      timeAccumulation: {
+        workTime: 0,
+        starveTime: 0,
+        blockTime: 0,
+        lastCalculatedAt: new Date(),
+      },
       carsProcessedToday: 0,
       averageProcessingTime: 0,
       lastUpdated: new Date()

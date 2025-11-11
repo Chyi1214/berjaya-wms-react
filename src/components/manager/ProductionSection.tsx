@@ -17,6 +17,7 @@ import {
   getProductionStats
 } from './production';
 import { CarTrackingSection } from './production/CarTrackingSection';
+import { ProductionMonitorV5 } from './production/ProductionMonitorV5';
 
 interface ProductionSectionProps {
   activeTab: ManagerTab;
@@ -186,6 +187,11 @@ export function ProductionSection({ activeTab, onTabChange }: ProductionSectionP
       {/* Car Tracking Tab */}
       {activeTab === 'car_tracking' && (
         <CarTrackingSection />
+      )}
+
+      {/* Takt Time Tab - V8.0.0 */}
+      {activeTab === 'takt_time' && (
+        <ProductionMonitorV5 />
       )}
 
       <CarDetailModal car={selectedCar} onClose={() => setSelectedCar(null)} />

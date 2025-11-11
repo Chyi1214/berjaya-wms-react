@@ -11,6 +11,7 @@ import ZoneStatusDisplay from './production/ZoneStatusDisplay';
 import WasteLostDefectView from './common/WasteLostDefectView';
 import ProductionLineView from './production/ProductionLineView';
 import ProductionInfoBoard from './production/ProductionInfoBoard';
+import ProductionWorkerV5 from './production/ProductionWorkerV5';
 import { ElaMenu } from './ela/ElaMenu';
 import { ElaChat } from './ela/ElaChat';
 import PersonalSettings from './PersonalSettings';
@@ -38,7 +39,7 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
   const { t } = useLanguage();
   const { authenticatedUser } = useAuth();
   const [selectedZone, setSelectedZone] = useState<number | null>(null);
-  const [selectedAction, setSelectedAction] = useState<'menu' | 'check' | 'transaction' | 'scan_car' | 'complete_car' | 'info_board' | 'waste_lost' | 'tasks'>('menu');
+  const [selectedAction, setSelectedAction] = useState<'menu' | 'check' | 'transaction' | 'scan_car' | 'complete_car' | 'info_board' | 'waste_lost' | 'tasks' | 'production_v5'>('menu');
   const [refreshKey, setRefreshKey] = useState(0);
   const [showElaMenu, setShowElaMenu] = useState(false);
   const [showElaChat, setShowElaChat] = useState(false);
@@ -412,6 +413,17 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
               {/* iPhone App Style Action Menu */}
               <div className="grid grid-cols-4 gap-4 max-w-lg mx-auto">
 
+                {/* Production V5 - Flying Car System */}
+                <div className="text-center">
+                  <button
+                    onClick={() => setSelectedAction('production_v5')}
+                    className="w-16 h-16 rounded-2xl bg-gradient-to-br from-green-400 to-green-600 shadow-lg transition-all duration-200 transform hover:scale-105 active:scale-95"
+                  >
+                    <div className="text-white text-2xl">🏭</div>
+                  </button>
+                  <p className="text-xs text-gray-700 mt-1 font-medium">Production</p>
+                </div>
+
                 {/* Task App Button */}
                 <div className="text-center">
                   <button
@@ -750,7 +762,9 @@ export function ProductionView({ user, onBack, onCountSubmit, counts, onClearCou
             </>
           )}
 
-
+          {selectedAction === 'production_v5' && (
+            <ProductionWorkerV5 zoneId={selectedZone!} />
+          )}
 
         </div>
       </main>

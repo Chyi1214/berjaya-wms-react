@@ -1,12 +1,37 @@
 // Production, Car Tracking, and Quality Assurance Types for Berjaya WMS
 
-// Version 4.0 Types - Car Tracking and Production Line Management
+// Version 5.0 Types - Takt Time Production System with Flying Car and Attribution
+
+// Production System State - ON/OFF toggle for break times
+export interface ProductionSystemState {
+  isOn: boolean;
+  lastToggledAt: Date;
+  lastToggledBy: string;
+  lastToggledByName: string;
+  todayOnTime: number;      // Total minutes ON today
+  todayOffTime: number;     // Total minutes OFF today
+  onOffHistory: Array<{     // Event log
+    timestamp: Date;
+    action: 'turn_on' | 'turn_off';
+    by: string;
+    byName: string;
+  }>;
+}
+
+// Zone Status - Work, Starve, or Block
+export enum ZoneStatus {
+  WORK = 'work',       // Zone has car being worked on
+  STARVE = 'starve',   // Zone empty, previous zone has no flying car
+  BLOCK = 'block',     // Zone empty, previous zone has flying car
+  PAUSED = 'paused'    // System is OFF
+}
 
 // Car Status Enum
 export enum CarStatus {
   IN_PRODUCTION = 'in_production',
   COMPLETED = 'completed',
-  ON_HOLD = 'on_hold'
+  ON_HOLD = 'on_hold',
+  IN_MAINTENANCE = 'in_maintenance'  // Car in CP7/CP8 maintenance zone
 }
 
 // Zone History Entry - tracks car movement through zones
@@ -46,17 +71,27 @@ export interface Car {
   estimatedCompletion?: Date;   // Based on historical data
 }
 
-// Work Station Status - Real-time zone information
+// Work Station Status - Real-time zone information (v5.0 Takt Time System)
 export interface WorkStation {
-  zoneId: number;           // Zone 1-23
+  zoneId: number;           // Zone 1-23 or 'maintenance' for CP7/CP8
+
+  // Current cars in zone
   currentCar?: {            // Car currently being worked on
     vin: string;
     type: string;
     color: string;
     enteredAt: Date;
-    timeElapsed: number;    // Minutes since car entered zone
+    timeElapsed: number;    // Minutes since car entered zone (excluding OFF time)
   };
-  
+
+  flyingCar?: {             // Car completed, waiting to be accepted by next zone
+    vin: string;
+    type: string;
+    color: string;
+    completedAt: Date;
+    flyingTime: number;     // Minutes waiting (excluding OFF time)
+  };
+
   // Worker information
   currentWorker?: {
     email: string;
@@ -64,11 +99,31 @@ export interface WorkStation {
     checkedInAt: Date;
     timeWorking: number;    // Minutes checked in
   };
-  
+
+  // Zone status
+  status: ZoneStatus;       // work, starve, block, paused
+
+  // Attribution tracking - time this zone caused line stoppage
+  causedStopTime: {
+    current: number;        // Current accumulation (resets when car completes)
+    total: number;          // Historical total
+    lastResetAt?: Date;     // When last reset
+    starveTimeBlame: number;  // Time blamed for causing starve
+    blockTimeBlame: number;   // Time blamed for causing block
+  };
+
+  // Time accumulation (stacked bar graph data)
+  timeAccumulation: {
+    workTime: number;       // Time spent working
+    starveTime: number;     // Time spent starved
+    blockTime: number;      // Time spent blocked
+    lastCalculatedAt: Date; // When last calculated
+  };
+
   // Zone statistics
   carsProcessedToday: number;
   averageProcessingTime: number; // Minutes per car
-  averageResetAt?: Date;         // When averages were last reset (v5.8)
+  averageResetAt?: Date;         // When averages were last reset
   lastUpdated: Date;
 }
 

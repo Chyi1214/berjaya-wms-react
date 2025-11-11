@@ -8,7 +8,12 @@ interface ProductionInfoBoardProps {
   className?: string;
 }
 
-interface ZoneInfo extends WorkStation {
+interface ZoneInfo {
+  zoneId: number;
+  currentCar?: WorkStation['currentCar'];
+  currentWorker?: WorkStation['currentWorker'];
+  carsProcessedToday: number;
+  averageProcessingTime: number;
   avgTimeToday: number;
   currentDuration: number;
   status: 'available' | 'occupied' | 'problem';

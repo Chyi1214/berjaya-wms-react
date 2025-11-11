@@ -152,10 +152,16 @@ service cloud.firestore {
     match /workStations/{zoneId} {
       allow read: if isActiveUser();  // All users can read station status
       allow create, update: if isActiveUser() && (
-        hasRole('production') || hasRole('logistics') || 
+        hasRole('production') || hasRole('logistics') ||
         hasRole('supervisor') || hasRole('manager')
       );
       allow delete: if isDevAdmin();
+    }
+
+    // Production System - V8.0.0 Takt Time system ON/OFF state
+    match /productionSystem/{document} {
+      allow read: if isActiveUser();  // All users can see system ON/OFF status
+      allow write: if isDevAdmin() || hasRole('manager');  // Only managers can toggle ON/OFF
     }
     
     // Worker activities - Clock in/out tracking

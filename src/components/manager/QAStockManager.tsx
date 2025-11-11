@@ -570,16 +570,16 @@ export default function QAStockManager() {
           userEmail={user.email || ''}
           userName={user.displayName || user.email?.split('@')[0] || 'User'}
           onClose={() => setShowAssignLocationModal(false)}
-          onSuccess={(vin, locationName) => {
+          onSuccess={async (vin, locationName) => {
             logger.info('Location assigned successfully', { vin, locationName });
             // Close assign modal
             setShowAssignLocationModal(false);
-            // Reload the data to show the newly assigned car
+            // Wait a moment for modal to close
+            await new Promise(resolve => setTimeout(resolve, 300));
+            // Open inspection results modal
+            setSelectedVINForResults(vin);
+            // Reload the data in background
             loadData();
-            // Auto-open inspection results for this car
-            setTimeout(() => {
-              setSelectedVINForResults(vin);
-            }, 500);
           }}
         />
       )}
