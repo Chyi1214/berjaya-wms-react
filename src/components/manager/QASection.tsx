@@ -5,12 +5,13 @@ import QAInspectionAnalytics from '../qa/inspection/QAInspectionAnalytics';
 import { DefectLocationAnalytics } from '../qa/inspection/DefectLocationAnalytics';
 import ChecklistConfiguration from '../qa/config/ChecklistConfiguration';
 import QALocationsConfig from '../qa/config/QALocationsConfig';
+import QAStockManager from './QAStockManager';
 
 interface QASectionProps {
   onRefresh?: () => void;
 }
 
-type QATabType = 'manager' | 'analytics' | 'locations' | 'qaLocations' | 'configuration';
+type QATabType = 'manager' | 'analytics' | 'locations' | 'qaLocations' | 'stock' | 'configuration';
 
 export function QASection({ onRefresh: _onRefresh }: QASectionProps) {
   const [activeTab, setActiveTab] = useState<QATabType>('manager');
@@ -61,6 +62,16 @@ export function QASection({ onRefresh: _onRefresh }: QASectionProps) {
             QA Locations
           </button>
           <button
+            onClick={() => setActiveTab('stock')}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              activeTab === 'stock'
+                ? 'bg-blue-600 text-white'
+                : 'bg-white text-gray-700 hover:bg-gray-100'
+            }`}
+          >
+            Stock Management
+          </button>
+          <button
             onClick={() => setActiveTab('configuration')}
             className={`px-4 py-2 rounded-lg font-medium transition-colors ${
               activeTab === 'configuration'
@@ -79,6 +90,7 @@ export function QASection({ onRefresh: _onRefresh }: QASectionProps) {
         {activeTab === 'analytics' && <QAInspectionAnalytics />}
         {activeTab === 'locations' && <DefectLocationAnalytics />}
         {activeTab === 'qaLocations' && <QALocationsConfig />}
+        {activeTab === 'stock' && <QAStockManager />}
         {activeTab === 'configuration' && <ChecklistConfiguration />}
       </div>
     </div>

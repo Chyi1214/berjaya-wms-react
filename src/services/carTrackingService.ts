@@ -10,7 +10,8 @@ import {
   orderBy,
   where,
   Timestamp,
-  addDoc
+  addDoc,
+  deleteDoc
 } from './costTracking/firestoreWrapper';
 import { runTransaction } from 'firebase/firestore';
 import { db } from './firebase';
@@ -212,6 +213,10 @@ class CarTrackingService {
         movementType: 'scan_in'
       });
 
+      // Step 7: Recalculate zone statuses for V5 system
+      const { workStationServiceV5 } = await import('./workStationServiceV5');
+      await workStationServiceV5.recalculateAllZoneStatuses();
+
       logger.info('Atomic car scan-in succeeded:', { vin, zoneId });
     } catch (error) {
       logger.error('Failed atomic car scan-in:', { error });
@@ -386,6 +391,10 @@ class CarTrackingService {
         timeInPreviousZone: currentZoneEntry?.timeSpent,
         notes
       });
+
+      // Step 7: Recalculate zone statuses for V5 system
+      const { workStationServiceV5 } = await import('./workStationServiceV5');
+      await workStationServiceV5.recalculateAllZoneStatuses();
 
       logger.info('Atomic car completion succeeded:', { vin, zoneId });
     } catch (error) {
@@ -884,6 +893,50 @@ class CarTrackingService {
     } catch (error) {
       logger.error('Failed to cleanup ghost cars:', { error });
       return { fixed: 0, issues: [`Error: ${error instanceof Error ? error.message : String(error)}`] };
+    }
+  }
+
+  // Delete car from system
+  async deleteCar(vin: string, deletedBy: string): Promise<void> {
+    try {
+      const vinUpper = vin.toUpperCase();
+
+      // First, check if car exists
+      const car = await this.getCarByVIN(vinUpper);
+      if (!car) {
+        throw new Error(`Car with VIN ${vinUpper} not found in system`);
+      }
+
+      // Check if car is currently in a zone (safety check)
+      if (car.currentZone !== null) {
+        logger.warn('Deleting car that is still in a zone', { vin: vinUpper, currentZone: car.currentZone });
+      }
+
+      // Delete the car document
+      const docRef = doc(this.carsCollection, vinUpper);
+      await deleteDoc(docRef);
+
+      // Log deletion for audit trail
+      logger.info('Car deleted from system', {
+        vin: vinUpper,
+        deletedBy,
+        wasInZone: car.currentZone !== null,
+        status: car.status
+      });
+
+      // Also log a movement record for audit trail
+      await addDoc(this.movementsCollection, {
+        vin: vinUpper,
+        action: 'deleted',
+        deletedBy,
+        timestamp: new Date(),
+        previousStatus: car.status,
+        previousZone: car.currentZone
+      });
+
+    } catch (error) {
+      logger.error('Failed to delete car:', { vin, error });
+      throw error;
     }
   }
 }
