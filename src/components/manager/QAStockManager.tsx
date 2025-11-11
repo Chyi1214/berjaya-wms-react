@@ -42,6 +42,11 @@ export default function QAStockManager() {
     return () => unsubscribe();
   }, []);
 
+  // Debug: Log when inspection modal VIN changes
+  useEffect(() => {
+    console.log('[QAStockManager] selectedVINForResults changed to:', selectedVINForResults);
+  }, [selectedVINForResults]);
+
   // Calculate defect stats from inspections
   const calculateDefectStats = (inspections: CarInspection[]): DefectStats => {
     let totalDefects = 0;
@@ -569,17 +574,22 @@ export default function QAStockManager() {
         <AssignLocationModal
           userEmail={user.email || ''}
           userName={user.displayName || user.email?.split('@')[0] || 'User'}
-          onClose={() => setShowAssignLocationModal(false)}
-          onSuccess={async (vin, locationName) => {
-            logger.info('Location assigned successfully', { vin, locationName });
-            // Close assign modal
+          onClose={() => {
+            console.log('[QAStockManager] onClose called - closing assign location modal');
             setShowAssignLocationModal(false);
-            // Wait a moment for modal to close
-            await new Promise(resolve => setTimeout(resolve, 300));
-            // Open inspection results modal
-            setSelectedVINForResults(vin);
-            // Reload the data in background
-            loadData();
+          }}
+          onSuccess={(vin, locationName) => {
+            console.log('[QAStockManager] onSuccess called', { vin, locationName });
+            logger.info('Location assigned successfully', { vin, locationName });
+            // The modal will close itself after 2 seconds
+            // Wait for it to close, then open inspection results
+            console.log('[QAStockManager] Setting timeout to open inspection modal in 2.1 seconds...');
+            setTimeout(() => {
+              console.log('[QAStockManager] Timeout fired! Opening inspection modal for VIN:', vin);
+              setShowAssignLocationModal(false);
+              setSelectedVINForResults(vin);
+              loadData();
+            }, 2100); // Wait slightly longer than modal's 2 second delay
           }}
         />
       )}
