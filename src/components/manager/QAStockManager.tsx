@@ -581,15 +581,15 @@ export default function QAStockManager() {
           onSuccess={(vin, locationName) => {
             console.log('[QAStockManager] onSuccess called', { vin, locationName });
             logger.info('Location assigned successfully', { vin, locationName });
-            // The modal will close itself after 2 seconds
-            // Wait for it to close, then open inspection results
-            console.log('[QAStockManager] Setting timeout to open inspection modal in 2.1 seconds...');
+            // Open inspection results quickly
+            console.log('[QAStockManager] Opening inspection modal immediately');
+            setShowAssignLocationModal(false);
+            // Small delay to let modal close smoothly
             setTimeout(() => {
-              console.log('[QAStockManager] Timeout fired! Opening inspection modal for VIN:', vin);
-              setShowAssignLocationModal(false);
+              console.log('[QAStockManager] Opening inspection modal for VIN:', vin);
               setSelectedVINForResults(vin);
               loadData();
-            }, 2100); // Wait slightly longer than modal's 2 second delay
+            }, 500);
           }}
         />
       )}

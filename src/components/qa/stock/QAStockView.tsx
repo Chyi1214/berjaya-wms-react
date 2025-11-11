@@ -314,11 +314,22 @@ export default function QAStockView() {
         <AssignLocationModal
           userEmail={user.email || ''}
           userName={user.displayName || user.email?.split('@')[0] || 'User'}
-          onClose={() => setShowAssignLocationModal(false)}
+          onClose={() => {
+            console.log('[QAStockView] onClose called - closing assign location modal');
+            setShowAssignLocationModal(false);
+          }}
           onSuccess={(vin, locationName) => {
+            console.log('[QAStockView] onSuccess called', { vin, locationName });
             logger.info('Location assigned successfully', { vin, locationName });
-            // Reload the data to show the newly assigned car
-            loadData();
+            // Open inspection results quickly
+            console.log('[QAStockView] Opening inspection modal immediately');
+            setShowAssignLocationModal(false);
+            // Small delay to let modal close smoothly
+            setTimeout(() => {
+              console.log('[QAStockView] Opening inspection modal for VIN:', vin);
+              setSelectedVINForResults(vin);
+              loadData();
+            }, 500);
           }}
         />
       )}

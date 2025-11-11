@@ -107,10 +107,10 @@ export function AssignLocationModal({ userEmail, userName, onClose, onSuccess }:
         onSuccess(vinToAssign, selectedLocation.name);
       }
 
-      // Close after 2 seconds
+      // Close after 0.8 seconds for faster response
       setTimeout(() => {
         onClose();
-      }, 2000);
+      }, 800);
 
     } catch (err: any) {
       logger.error('Failed to assign location:', err);
