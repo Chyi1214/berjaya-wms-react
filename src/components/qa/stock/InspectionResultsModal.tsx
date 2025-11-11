@@ -26,7 +26,21 @@ export function InspectionResultsModal({ vin, onClose }: InspectionResultsModalP
     additionalDefectIndex?: number;
   } | null>(null);
   const [resolutionNote, setResolutionNote] = useState('');
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
   const { authenticatedUser, getUserDisplayName } = useAuth();
+
+  // Toggle section collapse
+  const toggleSection = (sectionId: string) => {
+    setCollapsedSections(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(sectionId)) {
+        newSet.delete(sectionId);
+      } else {
+        newSet.add(sectionId);
+      }
+      return newSet;
+    });
+  };
 
   useEffect(() => {
     loadInspections();
@@ -395,18 +409,36 @@ export function InspectionResultsModal({ vin, onClose }: InspectionResultsModalP
                     {Object.entries(selectedInspection.sections).map(([sectionId, sectionData]) => {
                       const defectCount = countDefects(sectionData.results);
                       const itemCount = Object.keys(sectionData.results).length;
+                      const isCollapsed = collapsedSections.has(sectionId);
+
+                      // Sort items: defects first, then OK items
+                      const sortedItems = Object.entries(sectionData.results).sort(([, a], [, b]) => {
+                        const aIsDefect = a.defectType !== 'Ok';
+                        const bIsDefect = b.defectType !== 'Ok';
+                        if (aIsDefect && !bIsDefect) return -1;
+                        if (!aIsDefect && bIsDefect) return 1;
+                        return 0;
+                      });
 
                       return (
                         <div key={sectionId} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-                          {/* Section Header */}
-                          <div className="bg-gray-50 p-3 md:p-4 border-b border-gray-200">
+                          {/* Section Header - Clickable to collapse/expand */}
+                          <div
+                            className="bg-gray-50 p-3 md:p-4 border-b border-gray-200 cursor-pointer hover:bg-gray-100 transition-colors"
+                            onClick={() => toggleSection(sectionId)}
+                          >
                             <div className="flex items-center justify-between">
-                              <div>
-                                <h4 className="font-semibold text-gray-900 capitalize">
-                                  {sectionId.replace(/_/g, ' ')}
-                                </h4>
-                                <div className="text-sm text-gray-600 mt-1">
-                                  Inspector: {sectionData.inspectorName || sectionData.inspector || '-'}
+                              <div className="flex items-center gap-3">
+                                <button className="text-gray-600 hover:text-gray-900 transition-colors">
+                                  {isCollapsed ? '▶' : '▼'}
+                                </button>
+                                <div>
+                                  <h4 className="font-semibold text-gray-900 capitalize">
+                                    {sectionId.replace(/_/g, ' ')}
+                                  </h4>
+                                  <div className="text-sm text-gray-600 mt-1">
+                                    Inspector: {sectionData.inspectorName || sectionData.inspector || '-'}
+                                  </div>
                                 </div>
                               </div>
                               <div className="text-right">
@@ -414,20 +446,24 @@ export function InspectionResultsModal({ vin, onClose }: InspectionResultsModalP
                                   {sectionData.status}
                                 </span>
                                 <div className="text-sm text-gray-600 mt-1">
-                                  {defectCount} defect{defectCount !== 1 ? 's' : ''} / {itemCount} items
+                                  {defectCount > 0 && (
+                                    <span className="text-red-600 font-bold">{defectCount} defect{defectCount !== 1 ? 's' : ''}</span>
+                                  )}
+                                  {defectCount > 0 && ' / '}
+                                  {itemCount} items
                                 </div>
                               </div>
                             </div>
                           </div>
 
-                          {/* Section Items */}
-                          {sectionData.status !== 'not_started' && (
+                          {/* Section Items - Hidden when collapsed */}
+                          {!isCollapsed && sectionData.status !== 'not_started' && (
                             <div className="p-4">
                               {Object.keys(sectionData.results).length === 0 ? (
                                 <p className="text-gray-500 text-center py-4">No items checked yet</p>
                               ) : (
                                 <div className="space-y-3">
-                                  {Object.entries(sectionData.results).map(([itemName, result]) => {
+                                  {sortedItems.map(([itemName, result]) => {
                                     const defectKey = `${sectionId}_${itemName}_main`;
                                     const isResolved = result.status === 'Resolved';
                                     const isDefect = result.defectType !== 'Ok';

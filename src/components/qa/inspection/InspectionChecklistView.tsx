@@ -649,7 +649,7 @@ const InspectionChecklistView: React.FC<InspectionChecklistViewProps> = ({
                         </div>
                         {isChecked && (
                           <div className="text-sm text-gray-600 mt-1 space-y-1">
-                            <div>
+                            <div className="flex items-center gap-2 flex-wrap">
                               <span
                                 className={`px-2 py-1 rounded text-xs font-medium ${
                                   result.defectType === 'Ok'
@@ -664,8 +664,13 @@ const InspectionChecklistView: React.FC<InspectionChecklistViewProps> = ({
                                   </span>
                                 )}
                               </span>
+                              {result.status === 'Resolved' && result.defectType !== 'Ok' && (
+                                <span className="px-2 py-1 rounded text-xs font-bold bg-green-500 text-white">
+                                  ✓ Fixed
+                                </span>
+                              )}
                               {result.notes && (
-                                <span className="ml-2 text-gray-500">
+                                <span className="text-gray-500">
                                   "{result.notes}"
                                 </span>
                               )}
@@ -677,12 +682,19 @@ const InspectionChecklistView: React.FC<InspectionChecklistViewProps> = ({
                                 {result.additionalDefects.map((additionalDefect, idx) => (
                                   <span
                                     key={idx}
-                                    className="px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-800"
+                                    className="inline-flex items-center gap-1"
                                   >
-                                    {additionalDefect.defectType}
-                                    {additionalDefect.defectLocation && (
-                                      <span className="ml-1 px-1.5 py-0.5 bg-orange-600 text-white rounded-full text-xs font-bold">
-                                        #{additionalDefect.defectLocation.dotNumber}
+                                    <span className="px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-800">
+                                      {additionalDefect.defectType}
+                                      {additionalDefect.defectLocation && (
+                                        <span className="ml-1 px-1.5 py-0.5 bg-orange-600 text-white rounded-full text-xs font-bold">
+                                          #{additionalDefect.defectLocation.dotNumber}
+                                        </span>
+                                      )}
+                                    </span>
+                                    {additionalDefect.status === 'Resolved' && (
+                                      <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-green-500 text-white">
+                                        ✓
                                       </span>
                                     )}
                                   </span>
