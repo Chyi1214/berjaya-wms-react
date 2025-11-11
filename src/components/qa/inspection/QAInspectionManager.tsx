@@ -177,6 +177,29 @@ const QAInspectionManager: React.FC = () => {
     }
   };
 
+  const getResolvedDefectsCount = (inspection: CarInspection): number => {
+    let resolvedCount = 0;
+
+    Object.values(inspection.sections).forEach(section => {
+      Object.values(section.results).forEach(result => {
+        // Count main defect if it's resolved
+        if (result.defectType !== 'Ok' && result.status === 'Resolved') {
+          resolvedCount++;
+        }
+
+        // Count resolved additional defects
+        const additionalDefects = result.additionalDefects || [];
+        additionalDefects.forEach((additionalDefect) => {
+          if (additionalDefect.status === 'Resolved') {
+            resolvedCount++;
+          }
+        });
+      });
+    });
+
+    return resolvedCount;
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'not_started':
@@ -224,7 +247,7 @@ const QAInspectionManager: React.FC = () => {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <div className="bg-white rounded-lg shadow p-4">
           <div className="text-2xl font-bold text-gray-900">
             {inspections.length}
@@ -248,6 +271,23 @@ const QAInspectionManager: React.FC = () => {
             {inspections.filter((i) => i.status === 'completed').length}
           </div>
           <div className="text-sm text-gray-600">Completed</div>
+        </div>
+        <div className="bg-white rounded-lg shadow p-4">
+          <div className="text-2xl font-bold text-red-600">
+            {inspections.reduce((total, inspection) => {
+              const summary = inspectionService.getInspectionSummary(inspection);
+              return total + summary.totalDefects;
+            }, 0)}
+          </div>
+          <div className="text-sm text-gray-600">Total Defects</div>
+        </div>
+        <div className="bg-white rounded-lg shadow p-4">
+          <div className="text-2xl font-bold text-green-600">
+            {inspections.reduce((total, inspection) => {
+              return total + getResolvedDefectsCount(inspection);
+            }, 0)}
+          </div>
+          <div className="text-sm text-gray-600">Fixed Defects</div>
         </div>
       </div>
 
@@ -348,7 +388,14 @@ const QAInspectionManager: React.FC = () => {
                             Sections: {summary.completedSections}/
                             {summary.totalSections} completed
                           </div>
-                          <div>Total Defects: {summary.totalDefects}</div>
+                          <div className="flex items-center gap-2">
+                            <span>Defects: {summary.totalDefects}</span>
+                            {summary.totalDefects > 0 && (
+                              <span className="text-green-600 font-medium">
+                                ({getResolvedDefectsCount(inspection)} fixed)
+                              </span>
+                            )}
+                          </div>
                           <div>
                             Inspectors: {summary.inspectors.length > 0
                               ? summary.inspectors.join(', ')
