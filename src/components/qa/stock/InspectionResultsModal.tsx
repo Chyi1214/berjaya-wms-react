@@ -179,26 +179,51 @@ export function InspectionResultsModal({ vin, onClose }: InspectionResultsModalP
   const defectLocations = selectedInspection ? collectDefectLocations(selectedInspection) : [];
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-0 md:p-4">
+      <div className="bg-white md:rounded-lg shadow-xl max-w-6xl w-full h-full md:h-auto md:max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="p-6 border-b border-gray-200">
+        <div className="p-4 md:p-6 border-b border-gray-200 flex-shrink-0">
           <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900">Inspection Results</h2>
-              <p className="text-sm text-gray-600 mt-1 font-mono">VIN: {vin}</p>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-xl md:text-2xl font-bold text-gray-900">Inspection Results</h2>
+              <p className="text-xs md:text-sm text-gray-600 mt-1 font-mono truncate">VIN: {vin}</p>
             </div>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
+              className="text-gray-400 hover:text-gray-600 text-3xl leading-none ml-4 flex-shrink-0"
             >
               ×
             </button>
           </div>
+
+          {/* Mobile Gate Selector - Only show on mobile */}
+          {!isLoading && !error && inspections.length > 0 && (
+            <div className="mt-4 md:hidden">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Select Gate:</label>
+              <select
+                value={selectedGateIndex}
+                onChange={(e) => setSelectedGateIndex(Number(e.target.value))}
+                className="w-full px-4 py-3 text-base border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+              >
+                {inspections.map((inspection, index) => {
+                  const completedSections = Object.values(inspection.sections).filter(
+                    s => s.status === 'completed'
+                  ).length;
+                  const totalSections = Object.keys(inspection.sections).length;
+
+                  return (
+                    <option key={inspection.inspectionId} value={index}>
+                      {inspection.gateName || `Gate ${inspection.gateIndex}`} - {completedSections}/{totalSections} sections ({inspection.status})
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+          )}
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-hidden flex">
+        <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
           {isLoading ? (
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center">
@@ -215,8 +240,8 @@ export function InspectionResultsModal({ vin, onClose }: InspectionResultsModalP
             </div>
           ) : (
             <>
-              {/* Left Sidebar - Gate Selection */}
-              <div className="w-64 border-r border-gray-200 overflow-y-auto bg-gray-50">
+              {/* Left Sidebar - Gate Selection - Hidden on mobile */}
+              <div className="hidden md:block md:w-64 border-r border-gray-200 overflow-y-auto bg-gray-50 flex-shrink-0">
                 <div className="p-4">
                   <h3 className="text-sm font-semibold text-gray-700 mb-3">Select Gate</h3>
                   <div className="space-y-2">
@@ -254,13 +279,13 @@ export function InspectionResultsModal({ vin, onClose }: InspectionResultsModalP
                 </div>
               </div>
 
-              {/* Right Content - Inspection Details */}
-              <div className="flex-1 overflow-y-auto p-6">
+              {/* Content - Inspection Details - Full width on mobile */}
+              <div className="flex-1 overflow-y-auto p-4 md:p-6">
                 {selectedInspection ? (
                   <div className="space-y-6">
                     {/* Inspection Overview */}
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                      <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 md:p-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
                         <div>
                           <div className="text-sm text-blue-700 font-medium">Gate</div>
                           <div className="text-lg font-semibold text-blue-900">
@@ -287,13 +312,13 @@ export function InspectionResultsModal({ vin, onClose }: InspectionResultsModalP
                     {/* Defect Location Images */}
                     {template && defectLocations.length > 0 && (
                       <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-                        <div className="bg-gray-50 p-4 border-b border-gray-200">
-                          <h4 className="font-semibold text-gray-900">
+                        <div className="bg-gray-50 p-3 md:p-4 border-b border-gray-200">
+                          <h4 className="font-semibold text-gray-900 text-sm md:text-base">
                             Defect Locations ({defectLocations.length} marked)
                           </h4>
                         </div>
-                        <div className="p-4">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="p-3 md:p-4">
+                          <div className="grid grid-cols-1 gap-4">
                             {Object.entries(selectedInspection.sections).map(([sectionId]) => {
                               const sectionTemplate = template.sections[sectionId];
                               if (!sectionTemplate?.images || sectionTemplate.images.length === 0) return null;
@@ -374,7 +399,7 @@ export function InspectionResultsModal({ vin, onClose }: InspectionResultsModalP
                       return (
                         <div key={sectionId} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
                           {/* Section Header */}
-                          <div className="bg-gray-50 p-4 border-b border-gray-200">
+                          <div className="bg-gray-50 p-3 md:p-4 border-b border-gray-200">
                             <div className="flex items-center justify-between">
                               <div>
                                 <h4 className="font-semibold text-gray-900 capitalize">
@@ -575,16 +600,16 @@ export function InspectionResultsModal({ vin, onClose }: InspectionResultsModalP
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-gray-200 bg-gray-50">
-          <div className="flex justify-between items-center">
-            <div className="text-sm text-gray-600">
+        <div className="p-4 md:p-4 border-t border-gray-200 bg-gray-50 flex-shrink-0">
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
+            <div className="text-xs md:text-sm text-gray-600 text-center sm:text-left">
               {!isLoading && !error && (
                 <>Total: {inspections.length} gate inspection{inspections.length !== 1 ? 's' : ''}</>
               )}
             </div>
             <button
               onClick={onClose}
-              className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+              className="w-full sm:w-auto px-6 py-3 md:py-2 text-base md:text-sm bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium"
             >
               Close
             </button>
