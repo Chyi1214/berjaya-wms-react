@@ -128,7 +128,7 @@ service cloud.firestore {
     match /cars/{vin} {
       allow read: if isActiveUser();  // All authenticated users can read car data
       allow create: if isActiveUser() && (
-        hasRole('production') || hasRole('logistics') ||
+        hasRole('production') || hasRole('logistics') || hasRole('qa') ||
         hasRole('supervisor') || hasRole('manager')
       );
       allow update: if isActiveUser() && (
