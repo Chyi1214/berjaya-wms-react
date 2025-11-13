@@ -665,7 +665,6 @@ export function TransactionSendForm({ onSubmit, onCancel, inventoryCounts }: Tra
                     <input
                       type="text"
                       inputMode="numeric"
-                      pattern="[0-9]*"
                       value={item.amount}
                       onChange={(e) => {
                         const filtered = filterToWesternNumerals(e.target.value);
@@ -871,7 +870,6 @@ export function TransactionSendForm({ onSubmit, onCancel, inventoryCounts }: Tra
             <input
               type="text"
               inputMode="numeric"
-              pattern="[0-9]*"
               value={currentAmount}
               onChange={(e) => {
                 const filtered = filterToWesternNumerals(e.target.value);

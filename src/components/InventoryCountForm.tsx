@@ -191,7 +191,6 @@ export function InventoryCountForm({ onSubmit, userEmail, location }: InventoryC
             id="amount-input"
             type="text"
             inputMode="numeric"
-            pattern="[0-9]*"
             value={amount || ''}
             onChange={(e) => {
               const filtered = filterToWesternNumerals(e.target.value);
