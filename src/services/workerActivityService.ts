@@ -1,4 +1,4 @@
-// Worker Activity Service - Version 4.0 Clock In/Out Management
+// Worker Activity Service - Version 5.0 Clock In/Out Management
 import {
   collection,
   doc,
@@ -13,7 +13,6 @@ import {
 import { db } from './firebase';
 import { prepareForFirestore } from '../utils/firestore';
 import { WorkerActivity } from '../types';
-import { workStationService } from './workStationService';
 
 class WorkerActivityService {
   private activitiesCollection = collection(db, 'workerActivities');
@@ -51,8 +50,8 @@ class WorkerActivityService {
       const cleanedData = prepareForFirestore(activity);
       const docRef = await addDoc(this.activitiesCollection, cleanedData);
 
-      // Update work station with worker info
-      await workStationService.checkWorkerIn(zoneId, workerEmail, workerName);
+      // V5: Worker check-in is now part of startWork flow
+      // No separate workStation worker check-in needed
 
       console.log('✅ Checked worker in:', workerEmail, 'Zone:', zoneId, 'Activity ID:', docRef.id);
       return docRef.id;
@@ -86,8 +85,8 @@ class WorkerActivityService {
 
       await this.updateWorkerActivity(activity.id, updates);
 
-      // Update work station to remove worker
-      await workStationService.checkWorkerOut(activity.zoneId);
+      // V5: Worker check-out is now part of completeWork flow
+      // No separate workStation worker check-out needed
 
       console.log('✅ Checked worker out:', workerEmail, 'Total minutes:', totalMinutes);
     } catch (error) {

@@ -116,7 +116,9 @@ class CarTrackingService {
     }
   }
 
-  // Atomic car scan-in - prevents ghost cars by using Firestore transaction
+  // @deprecated V5: Use workStationServiceV5.startWork() instead
+  // This method uses old dual-source architecture (cars + workStations)
+  // Kept for reference only - DO NOT USE in new code
   async scanCarIntoZoneAtomic(vin: string, zoneId: number, scannedBy: string): Promise<void> {
     try {
       logger.debug('Starting atomic car scan-in:', { vin, zoneId });
@@ -292,7 +294,9 @@ class CarTrackingService {
     }
   }
 
-  // Atomic car completion - prevents ghost cars by using Firestore transaction
+  // @deprecated V5: Use workStationServiceV5.completeWork() instead
+  // This method uses old dual-source architecture (cars + workStations)
+  // Kept for reference only - DO NOT USE in new code
   async completeCarWorkAtomic(vin: string, zoneId: number, completedBy: string, notes?: string): Promise<void> {
     try {
       logger.debug('Starting atomic car completion:', { vin, zoneId });
@@ -809,14 +813,11 @@ class CarTrackingService {
         updatedAt: new Date()
       });
 
-      // 2. Also clear the car from the workStation (avoid circular import)
+      // 2. Also clear the car from the workStation
+      // V5: This method is deprecated - use workStationServiceV5 for zone operations
       if (currentZone) {
-        try {
-          const { workStationService } = await import('./workStationService');
-          await workStationService.clearStationCar(currentZone, reason);
-        } catch (error) {
-          logger.error('Failed to clear car from workStation:', { error });
-        }
+        logger.warn('Using deprecated forceRemoveCarFromZone - consider using V5 methods');
+        // V5: Zone clearing should be done through workStationServiceV5 directly
       }
 
       // 3. Log the forced removal
@@ -867,7 +868,11 @@ class CarTrackingService {
       }
 
       // PHASE 2: Fix workStation-car inconsistencies
+      // V5: This cleanup method is deprecated - V5 single-source eliminates inconsistencies
       try {
+        logger.warn('Skipping workStation inconsistency check - deprecated in V5');
+        // Old dual-source cleanup logic no longer needed with V5 single-source
+        /*
         const { workStationService } = await import('./workStationService');
         const inconsistencies = await workStationService.findStationCarInconsistencies();
 
@@ -883,9 +888,9 @@ class CarTrackingService {
             `Fixed workStation inconsistency in Zone ${inconsistency.zoneId}: cleared ${inconsistency.carInStation} (car was not in zone)`
           );
         }
+        */
       } catch (error) {
-        logger.error('Failed to check workStation inconsistencies:', { error });
-        results.issues.push('Failed to check workStation inconsistencies');
+        logger.error('Failed to check workStation inconsistencies (deprecated):', { error });
       }
 
       logger.info('Comprehensive ghost car cleanup completed:', { results });

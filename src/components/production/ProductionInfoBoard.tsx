@@ -1,6 +1,6 @@
 import { useState, useEffect, memo } from 'react';
 import { WorkStation } from '../../types';
-import { workStationService } from '../../services/workStationService';
+import { workStationServiceV5 } from '../../services/workStationServiceV5';
 import { reportService, WorkerReport } from '../../services/reportService';
 import ZoneTimeChart from './ZoneTimeChart';
 
@@ -30,7 +30,7 @@ export const ProductionInfoBoard = memo(function ProductionInfoBoard({
   const loadZoneData = async (showLoading = true) => {
     try {
       if (showLoading) setIsLoading(true);
-      const workStations = await workStationService.getAllWorkStations();
+      const workStations = await workStationServiceV5.getAllProductionZones();
       
       // Debug: Log what we get from workStations
       console.log('WorkStations data:', workStations.slice(0, 3));

@@ -1,7 +1,7 @@
 // Zone Status Display - Version 4.0 Real-time Zone Information
 import { useState, useEffect } from 'react';
 import { WorkStation } from '../../types';
-import { workStationService } from '../../services/workStationService';
+import { workStationServiceV5 } from '../../services/workStationServiceV5';
 import { useLanguage } from '../../contexts/LanguageContext';
 
 interface ZoneStatusDisplayProps {
@@ -35,14 +35,9 @@ export function ZoneStatusDisplay({ zoneId, onRefresh, compact = false, onScanCa
   const loadWorkStation = async () => {
     try {
       setError(null);
-      const station = await workStationService.getWorkStation(zoneId);
-      if (station) {
-        // Refresh the station status to get updated times
-        const refreshedStation = await workStationService.refreshStationStatus(zoneId);
-        setWorkStation(refreshedStation || station);
-      } else {
-        setWorkStation(null);
-      }
+      const station = await workStationServiceV5.getWorkStation(zoneId);
+      // V5: Station data is always fresh, no need to refresh
+      setWorkStation(station);
       setLastRefresh(new Date());
     } catch (error) {
       console.error('Failed to load work station:', error);

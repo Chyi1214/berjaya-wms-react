@@ -150,6 +150,7 @@ export function CarScanView({ user, zoneId, onBack, onCarScanned }: CarScanViewP
       }
 
       // V5: Use workStationServiceV5.startWork() - single source of truth
+      // This will throw specific error if zone is occupied
       await workStationServiceV5.startWork(
         zoneId,
         vin,
@@ -178,19 +179,14 @@ export function CarScanView({ user, zoneId, onBack, onCarScanned }: CarScanViewP
       // Play success sound
       scannerService.triggerFeedback();
     } catch (error) {
-      throw new Error(`Failed to start work: ${error}`);
+      // Re-throw with original error message (already specific from service)
+      throw error;
     }
   };
 
   const processVinScan = async (vin: string) => {
     try {
-      // V5: Check if zone already has a car (single source validation)
-      const currentStation = await workStationServiceV5.getWorkStation(zoneId);
-      if (currentStation?.currentCar) {
-        throw new Error(`Zone ${zoneId} already has car: ${currentStation.currentCar.vin}`);
-      }
-
-      // V5: Start work using single-source system
+      // V5: Start work using single-source system (includes zone occupation check)
       await startWorkV5(vin);
 
       setIsProcessing(false);

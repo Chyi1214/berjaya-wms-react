@@ -76,6 +76,12 @@ class WorkStationServiceV5 {
     try {
       logger.info(`Starting work on ${carVin} in zone ${zoneId}`);
 
+      // Check if zone already occupied
+      const currentStation = await this.getWorkStation(zoneId);
+      if (currentStation?.currentCar) {
+        throw new Error(`Zone ${zoneId} is occupied by car ${currentStation.currentCar.vin}. Complete that car first before scanning a new one.`);
+      }
+
       const now = new Date();
 
       // If accepting flying car from previous zone, clear it
@@ -126,8 +132,11 @@ class WorkStationServiceV5 {
       logger.info(`Completing work on ${carVin} in zone ${zoneId}`);
 
       const station = await this.getWorkStation(zoneId);
-      if (!station?.currentCar || station.currentCar.vin !== carVin) {
-        throw new Error(`Car ${carVin} not found in zone ${zoneId}`);
+      if (!station?.currentCar) {
+        throw new Error(`No car found in Zone ${zoneId}. You need to scan a car into this zone first.`);
+      }
+      if (station.currentCar.vin !== carVin) {
+        throw new Error(`VIN mismatch in Zone ${zoneId}. Expected ${carVin} but found ${station.currentCar.vin}. Please check the VIN.`);
       }
 
       const now = new Date();
@@ -380,6 +389,32 @@ class WorkStationServiceV5 {
       logger.info('✅ Reset all zones');
     } catch (error) {
       logger.error('Failed to reset all zones:', error);
+      throw error;
+    }
+  }
+
+  // RESET STATISTICS - Reset processing time stats without clearing cars (Manager feature)
+  async resetStatistics(): Promise<void> {
+    try {
+      logger.info('Resetting zone statistics...');
+      const resetTime = new Date();
+
+      for (let zoneId = 1; zoneId <= 23; zoneId++) {
+        await updateDoc(doc(this.stationsCollection, zoneId.toString()), {
+          carsProcessedToday: 0,
+          averageProcessingTime: 0,
+          'timeAccumulation.workTime': 0,
+          'timeAccumulation.starveTime': 0,
+          'timeAccumulation.blockTime': 0,
+          'causedStopTime.current': 0,
+          'causedStopTime.lastResetAt': resetTime,
+          lastUpdated: resetTime
+        });
+      }
+
+      logger.info('✅ Reset statistics for all zones');
+    } catch (error) {
+      logger.error('Failed to reset statistics:', error);
       throw error;
     }
   }

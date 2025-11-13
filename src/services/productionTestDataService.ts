@@ -1,6 +1,6 @@
-// Production Test Data Service - Version 4.0 Complete Production Line Test Scenarios
+// Production Test Data Service - Version 5.0 Complete Production Line Test Scenarios
 import { carTrackingService } from './carTrackingService';
-import { workStationService } from './workStationService';
+import { workStationServiceV5 } from './workStationServiceV5';
 import { workerActivityService } from './workerActivityService';
 import { CarStatus } from '../types';
 
@@ -13,7 +13,7 @@ class ProductionTestDataService {
     try {
       // Step 1: Initialize work stations for all zones
       console.log('📍 Initializing work stations...');
-      await workStationService.initializeAllStations();
+      await workStationServiceV5.initializeAllStations();
 
       // Step 2: Create test cars
       console.log('🚗 Creating test cars...');
@@ -183,9 +183,9 @@ class ProductionTestDataService {
     try {
       // Scan car into zone
       await carTrackingService.scanCarIntoZone(vin, zoneId, workerEmail);
-      
-      // Update work station
-      await workStationService.updateStationWithCar(zoneId, vin);
+
+      // V5: Work station is automatically updated through startWork flow
+      // No separate updateStationWithCar needed
       
       console.log(`✅ Placed ${vin} in Zone ${zoneId}`);
     } catch (error) {
@@ -251,7 +251,7 @@ class ProductionTestDataService {
       // Note: Creating historical data requires more complex backdating
       // For now, just create the workers and zones
       for (const session of workSessions) {
-        await workStationService.getWorkStation(session.zoneId);
+        await workStationServiceV5.getWorkStation(session.zoneId);
         console.log(`✅ Prepared Zone ${session.zoneId} for ${session.worker.name}`);
       }
 
@@ -269,9 +269,9 @@ class ProductionTestDataService {
     try {
       // Just create the basic test cars from carTrackingService
       await carTrackingService.initializeTestData();
-      
+
       // Initialize work stations
-      await workStationService.initializeAllStations();
+      await workStationServiceV5.initializeAllStations();
       
       console.log('✅ Minimal production test complete');
     } catch (error) {

@@ -58,7 +58,8 @@ export function CarCompleteView({ user, zoneId, onBack, onCarCompleted }: CarCom
       }
     } catch (error) {
       console.error('Failed to load current car:', error);
-      setError(`Failed to load current car: ${error}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      setError(`Unable to load car information from Zone ${zoneId}. ${errorMessage}`);
     } finally {
       setLoading(false);
     }
@@ -66,7 +67,7 @@ export function CarCompleteView({ user, zoneId, onBack, onCarCompleted }: CarCom
 
   const handleCompleteWork = async () => {
     if (!currentCar) {
-      setError('No car currently in this zone');
+      setError('No car currently in this zone. Please scan a car into the zone first.');
       return;
     }
 
@@ -113,7 +114,9 @@ export function CarCompleteView({ user, zoneId, onBack, onCarCompleted }: CarCom
       setNotes('');
     } catch (error) {
       console.error('Failed to complete car work:', error);
-      setError(`Failed to complete work: ${error}`);
+      // Display the specific error message from the service
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      setError(errorMessage);
     } finally {
       setIsProcessing(false);
     }

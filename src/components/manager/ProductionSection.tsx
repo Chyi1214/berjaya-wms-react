@@ -1,10 +1,10 @@
-// Production Section - Modular production tracking with decomposed components
+// Production Section - V5 Single-Source Architecture
 import { useState, useEffect } from 'react';
 // Production dashboard uses hardcoded English text for technical terms
 import { Car, WorkStation, WorkerActivity } from '../../types';
 import { ManagerTab } from '../../types/manager';
 import { carTrackingService } from '../../services/carTrackingService';
-import { workStationService } from '../../services/workStationService';
+import { workStationServiceV5 } from '../../services/workStationServiceV5';
 import { workerActivityService } from '../../services/workerActivityService';
 import {
   ProductionTabs,
@@ -48,7 +48,7 @@ export function ProductionSection({ activeTab, onTabChange }: ProductionSectionP
       
       const [carsData, stationsData, activitiesData] = await Promise.all([
         carTrackingService.getCars(),
-        workStationService.getAllWorkStations(),
+        workStationServiceV5.getAllProductionZones(),
         workerActivityService.getWorkerActivities()
       ]);
 
@@ -83,16 +83,16 @@ export function ProductionSection({ activeTab, onTabChange }: ProductionSectionP
 
     try {
       setLoading(true);
-      await workStationService.resetAverageProcessingTimes();
-      
-      // Refresh the data to show updated averages
+      await workStationServiceV5.resetStatistics();
+
+      // Refresh the data to show updated statistics
       await loadProductionData();
-      
-      alert('✅ Average processing times have been reset successfully!\n\nInfo board will now show fresh averages.');
-      console.log('✅ Manager reset average processing times');
+
+      alert('✅ Zone statistics have been reset successfully!\n\nAll processing times and counters cleared.');
+      console.log('✅ Manager reset zone statistics');
     } catch (error) {
-      console.error('Failed to reset averages:', error);
-      alert('Failed to reset average processing times. Please try again.');
+      console.error('Failed to reset statistics:', error);
+      alert('Failed to reset zone statistics. Please try again.');
     }
   };
 
