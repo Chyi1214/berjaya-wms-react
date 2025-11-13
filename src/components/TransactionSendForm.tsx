@@ -10,6 +10,7 @@ import { qrExtractionService } from '../services/qrExtraction';
 import { batchAllocationService } from '../services/batchAllocationService';
 import { batchManagementService } from '../services/batchManagement';
 import { scanLookupService } from '../services/scanLookupService';
+import { useZoneConfigs } from '../hooks/useZoneConfigs';
 
 interface TransactionSendFormProps {
   onSubmit: (transaction: TransactionFormData & { otp: string; skipOTP?: boolean }) => void;
@@ -29,26 +30,14 @@ interface CartItem {
 
 export function TransactionSendForm({ onSubmit, onCancel, inventoryCounts }: TransactionSendFormProps) {
   const { t } = useLanguage();
+  const { allZonesSorted, getDisplayName } = useZoneConfigs();
 
-  // Production zones 1-25 (includes CP7 and CP8)
-  const PRODUCTION_ZONES = useMemo(() => Array.from({ length: 25 }, (_, i) => {
-    const zoneId = i + 1;
-    let zoneName;
-
-    if (zoneId === 24) {
-      zoneName = 'CP7';
-    } else if (zoneId === 25) {
-      zoneName = 'CP8';
-    } else {
-      zoneName = `${t('production.zone')} ${zoneId}`;
-    }
-
-    return {
-      id: zoneId,
-      name: zoneName,
-      value: `production_zone_${zoneId}`
-    };
-  }), [t]);
+  // All zones (production + maintenance)
+  const PRODUCTION_ZONES = useMemo(() => allZonesSorted().map(zone => ({
+    id: zone.zoneId,
+    name: getDisplayName(zone.zoneId),
+    value: `production_zone_${zone.zoneId}`
+  })), [allZonesSorted, getDisplayName]);
 
   // Multi-item cart state
   const [cart, setCart] = useState<CartItem[]>([]);

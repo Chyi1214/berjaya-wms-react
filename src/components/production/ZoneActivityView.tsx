@@ -2,12 +2,14 @@
 import { useState, useEffect } from 'react';
 import { CarMovement } from '../../types';
 import { carTrackingService } from '../../services/carTrackingService';
+import { useZoneConfigs } from '../../hooks/useZoneConfigs';
 
 interface ZoneActivityViewProps {
   className?: string;
 }
 
 export function ZoneActivityView({ className = '' }: ZoneActivityViewProps) {
+  const { allZonesSorted, getDisplayName } = useZoneConfigs();
   const [selectedZone, setSelectedZone] = useState<number>(1);
   const [movements, setMovements] = useState<(CarMovement & { movedByName: string; idleTime?: number; groupIndex: number; isFirstInGroup: boolean; groupSize: number })[]>([]);
   const [loading, setLoading] = useState(false);
@@ -230,9 +232,6 @@ export function ZoneActivityView({ className = '' }: ZoneActivityViewProps) {
     totalIdleEvents: movements.filter(m => m.idleTime).length
   };
 
-  // Generate zone options (1-23 for production zones)
-  const zoneOptions = Array.from({ length: 23 }, (_, i) => i + 1);
-
   return (
     <div className={`bg-white rounded-lg shadow p-6 ${className}`}>
       {/* Header */}
@@ -263,9 +262,9 @@ export function ZoneActivityView({ className = '' }: ZoneActivityViewProps) {
             onChange={handleZoneChange}
             className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
-            {zoneOptions.map((zone) => (
-              <option key={zone} value={zone}>
-                Zone {zone}
+            {allZonesSorted().map((zone) => (
+              <option key={zone.zoneId} value={zone.zoneId}>
+                {getDisplayName(zone.zoneId)}
               </option>
             ))}
           </select>

@@ -1,5 +1,6 @@
 // LocationDropdown - Enhanced dropdown with search and stock info for locations
 import { useState, useEffect, useRef } from 'react';
+import { useZoneConfigs } from '../../hooks/useZoneConfigs';
 
 interface LocationOption {
   id: string;
@@ -26,6 +27,7 @@ export function LocationDropdown({
   showStockBadges = false,
   className = ''
 }: LocationDropdownProps) {
+  const { getDisplayName } = useZoneConfigs();
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
@@ -122,8 +124,9 @@ export function LocationDropdown({
   const formatLocation = (loc: string) => {
     if (loc === 'logistics') return '🚚 Logistics';
     if (loc.startsWith('production_zone_')) {
-      const zoneNum = loc.replace('production_zone_', '');
-      return `🏭 Production Zone ${zoneNum}`;
+      const zoneNum = parseInt(loc.replace('production_zone_', ''));
+      const displayName = getDisplayName(zoneNum);
+      return `🏭 ${displayName}`;
     }
     return loc;
   };

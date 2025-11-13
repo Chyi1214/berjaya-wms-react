@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { TransactionFilter, TransactionType, TransactionStatus } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { batchAllocationService } from '../services/batchAllocationService';
+import { useZoneConfigs } from '../hooks/useZoneConfigs';
 
 interface TransactionFiltersProps {
   filters: TransactionFilter;
@@ -11,6 +12,7 @@ interface TransactionFiltersProps {
 
 export function TransactionFilters({ filters, onFiltersChange }: TransactionFiltersProps) {
   const { t } = useLanguage();
+  const { allZonesSorted, getDisplayName } = useZoneConfigs();
   const [availableBatches, setAvailableBatches] = useState<string[]>([]);
 
   // Load available batches
@@ -241,24 +243,11 @@ export function TransactionFilters({ filters, onFiltersChange }: TransactionFilt
           >
             <option value="">All locations</option>
             <option value="logistics">{t('roles.logistics')}</option>
-            {Array.from({ length: 25 }, (_, i) => {
-              const zoneId = i + 1;
-              let zoneName;
-
-              if (zoneId === 24) {
-                zoneName = 'CP7';
-              } else if (zoneId === 25) {
-                zoneName = 'CP8';
-              } else {
-                zoneName = `${t('production.zone')} ${zoneId}`;
-              }
-
-              return (
-                <option key={zoneId} value={`production_zone_${zoneId}`}>
-                  {zoneName}
-                </option>
-              );
-            })}
+            {allZonesSorted().map(zone => (
+              <option key={zone.zoneId} value={`production_zone_${zone.zoneId}`}>
+                {getDisplayName(zone.zoneId)}
+              </option>
+            ))}
           </select>
         </div>
 

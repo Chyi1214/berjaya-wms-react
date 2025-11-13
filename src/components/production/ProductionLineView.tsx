@@ -1,7 +1,8 @@
-// Production Line View - V5 Single-Source System
+// Production Line View - V5 Single-Source System with Dynamic Zones
 import { useState, useEffect } from 'react';
 import { WorkStation, Car } from '../../types';
 import { workStationServiceV5 } from '../../services/workStationServiceV5';
+import { useZoneConfigs } from '../../hooks/useZoneConfigs';
 
 interface ProductionLineViewProps {
   onZoneSelect: (zoneId: number) => void;
@@ -19,11 +20,14 @@ interface ZoneStatus {
 export function ProductionLineView({ onZoneSelect }: ProductionLineViewProps) {
   const [zones, setZones] = useState<ZoneStatus[]>([]);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+  const { zones: zoneConfigs, getDisplayName, loading: zonesLoading } = useZoneConfigs();
 
-  // Initialize zones (includes CP7 and CP8)
+  // Initialize zones dynamically from zone configs
   useEffect(() => {
-    const initialZones: ZoneStatus[] = Array.from({ length: 25 }, (_, i) => ({
-      id: i + 1,
+    if (zonesLoading || zoneConfigs.length === 0) return;
+
+    const initialZones: ZoneStatus[] = zoneConfigs.map(config => ({
+      id: config.zoneId,
       workStation: null,
       currentCar: null,
       timeInZone: null,
@@ -32,7 +36,7 @@ export function ProductionLineView({ onZoneSelect }: ProductionLineViewProps) {
     }));
     setZones(initialZones);
     loadAllZoneStatuses();
-  }, []);
+  }, [zoneConfigs, zonesLoading]);
 
   // Auto-refresh every 30 seconds
   useEffect(() => {
@@ -99,9 +103,9 @@ export function ProductionLineView({ onZoneSelect }: ProductionLineViewProps) {
   };
 
   const loadAllWorkStations = async (): Promise<WorkStation[]> => {
-    // V5: Use workStationServiceV5 instead of old service
-    const promises = Array.from({ length: 23 }, (_, i) =>
-      workStationServiceV5.getWorkStation(i + 1)
+    // V5: Load workstations for all configured zones
+    const promises = zoneConfigs.map(config =>
+      workStationServiceV5.getWorkStation(config.zoneId)
     );
 
     const results = await Promise.allSettled(promises);
@@ -194,7 +198,7 @@ export function ProductionLineView({ onZoneSelect }: ProductionLineViewProps) {
                   {/* Left: Zone Number & Status */}
                   <div className="flex items-center space-x-3">
                     <div className="text-2xl font-bold text-gray-700 min-w-[60px]">
-                      {zone.id === 24 ? 'CP7' : zone.id === 25 ? 'CP8' : `Zone ${zone.id}`}
+                      {getDisplayName(zone.id)}
                     </div>
                     <div className="text-lg">
                       {zone.loading ? '⚪' : getStatusIndicator(zone.status)}
