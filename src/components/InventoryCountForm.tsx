@@ -20,6 +20,7 @@ export function InventoryCountForm({ onSubmit, userEmail, location }: InventoryC
   // Form state
   const [selectedItem, setSelectedItem] = useState<SearchResult | null>(null);
   const [amount, setAmount] = useState<number>(0);
+  const [amountInput, setAmountInput] = useState<string>(''); // String for input display
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [bomPreview, setBOMPreview] = useState<any>(null);
@@ -191,9 +192,10 @@ export function InventoryCountForm({ onSubmit, userEmail, location }: InventoryC
             id="amount-input"
             type="text"
             inputMode="numeric"
-            value={amount || ''}
+            value={amountInput}
             onChange={(e) => {
               const filtered = filterToWesternNumerals(e.target.value);
+              setAmountInput(filtered); // Display filtered string
               const parsed = parseFilteredInt(filtered, 0);
               handleAmountChange(parsed);
             }}

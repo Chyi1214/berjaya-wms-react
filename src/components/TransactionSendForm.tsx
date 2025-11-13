@@ -47,6 +47,7 @@ export function TransactionSendForm({ onSubmit, onCancel, inventoryCounts }: Tra
   // Current item being added
   const [currentSku, setCurrentSku] = useState<string>('');
   const [currentAmount, setCurrentAmount] = useState<number>(1);
+  const [currentAmountInput, setCurrentAmountInput] = useState<string>('1'); // String for input display
   const [currentBomData, setCurrentBomData] = useState<BOM | null>(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -668,9 +669,14 @@ export function TransactionSendForm({ onSubmit, onCancel, inventoryCounts }: Tra
                       value={item.amount}
                       onChange={(e) => {
                         const filtered = filterToWesternNumerals(e.target.value);
-                        const parsed = parseFilteredInt(filtered, 1);
-                        if (parsed >= 1) {
-                          handleUpdateCartQuantity(index, parsed);
+                        if (filtered === '') {
+                          // Allow empty for editing
+                          handleUpdateCartQuantity(index, 1);
+                        } else {
+                          const parsed = parseFilteredInt(filtered, 1);
+                          if (parsed >= 1) {
+                            handleUpdateCartQuantity(index, parsed);
+                          }
                         }
                       }}
                       className="w-20 px-2 py-1 border border-gray-300 rounded text-center"
@@ -870,9 +876,10 @@ export function TransactionSendForm({ onSubmit, onCancel, inventoryCounts }: Tra
             <input
               type="text"
               inputMode="numeric"
-              value={currentAmount}
+              value={currentAmountInput}
               onChange={(e) => {
                 const filtered = filterToWesternNumerals(e.target.value);
+                setCurrentAmountInput(filtered); // Display filtered string
                 const value = parseFilteredInt(filtered, 0);
                 if (value >= 0 && (isBOM || value <= remainingAvailable)) {
                   setCurrentAmount(value);
