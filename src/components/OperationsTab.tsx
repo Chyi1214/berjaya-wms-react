@@ -8,6 +8,8 @@ import { LogisticsSetupPage } from './operations/LogisticsSetupPage';
 import { ProductionSetupPage } from './operations/ProductionSetupPage';
 import { GhostCarCleanupCard } from './operations/GhostCarCleanupCard';
 import { CostTrackingDashboard } from './operations/CostTrackingDashboard';
+import { ZoneInitializer } from './operations/ZoneInitializer';
+import { ZoneConfigManager } from './operations/ZoneConfigManager';
 
 interface OperationsTabProps {
   onRefresh?: () => void;
@@ -15,7 +17,7 @@ interface OperationsTabProps {
 
 export function OperationsTab({ onRefresh }: OperationsTabProps) {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'batches' | 'vins' | 'logistics_setup' | 'production_setup' | 'system' | 'cost_tracking'>('batches');
+  const [activeTab, setActiveTab] = useState<'batches' | 'vins' | 'logistics_setup' | 'production_setup' | 'zone_config' | 'system' | 'cost_tracking'>('batches');
 
   return (
     <div className="space-y-6">
@@ -47,8 +49,13 @@ export function OperationsTab({ onRefresh }: OperationsTabProps) {
         <ProductionSetupPage user={user} />
       )}
 
+      {activeTab === 'zone_config' && (
+        <ZoneConfigManager />
+      )}
+
       {activeTab === 'system' && (
         <div className="space-y-6">
+          <ZoneInitializer />
           <GhostCarCleanupCard user={user} onRefresh={onRefresh} />
         </div>
       )}

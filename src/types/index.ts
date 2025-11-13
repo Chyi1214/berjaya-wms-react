@@ -21,3 +21,6 @@ export * from './toolCheck';
 
 // Re-export all inspection types
 export * from './inspection';
+
+// Re-export all zone configuration types
+export * from './zoneConfig';
