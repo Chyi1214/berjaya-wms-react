@@ -449,6 +449,24 @@ service cloud.firestore {
       allow delete: if isDevAdmin() || hasRole('manager');
     }
 
+    // QA Checklists - Quality assurance checklist templates
+    match /qaChecklists/{checklistId} {
+      allow read: if isActiveUser();  // All authenticated users can read checklists
+      allow write: if isDevAdmin() || hasRole('manager');  // Only managers can create/modify checklists
+    }
+
+    // QA Inspections - Quality assurance inspection records
+    match /qaInspections/{inspectionId} {
+      allow read: if isActiveUser();  // All authenticated users can read inspections
+      allow create: if isActiveUser() && (
+        hasRole('qa') || hasRole('supervisor') || hasRole('manager')
+      );
+      allow update: if isActiveUser() && (
+        hasRole('qa') || hasRole('supervisor') || hasRole('manager')
+      );
+      allow delete: if isDevAdmin() || hasRole('manager');
+    }
+
     // Zone Configurations - Dynamic zone system (Version 8.1.0)
     match /zoneConfigs/{zoneId} {
       allow read: if isActiveUser();  // All authenticated users can read zone configs
