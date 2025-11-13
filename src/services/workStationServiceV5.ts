@@ -112,8 +112,8 @@ class WorkStationServiceV5 {
       await this.updateWorkStation(zoneId, updates);
       logger.info(`✅ Started work on ${carVin} in zone ${zoneId}`);
 
-      // Recalculate zone statuses after this change
-      await this.recalculateAllZoneStatuses();
+      // Zone statuses updated by ProductionLineView auto-refresh (every 30s)
+      // Removed recalculation here for worker speed
     } catch (error) {
       logger.error('Failed to start work:', error);
       throw error;
@@ -157,8 +157,8 @@ class WorkStationServiceV5 {
       logger.info(`Flying car data:`, updates.flyingCar);
       logger.info(`Cleaned updates written to Firestore:`, cleanedUpdates);
 
-      // Recalculate zone statuses
-      await this.recalculateAllZoneStatuses();
+      // Zone statuses updated by ProductionLineView auto-refresh (every 30s)
+      // Removed recalculation here for worker speed
 
       // Verify the update was written
       const verifyStation = await this.getWorkStation(zoneId);
