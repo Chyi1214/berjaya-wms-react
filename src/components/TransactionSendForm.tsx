@@ -11,6 +11,7 @@ import { batchAllocationService } from '../services/batchAllocationService';
 import { batchManagementService } from '../services/batchManagement';
 import { scanLookupService } from '../services/scanLookupService';
 import { useZoneConfigs } from '../hooks/useZoneConfigs';
+import { filterToWesternNumerals, parseFilteredInt } from '../utils/numeralConversion';
 
 interface TransactionSendFormProps {
   onSubmit: (transaction: TransactionFormData & { otp: string; skipOTP?: boolean }) => void;
@@ -662,10 +663,17 @@ export function TransactionSendForm({ onSubmit, onCancel, inventoryCounts }: Tra
                   </div>
                   <div className="flex items-center space-x-3">
                     <input
-                      type="number"
-                      min="1"
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       value={item.amount}
-                      onChange={(e) => handleUpdateCartQuantity(index, parseInt(e.target.value) || 0)}
+                      onChange={(e) => {
+                        const filtered = filterToWesternNumerals(e.target.value);
+                        const parsed = parseFilteredInt(filtered, 1);
+                        if (parsed >= 1) {
+                          handleUpdateCartQuantity(index, parsed);
+                        }
+                      }}
                       className="w-20 px-2 py-1 border border-gray-300 rounded text-center"
                     />
                     <button
@@ -861,12 +869,13 @@ export function TransactionSendForm({ onSubmit, onCancel, inventoryCounts }: Tra
               🔢 Quantity {!isBOM && currentItem && `(Max: ${remainingAvailable})`}
             </label>
             <input
-              type="number"
-              min="1"
-              max={isBOM ? undefined : (remainingAvailable || undefined)}
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
               value={currentAmount}
               onChange={(e) => {
-                const value = parseInt(e.target.value) || 0;
+                const filtered = filterToWesternNumerals(e.target.value);
+                const value = parseFilteredInt(filtered, 0);
                 if (value >= 0 && (isBOM || value <= remainingAvailable)) {
                   setCurrentAmount(value);
                 }

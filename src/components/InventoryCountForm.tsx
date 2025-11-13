@@ -5,6 +5,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { SearchAutocomplete } from './common/SearchAutocomplete';
 import { SearchResult } from '../services/combinedSearch';
 import { bomService } from '../services/bom';
+import { filterToWesternNumerals, parseFilteredInt } from '../utils/numeralConversion';
 
 interface InventoryCountFormProps {
   onSubmit: (entries: InventoryCountEntry[]) => void;
@@ -188,11 +189,15 @@ export function InventoryCountForm({ onSubmit, userEmail, location }: InventoryC
           </label>
           <input
             id="amount-input"
-            type="number"
-            min="0"
-            step="1"
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
             value={amount || ''}
-            onChange={(e) => handleAmountChange(parseInt(e.target.value) || 0)}
+            onChange={(e) => {
+              const filtered = filterToWesternNumerals(e.target.value);
+              const parsed = parseFilteredInt(filtered, 0);
+              handleAmountChange(parsed);
+            }}
             placeholder={selectedItem?.type === 'bom' ? t('bom.howManySets') : t('inventory.enterAmount')}
             className="input-primary"
           />
