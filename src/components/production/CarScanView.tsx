@@ -1,9 +1,9 @@
-// Car Scan View - Version 4.0 VIN Scanning for Production Lines
+// Car Scan View - Version 5.0 VIN Scanning for Production Lines (V5 Single-Source)
 import { useState, useRef, useEffect } from 'react';
-import { User, Car, CarScanFormData, CarStatus } from '../../types';
+import { User, Car, CarStatus } from '../../types';
 // VIN scanning uses hardcoded English text for production speed
 import { scannerService } from '../../services/scannerService';
-import { carTrackingService } from '../../services/carTrackingService';
+import { workStationServiceV5 } from '../../services/workStationServiceV5';
 
 interface CarScanViewProps {
   user: User;
@@ -136,64 +136,62 @@ export function CarScanView({ user, zoneId, onBack, onCarScanned }: CarScanViewP
     }
   };
 
-  // Create car automatically with default values - focus on VIN and time tracking only
-  const createCarAutomatically = async (vin: string) => {
-    const autoCarData: CarScanFormData = {
-      vin,
-      type: 'Standard',        // Default type for time tracking
-      color: 'Unknown',        // Default color - not important for time tracking
-      series: 'Production',    // Default series - not important for time tracking
-      status: CarStatus.IN_PRODUCTION,
-      currentZone: null
-    };
-
+  // V5: Start work with automatic car creation - single source of truth
+  const startWorkV5 = async (vin: string) => {
     try {
-      // Create the car
-      await carTrackingService.createCar(autoCarData);
-
-      // Immediately scan into zone using ATOMIC operation
-      await carTrackingService.scanCarIntoZoneAtomic(vin, zoneId, user.email);
-
-      // Get the created car
-      const newCar = await carTrackingService.getCarByVIN(vin);
-      if (newCar) {
-        setSuccess(`✅ Atomic scan-in: Car ${vin} created and scanned into Zone ${zoneId} - Time tracking started!`);
-        onCarScanned(newCar);
-
-        // Play success sound
-        scannerService.triggerFeedback();
+      // Check if this car is a flying car from previous zone
+      let fromFlyingCar = false;
+      if (zoneId > 1) {
+        const previousZone = await workStationServiceV5.getWorkStation(zoneId - 1);
+        if (previousZone?.flyingCar?.vin === vin) {
+          fromFlyingCar = true;
+          console.log(`✈️ Accepting flying car from Zone ${zoneId - 1}`);
+        }
       }
+
+      // V5: Use workStationServiceV5.startWork() - single source of truth
+      await workStationServiceV5.startWork(
+        zoneId,
+        vin,
+        'Standard',  // Default type
+        'Unknown',   // Default color
+        user.email,
+        user.displayName || user.email,
+        fromFlyingCar
+      );
+
+      // Create mock Car object for callback compatibility
+      const mockCar: Car = {
+        vin,
+        type: 'Standard',
+        color: 'Unknown',
+        series: 'Production',
+        status: CarStatus.IN_PRODUCTION,
+        currentZone: zoneId,
+        zoneHistory: [],
+        createdAt: new Date()
+      };
+
+      setSuccess(`✅ V5 Single-Source: Car ${vin} started work in Zone ${zoneId}${fromFlyingCar ? ' (accepted flying car)' : ''}!`);
+      onCarScanned(mockCar);
+
+      // Play success sound
+      scannerService.triggerFeedback();
     } catch (error) {
-      throw new Error(`Failed to create car: ${error}`);
+      throw new Error(`Failed to start work: ${error}`);
     }
   };
 
   const processVinScan = async (vin: string) => {
     try {
-      // Check if car already exists
-      const existingCar = await carTrackingService.getCarByVIN(vin);
-
-      if (existingCar) {
-        // Car exists, scan into zone using ATOMIC operation
-        if (existingCar.currentZone !== null) {
-          throw new Error(`Car ${vin} is already in zone ${existingCar.currentZone}`);
-        }
-
-        await carTrackingService.scanCarIntoZoneAtomic(vin, zoneId, user.email);
-
-        // Get updated car data
-        const updatedCar = await carTrackingService.getCarByVIN(vin);
-        if (updatedCar) {
-          setSuccess(`✅ Atomic scan-in: Car ${vin} successfully scanned into Zone ${zoneId}`);
-          onCarScanned(updatedCar);
-
-          // Play success sound
-          scannerService.triggerFeedback();
-        }
-      } else {
-        // New car, create automatically with default values for time tracking only
-        await createCarAutomatically(vin);
+      // V5: Check if zone already has a car (single source validation)
+      const currentStation = await workStationServiceV5.getWorkStation(zoneId);
+      if (currentStation?.currentCar) {
+        throw new Error(`Zone ${zoneId} already has car: ${currentStation.currentCar.vin}`);
       }
+
+      // V5: Start work using single-source system
+      await startWorkV5(vin);
 
       setIsProcessing(false);
     } catch (error) {
@@ -201,7 +199,7 @@ export function CarScanView({ user, zoneId, onBack, onCarScanned }: CarScanViewP
     }
   };
 
-  // Removed handleCreateCar - now using createCarAutomatically instead
+  // V5: Removed old car creation logic - now using startWorkV5 instead
 
   const resetScanState = () => {
     setError(null);

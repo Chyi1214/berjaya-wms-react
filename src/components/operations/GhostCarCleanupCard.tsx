@@ -1,6 +1,5 @@
 import { memo, useState } from 'react';
-import { carTrackingService } from '../../services/carTrackingService';
-import { workStationService } from '../../services/workStationService';
+import { workStationServiceV5 } from '../../services/workStationServiceV5';
 
 interface GhostCarCleanupCardProps {
   user: { email: string } | null;
@@ -18,10 +17,9 @@ export const GhostCarCleanupCard = memo(function GhostCarCleanupCard({
 }: GhostCarCleanupCardProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [cleanupResult, setCleanupResult] = useState<CleanupResult | null>(null);
-  const [manualVin, setManualVin] = useState('');
   const [manualZone, setManualZone] = useState('');
 
-  // Run automatic ghost car cleanup
+  // V5: Run automatic zone cleanup (check all zones for stuck cars)
   const handleAutoCleanup = async () => {
     if (!user?.email || isProcessing) return;
 
@@ -29,13 +27,31 @@ export const GhostCarCleanupCard = memo(function GhostCarCleanupCard({
       setIsProcessing(true);
       setCleanupResult(null);
 
-      console.log('🧹 Starting automatic ghost car cleanup...');
-      const result = await carTrackingService.cleanupGhostCars();
+      console.log('🧹 V5: Scanning all zones for stuck data...');
 
-      setCleanupResult(result);
+      const issues: string[] = [];
+      let fixed = 0;
+
+      // Check all production zones (1-23)
+      for (let zoneId = 1; zoneId <= 23; zoneId++) {
+        const station = await workStationServiceV5.getWorkStation(zoneId);
+
+        // If zone has currentCar or flyingCar, report it
+        if (station?.currentCar) {
+          issues.push(`Zone ${zoneId}: Has current car ${station.currentCar.vin}`);
+        }
+        if (station?.flyingCar) {
+          issues.push(`Zone ${zoneId}: Has flying car ${station.flyingCar.vin}`);
+        }
+      }
+
+      setCleanupResult({
+        fixed,
+        issues: issues.length > 0 ? issues : ['✨ All zones are clean! No stuck cars found.']
+      });
       onRefresh?.();
 
-      console.log('✅ Automatic cleanup completed:', result);
+      console.log('✅ V5 zone scan completed');
     } catch (error) {
       console.error('Failed to run auto cleanup:', error);
       setCleanupResult({
@@ -47,41 +63,7 @@ export const GhostCarCleanupCard = memo(function GhostCarCleanupCard({
     }
   };
 
-  // Force remove specific car
-  const handleForceRemove = async () => {
-    if (!user?.email || !manualVin.trim() || isProcessing) return;
-
-    try {
-      setIsProcessing(true);
-      setCleanupResult(null);
-
-      console.log('🧹 Force removing car:', manualVin);
-      await carTrackingService.forceRemoveCarFromZone(
-        manualVin.trim().toUpperCase(),
-        'Manual removal by manager'
-      );
-
-      setCleanupResult({
-        fixed: 1,
-        issues: [`Manually removed car: ${manualVin.toUpperCase()}`]
-      });
-
-      setManualVin('');
-      onRefresh?.();
-
-      console.log('✅ Manual removal completed');
-    } catch (error) {
-      console.error('Failed to force remove car:', error);
-      setCleanupResult({
-        fixed: 0,
-        issues: [`Error removing ${manualVin}: ${error instanceof Error ? error.message : String(error)}`]
-      });
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  // Force clear specific zone (NUCLEAR OPTION for stuck zones)
+  // V5: Force clear specific zone (clears both currentCar and flyingCar)
   const handleForceClearZone = async () => {
     if (!user?.email || !manualZone.trim() || isProcessing) return;
 
@@ -98,20 +80,42 @@ export const GhostCarCleanupCard = memo(function GhostCarCleanupCard({
       setIsProcessing(true);
       setCleanupResult(null);
 
-      console.log('🧹 Force clearing zone:', zoneId);
+      console.log('🧹 V5: Force clearing zone:', zoneId);
 
-      // Clear the workStation
-      await workStationService.clearStationCar(zoneId, 'Manual zone clear by manager');
+      // V5: Get current zone state
+      const station = await workStationServiceV5.getWorkStation(zoneId);
+      const clearedItems: string[] = [];
+
+      if (station?.currentCar) {
+        clearedItems.push(`currentCar: ${station.currentCar.vin}`);
+      }
+      if (station?.flyingCar) {
+        clearedItems.push(`flyingCar: ${station.flyingCar.vin}`);
+      }
+
+      // V5: Clear the zone by creating a fresh default station
+      // This is effectively a force reset of the zone
+      const { updateDoc, doc, collection } = await import('../../services/costTracking/firestoreWrapper');
+      const { db } = await import('../../services/firebase');
+
+      await updateDoc(doc(collection(db, 'workStations'), zoneId.toString()), {
+        currentCar: null,
+        flyingCar: null,
+        currentWorker: null,
+        lastUpdated: new Date()
+      });
 
       setCleanupResult({
         fixed: 1,
-        issues: [`✅ Cleared Zone ${zoneId} workStation - zone is now available for new cars`]
+        issues: clearedItems.length > 0
+          ? [`✅ Cleared Zone ${zoneId}: ${clearedItems.join(', ')}`]
+          : [`✅ Cleared Zone ${zoneId} (zone was already empty)`]
       });
 
       setManualZone('');
       onRefresh?.();
 
-      console.log('✅ Manual zone clear completed');
+      console.log('✅ V5 zone clear completed');
     } catch (error) {
       console.error('Failed to clear zone:', error);
       setCleanupResult({
@@ -140,50 +144,24 @@ export const GhostCarCleanupCard = memo(function GhostCarCleanupCard({
       </div>
 
       <p className="text-gray-600 mb-6">
-        🏭 <strong>Factory-Grade Data Integrity:</strong> Fix cars that appear in zones but can't be completed,
-        multiple cars claiming the same zone, or workStation-car data inconsistencies.
+        ✨ <strong>V5 Single-Source System:</strong> Scan all zones for stuck cars or clear specific zones.
+        No more ghost cars with the new single-source architecture!
       </p>
 
-      {/* Automatic Cleanup */}
+      {/* Automatic Scan */}
       <div className="space-y-4 mb-6">
-        <h4 className="font-medium text-gray-900">🤖 Comprehensive Auto Cleanup</h4>
+        <h4 className="font-medium text-gray-900">🔍 Scan All Zones</h4>
         <p className="text-sm text-gray-600">
-          <strong>Phase 1:</strong> Fix duplicate car assignments in zones<br/>
-          <strong>Phase 2:</strong> Fix workStation-car data inconsistencies<br/>
-          Safe for production use - maintains complete audit trail.
+          Scan all 23 production zones and report any cars currently in zones (currentCar or flyingCar).
+          Use this to see which zones have cars before clearing them.
         </p>
         <button
           onClick={handleAutoCleanup}
           disabled={isProcessing}
           className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
         >
-          {isProcessing ? '🔄 Scanning Both Collections...' : '🏭 Run Factory Cleanup'}
+          {isProcessing ? '🔄 Scanning All Zones...' : '🔍 Scan All Zones'}
         </button>
-      </div>
-
-      {/* Manual Removal */}
-      <div className="space-y-4 mb-6 border-t pt-6">
-        <h4 className="font-medium text-gray-900">Manual Car Removal</h4>
-        <p className="text-sm text-gray-600">
-          Force remove a specific car from its current zone (use when auto cleanup doesn't work).
-        </p>
-        <div className="flex space-x-2">
-          <input
-            type="text"
-            value={manualVin}
-            onChange={(e) => setManualVin(e.target.value)}
-            placeholder="Enter VIN (e.g., PRUPBGFB35M301768)"
-            className="flex-1 p-2 border border-gray-300 rounded-lg"
-            disabled={isProcessing}
-          />
-          <button
-            onClick={handleForceRemove}
-            disabled={isProcessing || !manualVin.trim()}
-            className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
-          >
-            {isProcessing ? '🔄' : '🗑️ Force Remove'}
-          </button>
-        </div>
       </div>
 
       {/* Force Clear Zone */}
@@ -260,17 +238,16 @@ export const GhostCarCleanupCard = memo(function GhostCarCleanupCard({
       )}
 
       {/* Instructions */}
-      <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-        <h5 className="text-yellow-800 font-medium mb-2">🏭 Factory Issues This Fixes:</h5>
-        <ul className="text-yellow-700 text-sm space-y-1">
-          <li>• <strong>Zone Data Inconsistency:</strong> Zone shows a car but "No Car in Zone" appears when clicked</li>
-          <li>• <strong>Duplicate Assignments:</strong> Multiple cars appear in the same zone</li>
-          <li>• <strong>Workflow Blockage:</strong> Car completion button doesn't work</li>
-          <li>• <strong>Production Floor Mismatch:</strong> Zone appears occupied but worker says it's empty</li>
-          <li>• <strong>Database Sync Issues:</strong> WorkStation and Car collections out of sync</li>
+      <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+        <h5 className="text-green-800 font-medium mb-2">✨ V5 Single-Source System Benefits:</h5>
+        <ul className="text-green-700 text-sm space-y-1">
+          <li>• <strong>No More Ghost Cars:</strong> Single source of truth eliminates data inconsistencies</li>
+          <li>• <strong>Simpler Cleanup:</strong> Just clear zones directly when needed</li>
+          <li>• <strong>Flying Car Support:</strong> Cars automatically move between zones</li>
+          <li>• <strong>Real-time Status:</strong> All zone data comes from one place</li>
         </ul>
-        <p className="text-yellow-800 text-sm mt-3 font-medium">
-          ⚡ Critical for production environments - Run immediately when issues occur
+        <p className="text-green-800 text-sm mt-3 font-medium">
+          🎯 If you see stuck cars, use "Force Clear Zone" to reset the zone
         </p>
       </div>
     </div>

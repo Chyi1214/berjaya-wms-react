@@ -1,8 +1,7 @@
-// Production Line View - Vertical Layout with Real-time Zone Status
+// Production Line View - V5 Single-Source System
 import { useState, useEffect } from 'react';
 import { WorkStation, Car } from '../../types';
-import { workStationService } from '../../services/workStationService';
-import { carTrackingService } from '../../services/carTrackingService';
+import { workStationServiceV5 } from '../../services/workStationServiceV5';
 
 interface ProductionLineViewProps {
   onZoneSelect: (zoneId: number) => void;
@@ -46,19 +45,31 @@ export function ProductionLineView({ onZoneSelect }: ProductionLineViewProps) {
 
   const loadAllZoneStatuses = async () => {
     try {
-      console.log('🔄 Loading all zone statuses...');
-      
-      // Load all work stations and cars in parallel
-      const [workStations, carsInProduction] = await Promise.all([
-        loadAllWorkStations(),
-        carTrackingService.getCarsInProduction()
-      ]);
+      console.log('🔄 V5: Loading all zone statuses from single source...');
 
-      // Create a map of cars by current zone
+      // V5: Load all work stations (single source of truth)
+      const workStations = await loadAllWorkStations();
+
+      // V5: Extract car data directly from workStations (no separate cars collection)
       const carsByZone = new Map<number, Car>();
-      carsInProduction.forEach(car => {
-        if (car.currentZone) {
-          carsByZone.set(car.currentZone, car);
+      workStations.forEach(ws => {
+        if (ws.currentCar) {
+          // Convert workStation.currentCar to Car type
+          const car: Car = {
+            vin: ws.currentCar.vin,
+            type: ws.currentCar.type,
+            color: ws.currentCar.color,
+            series: 'Production',
+            status: 'in_production' as any,
+            currentZone: ws.zoneId,
+            zoneHistory: [{
+              zoneId: ws.zoneId,
+              enteredAt: ws.currentCar.enteredAt,
+              enteredBy: ws.currentWorker?.email || 'unknown'
+            }],
+            createdAt: ws.currentCar.enteredAt
+          };
+          carsByZone.set(ws.zoneId, car);
         }
       });
 
@@ -67,7 +78,7 @@ export function ProductionLineView({ onZoneSelect }: ProductionLineViewProps) {
         const workStation = workStations.find(ws => ws.zoneId === zone.id) || null;
         const currentCar = carsByZone.get(zone.id) || null;
         const timeInZone = calculateTimeInZone(currentCar);
-        
+
         return {
           ...zone,
           workStation,
@@ -79,7 +90,7 @@ export function ProductionLineView({ onZoneSelect }: ProductionLineViewProps) {
       }));
 
       setLastUpdate(new Date());
-      console.log(`✅ Updated ${23} zones at ${new Date().toLocaleTimeString()}`);
+      console.log(`✅ V5: Updated ${23} zones at ${new Date().toLocaleTimeString()}`);
     } catch (error) {
       console.error('❌ Failed to load zone statuses:', error);
       // Mark all zones as no longer loading on error
@@ -88,13 +99,14 @@ export function ProductionLineView({ onZoneSelect }: ProductionLineViewProps) {
   };
 
   const loadAllWorkStations = async (): Promise<WorkStation[]> => {
-    const promises = Array.from({ length: 23 }, (_, i) => 
-      workStationService.getWorkStation(i + 1)
+    // V5: Use workStationServiceV5 instead of old service
+    const promises = Array.from({ length: 23 }, (_, i) =>
+      workStationServiceV5.getWorkStation(i + 1)
     );
-    
+
     const results = await Promise.allSettled(promises);
     return results
-      .filter((result): result is PromiseFulfilledResult<WorkStation> => 
+      .filter((result): result is PromiseFulfilledResult<WorkStation> =>
         result.status === 'fulfilled' && result.value !== null
       )
       .map(result => result.value);

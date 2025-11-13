@@ -1,8 +1,8 @@
-// Car Complete View - Version 4.0 Complete Work on Car
+// Car Complete View - Version 5.0 Complete Work on Car (V5 Single-Source)
 import { useState, useEffect } from 'react';
 import { User, Car } from '../../types';
 // Car completion uses hardcoded English text for production efficiency
-import { carTrackingService } from '../../services/carTrackingService';
+import { workStationServiceV5 } from '../../services/workStationServiceV5';
 import { workerActivityService } from '../../services/workerActivityService';
 import { batchManagementService } from '../../services/batchManagement';
 
@@ -30,19 +30,31 @@ export function CarCompleteView({ user, zoneId, onBack, onCarCompleted }: CarCom
   const loadCurrentCar = async () => {
     setLoading(true);
     setError(null);
-    
+
     try {
-      // Get cars currently in this zone
-      const carsInZone = await carTrackingService.getCarsInZone(zoneId);
-      
-      if (carsInZone.length === 0) {
-        setCurrentCar(null);
-      } else if (carsInZone.length === 1) {
-        setCurrentCar(carsInZone[0]);
+      // V5: Read from workStations collection (single source of truth)
+      const station = await workStationServiceV5.getWorkStation(zoneId);
+
+      if (station?.currentCar) {
+        // Convert workStation currentCar format to Car type for compatibility
+        const car: Car = {
+          vin: station.currentCar.vin,
+          type: station.currentCar.type,
+          color: station.currentCar.color,
+          series: 'Production', // Default value
+          status: 'in_production' as any,
+          currentZone: zoneId,
+          zoneHistory: [{
+            zoneId,
+            enteredAt: station.currentCar.enteredAt,
+            enteredBy: station.currentWorker?.email || 'unknown'
+          }],
+          createdAt: station.currentCar.enteredAt,
+          carType: station.currentCar.type // For BOM consumption
+        };
+        setCurrentCar(car);
       } else {
-        // Multiple cars in zone - shouldn't happen, but handle gracefully
-        setCurrentCar(carsInZone[0]);
-        console.warn('Multiple cars found in zone:', zoneId, carsInZone);
+        setCurrentCar(null);
       }
     } catch (error) {
       console.error('Failed to load current car:', error);
@@ -62,13 +74,9 @@ export function CarCompleteView({ user, zoneId, onBack, onCarCompleted }: CarCom
     setError(null);
 
     try {
-      // Use atomic transaction to prevent ghost cars
-      await carTrackingService.completeCarWorkAtomic(
-        currentCar.vin,
-        zoneId,
-        user.email,
-        notes.trim() || undefined
-      );
+      // V5: Use single-source workStationServiceV5 (no ghost cars!)
+      await workStationServiceV5.completeWork(zoneId, currentCar.vin);
+      console.log('✅ V5 completion: Car moved to flying car state');
 
       // Mark worker activity as completed if worker is checked in
       const activeWorker = await workerActivityService.getActiveWorkerActivity(user.email);
@@ -92,20 +100,17 @@ export function CarCompleteView({ user, zoneId, onBack, onCarCompleted }: CarCom
         // Don't fail the entire car completion if BOM consumption fails
       }
 
-      // Get updated car data (should show car is no longer in zone)
-      const updatedCar = await carTrackingService.getCarByVIN(currentCar.vin);
-      console.log('🔍 Updated car after atomic completion:', updatedCar);
+      // V5: Verify completion by checking workStation
+      const station = await workStationServiceV5.getWorkStation(zoneId);
+      console.log('🔍 V5 station after completion:', {
+        currentCar: station?.currentCar,
+        flyingCar: station?.flyingCar
+      });
 
-      // Verify completion worked
-      const carsInZone = await carTrackingService.getCarsInZone(zoneId);
-      console.log('🔍 Cars still in zone after atomic completion:', carsInZone);
-
-      if (updatedCar) {
-        setSuccess(`✅ Atomic completion: Car ${currentCar.vin} completed in Zone ${zoneId} - Ghost car prevention active`);
-        onCarCompleted(updatedCar);
-        setCurrentCar(null);
-        setNotes('');
-      }
+      setSuccess(`✅ V5 Single-Source: Car ${currentCar.vin} completed in Zone ${zoneId} - Now flying to next zone!`);
+      onCarCompleted(currentCar);
+      setCurrentCar(null);
+      setNotes('');
     } catch (error) {
       console.error('Failed to complete car work:', error);
       setError(`Failed to complete work: ${error}`);
