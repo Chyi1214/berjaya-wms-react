@@ -105,19 +105,29 @@ class BatchAllocationService {
       const docRef = doc(db, BATCH_CONFIG_COLLECTION, 'default');
       const docSnap = await getDoc(docRef);
 
-      let defaultBatch = activatedBatches[0]; // Fallback to first activated batch
+      let inboundBatch = activatedBatches[0]; // Fallback to first activated batch
+      let outboundBatch = activatedBatches[0]; // Fallback to first activated batch
 
       if (docSnap.exists()) {
-        const storedDefault = docSnap.data().activeBatch;
-        // Only use stored default if it's still in the activated batches list
-        if (storedDefault && activatedBatches.includes(storedDefault)) {
-          defaultBatch = storedDefault;
+        const data = docSnap.data();
+        // Check for new format (inboundBatch/outboundBatch)
+        if (data.inboundBatch && activatedBatches.includes(data.inboundBatch)) {
+          inboundBatch = data.inboundBatch;
+        }
+        if (data.outboundBatch && activatedBatches.includes(data.outboundBatch)) {
+          outboundBatch = data.outboundBatch;
+        }
+        // Backward compatibility: if old format (activeBatch) exists, use it for both
+        if (!data.inboundBatch && data.activeBatch && activatedBatches.includes(data.activeBatch)) {
+          inboundBatch = data.activeBatch;
+          outboundBatch = data.activeBatch;
         }
       }
 
-      // Return config with activated batches and selected default
+      // Return config with activated batches and selected defaults
       return {
-        activeBatch: defaultBatch,
+        inboundBatch,
+        outboundBatch,
         availableBatches: activatedBatches,
         updatedBy: docSnap.exists() ? docSnap.data().updatedBy : 'system',
         updatedAt: docSnap.exists() ? docSnap.data().updatedAt?.toDate() || new Date() : new Date(),
@@ -139,9 +149,10 @@ class BatchAllocationService {
       const existing = await getDoc(docRef);
       const now = new Date();
 
-      // Only store the active batch preference and metadata
+      // Store both inbound and outbound batch preferences and metadata
       const configData = {
-        activeBatch: config.activeBatch, // Only the default selection
+        inboundBatch: config.inboundBatch,   // Default for receiving
+        outboundBatch: config.outboundBatch, // Default for sending to production
         updatedBy: config.updatedBy,
         updatedAt: Timestamp.fromDate(now),
         createdAt: existing.exists()
@@ -151,7 +162,11 @@ class BatchAllocationService {
 
       await setDoc(docRef, prepareForFirestore(configData));
 
-      logger.info('Default batch preference saved:', { activeBatch: config.activeBatch, updatedBy: config.updatedBy });
+      logger.info('Default batch preferences saved:', {
+        inboundBatch: config.inboundBatch,
+        outboundBatch: config.outboundBatch,
+        updatedBy: config.updatedBy
+      });
     } catch (error) {
       logger.error('Error saving batch configuration:', error);
       throw new Error('Failed to save batch configuration');

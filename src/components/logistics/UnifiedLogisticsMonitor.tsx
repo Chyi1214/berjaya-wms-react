@@ -95,18 +95,19 @@ export function UnifiedLogisticsMonitor({ userEmail: _userEmail, initialBatchId 
       if (config) {
         setAvailableBatches(config.availableBatches);
 
-        logger.info('Loaded batches from config:', { batches: config.availableBatches, activeBatch: config.activeBatch });
+        logger.info('Loaded batches from config:', { batches: config.availableBatches, outboundBatch: config.outboundBatch });
 
-        // Set default batch: use initialBatchId if provided and valid, otherwise activeBatch from config
+        // Set default batch: use initialBatchId if provided and valid, otherwise outboundBatch from config
+        // Use outboundBatch because this is for SENDING items to production
         if (!selectedBatch) {
-          let defaultBatch = config.activeBatch;
+          let defaultBatch = config.outboundBatch;
 
           // If initialBatchId is provided and exists in available batches, use it
           if (initialBatchId && config.availableBatches.includes(initialBatchId)) {
             defaultBatch = initialBatchId;
             logger.debug('Using batch from scanner:', { defaultBatch });
           } else {
-            logger.debug('Using active batch from config:', { defaultBatch });
+            logger.debug('Using outbound batch from config:', { defaultBatch });
           }
 
           setSelectedBatch(defaultBatch);

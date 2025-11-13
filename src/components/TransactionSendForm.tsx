@@ -170,7 +170,7 @@ export function TransactionSendForm({ onSubmit, onCancel, inventoryCounts }: Tra
 
       if (config) {
         setAvailableBatches(config.availableBatches);
-        setSelectedBatch(config.activeBatch); // Default to active batch
+        setSelectedBatch(config.outboundBatch); // Default to outbound batch for sending to production
       }
     } catch (error) {
       console.error('Failed to load batch configuration:', error);

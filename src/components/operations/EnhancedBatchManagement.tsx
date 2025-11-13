@@ -665,11 +665,31 @@ Material consumption will be tracked automatically as cars complete.`);
         });
         filename = `batch-${selectedBatch.batchId}-vins-${new Date().toISOString().split('T')[0]}.csv`;
       } else {
-        // Download packing list for this batch
+        // Download packing list for this batch - fetch from packingBoxes collection
         csvContent = 'batchId,sku,quantity,name\n';
-        selectedBatch.items?.forEach(item => {
-          csvContent += `${selectedBatch.batchId},${item.sku},${item.quantity},${item.name}\n`;
+
+        // Fetch all packing boxes for this batch
+        const boxes = await packingBoxesService.listBoxes(selectedBatch.batchId);
+
+        // Aggregate quantities by SKU from all boxes
+        const aggregatedBySku: Record<string, number> = {};
+        boxes.forEach(box => {
+          Object.entries(box.expectedBySku).forEach(([sku, qty]) => {
+            aggregatedBySku[sku] = (aggregatedBySku[sku] || 0) + qty;
+          });
         });
+
+        // Get item names from itemMaster
+        const { itemMasterService } = await import('../../services/itemMaster');
+        const allItems = await itemMasterService.getAllItems();
+        const itemNameMap = new Map(allItems.map((item: any) => [item.sku, item.name]));
+
+        // Generate CSV rows
+        Object.entries(aggregatedBySku).forEach(([sku, quantity]) => {
+          const name = itemNameMap.get(sku) || 'Unknown';
+          csvContent += `${selectedBatch.batchId},${sku},${quantity},${name}\n`;
+        });
+
         filename = `batch-${selectedBatch.batchId}-packing-${new Date().toISOString().split('T')[0]}.csv`;
       }
 

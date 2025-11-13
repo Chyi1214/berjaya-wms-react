@@ -133,7 +133,7 @@ export function UnifiedScannerView({ user, onBatchChange }: UnifiedScannerViewPr
 
       if (config) {
         setAvailableBatches(config.availableBatches);
-        setSelectedBatch(config.activeBatch); // Default to active batch
+        setSelectedBatch(config.inboundBatch); // Default to inbound batch for receiving
       }
     } catch (error) {
       console.error('Failed to load batch configuration:', error);

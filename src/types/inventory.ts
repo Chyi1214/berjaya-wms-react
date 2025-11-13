@@ -353,7 +353,8 @@ export interface BatchAllocation {
 
 // Manager batch configuration
 export interface BatchConfig {
-  activeBatch: string;            // Current default batch (e.g., "808")
+  inboundBatch: string;           // Default batch for inbound/receiving (e.g., "808")
+  outboundBatch: string;          // Default batch for sending to production (e.g., "809")
   availableBatches: string[];     // List of active batches ["807", "808", "809"]
   updatedBy: string;              // Manager who made the change
   updatedAt: Date;

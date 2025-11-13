@@ -14,7 +14,8 @@ export const BatchConfigCard = memo(function BatchConfigCard({
 }: BatchConfigCardProps) {
   const [config, setConfig] = useState<BatchConfig | null>(null);
   const [loading, setLoading] = useState(false);
-  const [selectedDefault, setSelectedDefault] = useState('');
+  const [selectedInbound, setSelectedInbound] = useState('');
+  const [selectedOutbound, setSelectedOutbound] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -32,7 +33,8 @@ export const BatchConfigCard = memo(function BatchConfigCard({
 
       if (batchConfig) {
         setConfig(batchConfig);
-        setSelectedDefault(batchConfig.activeBatch);
+        setSelectedInbound(batchConfig.inboundBatch);
+        setSelectedOutbound(batchConfig.outboundBatch);
       }
     } catch (err) {
       console.error('Failed to load batch configuration:', err);
@@ -48,8 +50,8 @@ export const BatchConfigCard = memo(function BatchConfigCard({
       return;
     }
 
-    if (!selectedDefault) {
-      setError('Please select a default batch');
+    if (!selectedInbound || !selectedOutbound) {
+      setError('Please select both inbound and outbound batches');
       return;
     }
 
@@ -58,12 +60,13 @@ export const BatchConfigCard = memo(function BatchConfigCard({
       setError(null);
 
       await batchAllocationService.saveBatchConfig({
-        activeBatch: selectedDefault,
+        inboundBatch: selectedInbound,
+        outboundBatch: selectedOutbound,
         availableBatches: config?.availableBatches || [], // Not used, but required by type
         updatedBy: user.email
       });
 
-      setSuccess('Default batch updated successfully! ✅');
+      setSuccess('Default batches updated successfully! ✅');
       await loadConfig(); // Reload to show updated config
       onRefresh?.();
 
@@ -102,7 +105,7 @@ export const BatchConfigCard = memo(function BatchConfigCard({
     );
   }
 
-  const hasChanges = selectedDefault !== config.activeBatch;
+  const hasChanges = selectedInbound !== config.inboundBatch || selectedOutbound !== config.outboundBatch;
 
   return (
     <div className="bg-white border-2 border-orange-200 rounded-lg p-6">
@@ -128,17 +131,30 @@ export const BatchConfigCard = memo(function BatchConfigCard({
       )}
 
       <div className="space-y-6">
-        {/* Current Default Batch Display */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Current Auto-Select Batch
-          </label>
-          <div className="text-3xl font-bold text-blue-600">
-            Batch {config.activeBatch}
+        {/* Current Default Batches Display */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              📦 Inbound Batch
+            </label>
+            <div className="text-2xl font-bold text-green-600">
+              Batch {config.inboundBatch}
+            </div>
+            <p className="text-xs text-gray-600 mt-1">
+              For receiving items
+            </p>
           </div>
-          <p className="text-xs text-gray-600 mt-1">
-            This batch is pre-selected when workers open the scanner
-          </p>
+          <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              📤 Outbound Batch
+            </label>
+            <div className="text-2xl font-bold text-orange-600">
+              Batch {config.outboundBatch}
+            </div>
+            <p className="text-xs text-gray-600 mt-1">
+              For sending to production
+            </p>
+          </div>
         </div>
 
         {/* Available Activated Batches - Read Only */}
@@ -151,13 +167,14 @@ export const BatchConfigCard = memo(function BatchConfigCard({
               <span
                 key={batchId}
                 className={`px-3 py-2 text-sm font-medium rounded-lg border ${
-                  batchId === config.activeBatch
+                  batchId === config.inboundBatch || batchId === config.outboundBatch
                     ? 'bg-blue-100 text-blue-800 border-blue-300'
                     : 'bg-gray-100 text-gray-700 border-gray-300'
                 }`}
               >
                 Batch {batchId}
-                {batchId === config.activeBatch && ' ⭐'}
+                {batchId === config.inboundBatch && ' 📦'}
+                {batchId === config.outboundBatch && ' 📤'}
               </span>
             ))}
           </div>
@@ -166,34 +183,52 @@ export const BatchConfigCard = memo(function BatchConfigCard({
           </p>
         </div>
 
-        {/* Change Default Batch */}
+        {/* Change Default Batches */}
         <div className="border-t pt-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Change Default Auto-Select Batch
+          <label className="block text-sm font-medium text-gray-700 mb-3">
+            Change Default Batches
           </label>
-          <div className="flex gap-3">
-            <select
-              value={selectedDefault}
-              onChange={(e) => setSelectedDefault(e.target.value)}
-              className="flex-1 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500"
-              disabled={loading}
-            >
-              {config.availableBatches.map(batchId => (
-                <option key={batchId} value={batchId}>
-                  Batch {batchId}
-                </option>
-              ))}
-            </select>
+          <div className="space-y-3">
+            <div className="flex gap-3 items-center">
+              <label className="w-32 text-sm text-gray-700">📦 Inbound:</label>
+              <select
+                value={selectedInbound}
+                onChange={(e) => setSelectedInbound(e.target.value)}
+                className="flex-1 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+                disabled={loading}
+              >
+                {config.availableBatches.map(batchId => (
+                  <option key={batchId} value={batchId}>
+                    Batch {batchId}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex gap-3 items-center">
+              <label className="w-32 text-sm text-gray-700">📤 Outbound:</label>
+              <select
+                value={selectedOutbound}
+                onChange={(e) => setSelectedOutbound(e.target.value)}
+                className="flex-1 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                disabled={loading}
+              >
+                {config.availableBatches.map(batchId => (
+                  <option key={batchId} value={batchId}>
+                    Batch {batchId}
+                  </option>
+                ))}
+              </select>
+            </div>
             <button
               onClick={handleSave}
               disabled={loading || !hasChanges}
-              className={`px-6 py-2 rounded-md font-medium transition-colors ${
+              className={`w-full px-6 py-2 rounded-md font-medium transition-colors ${
                 hasChanges && !loading
                   ? 'bg-orange-500 hover:bg-orange-600 text-white'
                   : 'bg-gray-300 text-gray-500 cursor-not-allowed'
               }`}
             >
-              {loading ? 'Saving...' : hasChanges ? 'Save Change' : 'No Changes'}
+              {loading ? 'Saving...' : hasChanges ? 'Save Changes' : 'No Changes'}
             </button>
           </div>
         </div>

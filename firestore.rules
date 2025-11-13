@@ -469,7 +469,7 @@ service cloud.firestore {
 
     // Zone Configurations - Dynamic zone system (Version 8.1.0)
     match /zoneConfigs/{zoneId} {
-      allow read: if isActiveUser();  // All authenticated users can read zone configs
+      allow read: if isAuthenticated();  // All authenticated users can read zone configs
       allow write: if isDevAdmin() || hasRole('manager');  // Only managers can modify zones
     }
 
