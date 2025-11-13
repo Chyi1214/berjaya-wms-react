@@ -21,6 +21,8 @@ const QAInspectionManager: React.FC = () => {
   const [searchVIN, setSearchVIN] = useState('');
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [detailsVIN, setDetailsVIN] = useState<string | null>(null);
+  const [groupByVIN, setGroupByVIN] = useState(true); // Toggle between VIN-grouped and flat list view
+  const [showUnlinkedOnly, setShowUnlinkedOnly] = useState(false); // Filter for unlinked pre-VIN inspections
 
   useEffect(() => {
     loadInspections();
@@ -29,7 +31,7 @@ const QAInspectionManager: React.FC = () => {
 
   useEffect(() => {
     applyFilters();
-  }, [inspections, filterStatus, filterGate, searchVIN]);
+  }, [inspections, filterStatus, filterGate, searchVIN, showUnlinkedOnly]);
 
   const loadInspections = async () => {
     try {
@@ -65,11 +67,17 @@ const QAInspectionManager: React.FC = () => {
       filtered = filtered.filter((i) => i.gateId === filterGate);
     }
 
-    // Filter by VIN search
+    // Filter by VIN/Body Code search
     if (searchVIN.trim()) {
       filtered = filtered.filter((i) =>
-        i.vin.toLowerCase().includes(searchVIN.toLowerCase())
+        i.vin.toLowerCase().includes(searchVIN.toLowerCase()) ||
+        (i.bodyCode && i.bodyCode.toLowerCase().includes(searchVIN.toLowerCase()))
       );
+    }
+
+    // Filter for unlinked pre-VIN inspections only
+    if (showUnlinkedOnly) {
+      filtered = filtered.filter((i) => i.isBodyCodeInspection === true);
     }
 
     setFilteredInspections(filtered);
@@ -139,6 +147,16 @@ const QAInspectionManager: React.FC = () => {
     } catch (err) {
       logger.error('Failed to generate PDF report:', err);
       alert('Failed to generate PDF report. Please try again.');
+    }
+  };
+
+  const generateCombinedReport = async (vin: string) => {
+    try {
+      await inspectionReportService.generateCombinedReportByVIN(vin);
+      logger.info('Combined report generated for VIN:', vin);
+    } catch (err) {
+      logger.error('Failed to generate combined report:', err);
+      alert('Failed to generate combined report. Please try again.');
     }
   };
 
@@ -213,6 +231,25 @@ const QAInspectionManager: React.FC = () => {
     }
   };
 
+  // Group inspections by VIN
+  const groupInspectionsByVIN = () => {
+    const grouped = new Map<string, CarInspection[]>();
+
+    filteredInspections.forEach(inspection => {
+      const existing = grouped.get(inspection.vin) || [];
+      existing.push(inspection);
+      grouped.set(inspection.vin, existing);
+    });
+
+    // Sort inspections within each VIN group by gateIndex
+    grouped.forEach((inspections, vin) => {
+      inspections.sort((a, b) => (a.gateIndex ?? 0) - (b.gateIndex ?? 0));
+      grouped.set(vin, inspections);
+    });
+
+    return grouped;
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -247,7 +284,7 @@ const QAInspectionManager: React.FC = () => {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4">
         <div className="bg-white rounded-lg shadow p-4">
           <div className="text-2xl font-bold text-gray-900">
             {inspections.length}
@@ -273,6 +310,12 @@ const QAInspectionManager: React.FC = () => {
           <div className="text-sm text-gray-600">Completed</div>
         </div>
         <div className="bg-white rounded-lg shadow p-4">
+          <div className="text-2xl font-bold text-purple-600">
+            {inspections.filter((i) => i.isBodyCodeInspection === true).length}
+          </div>
+          <div className="text-sm text-gray-600">Unlinked (Pre-VIN)</div>
+        </div>
+        <div className="bg-white rounded-lg shadow p-4">
           <div className="text-2xl font-bold text-red-600">
             {inspections.reduce((total, inspection) => {
               const summary = inspectionService.getInspectionSummary(inspection);
@@ -293,13 +336,13 @@ const QAInspectionManager: React.FC = () => {
 
       {/* Filters */}
       <div className="bg-white rounded-lg shadow p-4">
-        <div className="flex gap-4">
+        <div className="flex gap-4 mb-3">
           <div className="flex-1">
             <input
               type="text"
               value={searchVIN}
               onChange={(e) => setSearchVIN(e.target.value)}
-              placeholder="Search by VIN..."
+              placeholder="Search by VIN or Body Code..."
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
@@ -326,13 +369,61 @@ const QAInspectionManager: React.FC = () => {
             <option value="completed">Completed</option>
           </select>
         </div>
+        <div className="flex items-center justify-between">
+          {/* Unlinked Filter */}
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="unlinked-filter"
+              checked={showUnlinkedOnly}
+              onChange={(e) => setShowUnlinkedOnly(e.target.checked)}
+              className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
+            />
+            <label htmlFor="unlinked-filter" className="text-sm text-gray-700 cursor-pointer">
+              Show only unlinked pre-VIN inspections
+            </label>
+            {showUnlinkedOnly && (
+              <span className="ml-2 px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full">
+                {filteredInspections.length} unlinked
+              </span>
+            )}
+          </div>
+          {/* View Toggle */}
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-600">View:</span>
+            <button
+              onClick={() => setGroupByVIN(true)}
+              className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                groupByVIN
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              By Car (VIN)
+            </button>
+            <button
+              onClick={() => setGroupByVIN(false)}
+              className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                !groupByVIN
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              By Inspection
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Inspections List */}
       <div className="bg-white rounded-lg shadow">
         <div className="px-6 py-4 border-b border-gray-200">
           <h2 className="text-lg font-semibold text-gray-900">
-            Inspections ({filteredInspections.length})
+            {groupByVIN ? (
+              <>Cars ({groupInspectionsByVIN().size})</>
+            ) : (
+              <>Inspections ({filteredInspections.length})</>
+            )}
           </h2>
         </div>
 
@@ -341,7 +432,212 @@ const QAInspectionManager: React.FC = () => {
             <div className="text-4xl mb-3">📋</div>
             <div>No inspections found</div>
           </div>
+        ) : groupByVIN ? (
+          // VIN-grouped view
+          <div className="divide-y divide-gray-200">
+            {Array.from(groupInspectionsByVIN().entries()).map(([vin, vinInspections]) => {
+              const totalDefectsForVIN = vinInspections.reduce((sum, insp) => {
+                const summary = inspectionService.getInspectionSummary(insp);
+                return sum + summary.totalDefects;
+              }, 0);
+
+              const totalResolvedForVIN = vinInspections.reduce((sum, insp) => {
+                return sum + getResolvedDefectsCount(insp);
+              }, 0);
+
+              return (
+                <div key={vin} className="p-6">
+                  {/* VIN Header */}
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <h3 className="text-xl font-bold text-gray-900">{vin}</h3>
+                        <span className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm font-medium">
+                          {vinInspections.length} gate{vinInspections.length !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        <span className="font-medium">Gates passed:</span>{' '}
+                        {vinInspections.map(insp => insp.gateName || `Gate ${insp.gateIndex}`).join(' → ')}
+                      </div>
+                      <div className="text-sm text-gray-600 mt-1">
+                        <span className={`font-semibold ${totalDefectsForVIN > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                          {totalDefectsForVIN} defect{totalDefectsForVIN !== 1 ? 's' : ''} found
+                        </span>
+                        {totalDefectsForVIN > 0 && (
+                          <span className="text-green-600 ml-2">
+                            ({totalResolvedForVIN} fixed)
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Combined Report Button */}
+                    {vinInspections.length > 1 && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          generateCombinedReport(vin);
+                        }}
+                        className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm flex items-center gap-2 font-medium shadow-md"
+                        title="Generate combined report showing all gates"
+                      >
+                        📊 Combined Report
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Gate Inspections */}
+                  <div className="grid grid-cols-1 gap-3">
+                    {vinInspections.map((inspection) => {
+                      const summary = inspectionService.getInspectionSummary(inspection);
+                      const isExpanded = selectedInspection?.inspectionId === inspection.inspectionId;
+
+                      return (
+                        <div
+                          key={inspection.inspectionId}
+                          className="border border-gray-300 rounded-lg overflow-hidden hover:border-blue-400 transition-colors"
+                        >
+                          <div
+                            onClick={() =>
+                              setSelectedInspection(isExpanded ? null : inspection)
+                            }
+                            className="p-4 hover:bg-gray-50 cursor-pointer transition-colors"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-3 mb-2">
+                                  <span className="font-semibold text-purple-700">
+                                    {inspection.gateName || `Gate ${inspection.gateIndex}`}
+                                  </span>
+                                  <span className="text-xs text-gray-500">
+                                    (Gate {inspection.gateIndex})
+                                  </span>
+                                  <span
+                                    className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusBadge(
+                                      inspection.status
+                                    )}`}
+                                  >
+                                    {inspection.status}
+                                  </span>
+                                </div>
+
+                                <div className="text-sm text-gray-600 space-y-1">
+                                  <div>
+                                    Sections: {summary.completedSections}/
+                                    {summary.totalSections} completed
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span>Defects: {summary.totalDefects}</span>
+                                    {summary.totalDefects > 0 && (
+                                      <span className="text-green-600 font-medium">
+                                        ({getResolvedDefectsCount(inspection)} fixed)
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2 ml-4">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDetailsVIN(inspection.vin);
+                                    setShowDetailsModal(true);
+                                  }}
+                                  className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-xs"
+                                >
+                                  🔍 Details
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    generatePDFReport(inspection);
+                                  }}
+                                  className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-xs"
+                                >
+                                  📄 PDF
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    exportToCSV(inspection);
+                                  }}
+                                  className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-xs"
+                                >
+                                  CSV
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteInspection(inspection);
+                                  }}
+                                  className="px-3 py-1 bg-orange-600 text-white rounded hover:bg-orange-700 text-xs"
+                                >
+                                  🗑️
+                                </button>
+                                <div className="text-gray-400">
+                                  {isExpanded ? '▼' : '▶'}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {isExpanded && (
+                            <div className="px-4 py-3 bg-gray-50 border-t border-gray-200">
+                              <h5 className="font-semibold text-gray-900 mb-2 text-sm">
+                                Section Details
+                              </h5>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                {Object.entries(inspection.sections).map(
+                                  ([sectionId, section]) => {
+                                    let defectCount = Object.values(
+                                      section.results
+                                    ).filter((r) => r.defectType !== 'Ok').length;
+
+                                    Object.values(section.results).forEach((r) => {
+                                      if (r.additionalDefects) {
+                                        defectCount += r.additionalDefects.length;
+                                      }
+                                    });
+
+                                    return (
+                                      <div
+                                        key={sectionId}
+                                        className="bg-white rounded p-2 border border-gray-200 text-sm"
+                                      >
+                                        <div className="flex items-center justify-between mb-1">
+                                          <div className="font-medium text-gray-900 text-xs">
+                                            {sectionId.replace(/_/g, ' ')}
+                                          </div>
+                                          <span
+                                            className={`px-2 py-0.5 rounded text-xs font-medium ${getStatusBadge(
+                                              section.status
+                                            )}`}
+                                          >
+                                            {section.status}
+                                          </span>
+                                        </div>
+                                        <div className="text-xs text-gray-600">
+                                          Defects: {defectCount}
+                                        </div>
+                                      </div>
+                                    );
+                                  }
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         ) : (
+          // Original flat list view
           <div className="divide-y divide-gray-200">
             {filteredInspections.map((inspection) => {
               const summary = inspectionService.getInspectionSummary(inspection);

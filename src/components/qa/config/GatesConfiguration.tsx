@@ -3,6 +3,8 @@ import { useState, useEffect } from 'react';
 import { gateService } from '../../../services/gateService';
 import type { QAGate, CreateGateInput } from '../../../types/gate';
 import { createModuleLogger } from '../../../services/logger';
+import { userManagementService } from '../../../services/userManagement';
+import type { UserRecord } from '../../../types/user';
 
 const logger = createModuleLogger('GatesConfiguration');
 
@@ -12,19 +14,29 @@ export default function GatesConfiguration() {
   const [isInitializing, setIsInitializing] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
 
+  // User management
+  const [allUsers, setAllUsers] = useState<UserRecord[]>([]);
+
   // Form states
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [newGateName, setNewGateName] = useState('');
   const [newGateDescription, setNewGateDescription] = useState('');
+  const [newIsPreVinGate, setNewIsPreVinGate] = useState(false);
 
   // Edit states
   const [editingGateId, setEditingGateId] = useState<string | null>(null);
   const [editGateName, setEditGateName] = useState('');
   const [editGateDescription, setEditGateDescription] = useState('');
+  const [editIsPreVinGate, setEditIsPreVinGate] = useState(false);
 
-  // Load gates on mount
+  // Assignment states
+  const [assigningGateId, setAssigningGateId] = useState<string | null>(null);
+  const [newUserEmail, setNewUserEmail] = useState('');
+
+  // Load gates and users on mount
   useEffect(() => {
     loadGates();
+    loadUsers();
   }, []);
 
   const loadGates = async () => {
@@ -41,6 +53,15 @@ export default function GatesConfiguration() {
       setStatusMessage('❌ Failed to load gates');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadUsers = async () => {
+    try {
+      const users = await userManagementService.getAllUsers();
+      setAllUsers(users);
+    } catch (error) {
+      logger.error('Failed to load users:', error);
     }
   };
 
@@ -69,6 +90,7 @@ export default function GatesConfiguration() {
       const input: CreateGateInput = {
         gateName: newGateName,
         description: newGateDescription,
+        isPreVinGate: newIsPreVinGate,
       };
       await gateService.createGate(input);
       await loadGates();
@@ -77,6 +99,7 @@ export default function GatesConfiguration() {
       setIsAddingNew(false);
       setNewGateName('');
       setNewGateDescription('');
+      setNewIsPreVinGate(false);
       setStatusMessage('✅ Gate added successfully');
     } catch (error) {
       logger.error('Failed to add gate:', error);
@@ -88,6 +111,7 @@ export default function GatesConfiguration() {
     setEditingGateId(gate.gateId);
     setEditGateName(gate.gateName);
     setEditGateDescription(gate.description || '');
+    setEditIsPreVinGate(gate.isPreVinGate || false);
   };
 
   const handleSaveEdit = async (gateId: string) => {
@@ -100,12 +124,14 @@ export default function GatesConfiguration() {
       await gateService.updateGate(gateId, {
         gateName: editGateName,
         description: editGateDescription,
+        isPreVinGate: editIsPreVinGate,
       });
       await loadGates();
 
       setEditingGateId(null);
       setEditGateName('');
       setEditGateDescription('');
+      setEditIsPreVinGate(false);
       setStatusMessage('✅ Gate updated successfully');
     } catch (error) {
       logger.error('Failed to update gate:', error);
@@ -117,6 +143,7 @@ export default function GatesConfiguration() {
     setEditingGateId(null);
     setEditGateName('');
     setEditGateDescription('');
+    setEditIsPreVinGate(false);
   };
 
   const handleToggleActive = async (gate: QAGate) => {
@@ -147,6 +174,70 @@ export default function GatesConfiguration() {
     }
   };
 
+  const handleAddUser = async (gateId: string) => {
+    const email = newUserEmail.trim().toLowerCase();
+    if (!email) {
+      setStatusMessage('❌ Please enter a user email');
+      return;
+    }
+
+    // Find user to verify they exist
+    const userExists = allUsers.some(u => u.email.toLowerCase() === email);
+    if (!userExists) {
+      setStatusMessage('❌ User not found in system');
+      return;
+    }
+
+    try {
+      const gate = gates.find(g => g.gateId === gateId);
+      if (!gate) return;
+
+      const currentUsers = gate.assignedUsers || [];
+      if (currentUsers.includes(email)) {
+        setStatusMessage('❌ User already assigned to this gate');
+        return;
+      }
+
+      await gateService.updateGate(gateId, {
+        assignedUsers: [...currentUsers, email],
+      });
+
+      await loadGates();
+      setNewUserEmail('');
+      setStatusMessage('✅ User assigned successfully');
+    } catch (error) {
+      logger.error('Failed to assign user:', error);
+      setStatusMessage('❌ Failed to assign user');
+    }
+  };
+
+  const handleRemoveUser = async (gateId: string, userEmail: string) => {
+    if (!confirm(`Remove ${userEmail} from this gate?`)) {
+      return;
+    }
+
+    try {
+      const gate = gates.find(g => g.gateId === gateId);
+      if (!gate) return;
+
+      const currentUsers = gate.assignedUsers || [];
+      await gateService.updateGate(gateId, {
+        assignedUsers: currentUsers.filter(email => email !== userEmail),
+      });
+
+      await loadGates();
+      setStatusMessage('✅ User removed successfully');
+    } catch (error) {
+      logger.error('Failed to remove user:', error);
+      setStatusMessage('❌ Failed to remove user');
+    }
+  };
+
+  const getUserDisplayName = (email: string): string => {
+    const user = allUsers.find(u => u.email === email);
+    return user?.displayName || email;
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -161,7 +252,7 @@ export default function GatesConfiguration() {
       <div className="mb-6">
         <h3 className="text-xl font-bold text-gray-900 mb-2">QA Gates Configuration</h3>
         <p className="text-gray-600">
-          Manage quality assurance gates. Workers will select a gate before starting an inspection.
+          Manage quality assurance gates and assign workers to specific gates.
         </p>
       </div>
 
@@ -228,6 +319,18 @@ export default function GatesConfiguration() {
                         placeholder="Optional description"
                       />
                     </div>
+                    <div className="flex items-center gap-2 p-3 bg-purple-50 rounded-lg border border-purple-200">
+                      <input
+                        type="checkbox"
+                        id={`edit-previn-${gate.gateId}`}
+                        checked={editIsPreVinGate}
+                        onChange={(e) => setEditIsPreVinGate(e.target.checked)}
+                        className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
+                      />
+                      <label htmlFor={`edit-previn-${gate.gateId}`} className="text-sm font-medium text-gray-700 cursor-pointer">
+                        Pre-VIN Gate (inspect body codes before VIN assignment)
+                      </label>
+                    </div>
                     <div className="flex gap-2">
                       <button
                         onClick={() => handleSaveEdit(gate.gateId)}
@@ -245,49 +348,129 @@ export default function GatesConfiguration() {
                   </div>
                 ) : (
                   // View mode
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3">
-                        <span className="text-sm font-mono text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                          Gate {gate.gateIndex}
-                        </span>
-                        <h5 className="text-lg font-semibold text-gray-900">
-                          {gate.gateName}
-                        </h5>
-                        {!gate.isActive && (
-                          <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded">
-                            Disabled
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm font-mono text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                            Gate {gate.gateIndex}
                           </span>
+                          <h5 className="text-lg font-semibold text-gray-900">
+                            {gate.gateName}
+                          </h5>
+                          {gate.isPreVinGate && (
+                            <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded font-semibold">
+                              Pre-VIN
+                            </span>
+                          )}
+                          {!gate.isActive && (
+                            <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded">
+                              Disabled
+                            </span>
+                          )}
+                        </div>
+                        {gate.description && (
+                          <p className="text-sm text-gray-600 mt-1">{gate.description}</p>
                         )}
                       </div>
-                      {gate.description && (
-                        <p className="text-sm text-gray-600 mt-1">{gate.description}</p>
-                      )}
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleStartEdit(gate)}
+                          className="px-3 py-1.5 bg-blue-100 hover:bg-blue-200 text-blue-700 text-sm rounded-lg"
+                        >
+                          ✏️ Edit
+                        </button>
+                        <button
+                          onClick={() => handleToggleActive(gate)}
+                          className={`px-3 py-1.5 text-sm rounded-lg ${
+                            gate.isActive
+                              ? 'bg-yellow-100 hover:bg-yellow-200 text-yellow-700'
+                              : 'bg-green-100 hover:bg-green-200 text-green-700'
+                          }`}
+                        >
+                          {gate.isActive ? '🔒 Disable' : '🔓 Enable'}
+                        </button>
+                        <button
+                          onClick={() => handleDeleteGate(gate)}
+                          className="px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 text-sm rounded-lg"
+                        >
+                          🗑️ Delete
+                        </button>
+                      </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleStartEdit(gate)}
-                        className="px-3 py-1.5 bg-blue-100 hover:bg-blue-200 text-blue-700 text-sm rounded-lg"
-                      >
-                        ✏️ Edit
-                      </button>
-                      <button
-                        onClick={() => handleToggleActive(gate)}
-                        className={`px-3 py-1.5 text-sm rounded-lg ${
-                          gate.isActive
-                            ? 'bg-yellow-100 hover:bg-yellow-200 text-yellow-700'
-                            : 'bg-green-100 hover:bg-green-200 text-green-700'
-                        }`}
-                      >
-                        {gate.isActive ? '🔒 Disable' : '🔓 Enable'}
-                      </button>
-                      <button
-                        onClick={() => handleDeleteGate(gate)}
-                        className="px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 text-sm rounded-lg"
-                      >
-                        🗑️ Delete
-                      </button>
+                    {/* Assigned Users Section */}
+                    <div className="mt-4 pt-4 border-t border-gray-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <h6 className="text-sm font-semibold text-gray-700">
+                          Assigned Workers ({(gate.assignedUsers || []).length})
+                        </h6>
+                        <button
+                          onClick={() => setAssigningGateId(assigningGateId === gate.gateId ? null : gate.gateId)}
+                          className="px-2 py-1 bg-purple-100 hover:bg-purple-200 text-purple-700 text-xs rounded"
+                        >
+                          {assigningGateId === gate.gateId ? '✕ Cancel' : '➕ Assign Worker'}
+                        </button>
+                      </div>
+
+                      {/* Add User Form */}
+                      {assigningGateId === gate.gateId && (
+                        <div className="mb-3 p-3 bg-purple-50 rounded-lg border border-purple-200">
+                          <label className="block text-xs font-medium text-gray-700 mb-1">
+                            User Email
+                          </label>
+                          <div className="flex gap-2">
+                            <input
+                              type="email"
+                              value={newUserEmail}
+                              onChange={(e) => setNewUserEmail(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  handleAddUser(gate.gateId);
+                                }
+                              }}
+                              className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                              placeholder="worker@example.com"
+                            />
+                            <button
+                              onClick={() => handleAddUser(gate.gateId)}
+                              className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded"
+                            >
+                              Add
+                            </button>
+                          </div>
+                          <p className="text-xs text-gray-600 mt-1">
+                            Only assigned workers can select this gate when scanning.
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Assigned Users List */}
+                      {gate.assignedUsers && gate.assignedUsers.length > 0 ? (
+                        <div className="space-y-1">
+                          {gate.assignedUsers.map(email => (
+                            <div
+                              key={email}
+                              className="flex items-center justify-between p-2 bg-gray-50 rounded text-sm"
+                            >
+                              <span className="text-gray-700">
+                                {getUserDisplayName(email)}
+                              </span>
+                              <button
+                                onClick={() => handleRemoveUser(gate.gateId, email)}
+                                className="px-2 py-0.5 bg-red-100 hover:bg-red-200 text-red-700 text-xs rounded"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-gray-500 italic">
+                          No workers assigned. Managers can select any gate.
+                        </p>
+                      )}
                     </div>
                   </div>
                 )}
@@ -326,6 +509,18 @@ export default function GatesConfiguration() {
                 placeholder="Optional description"
               />
             </div>
+            <div className="flex items-center gap-2 p-3 bg-purple-50 rounded-lg border border-purple-200">
+              <input
+                type="checkbox"
+                id="new-previn-gate"
+                checked={newIsPreVinGate}
+                onChange={(e) => setNewIsPreVinGate(e.target.checked)}
+                className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
+              />
+              <label htmlFor="new-previn-gate" className="text-sm font-medium text-gray-700 cursor-pointer">
+                Pre-VIN Gate (inspect body codes before VIN assignment)
+              </label>
+            </div>
             <div className="flex gap-2 pt-2">
               <button
                 onClick={handleAddGate}
@@ -338,6 +533,7 @@ export default function GatesConfiguration() {
                   setIsAddingNew(false);
                   setNewGateName('');
                   setNewGateDescription('');
+                  setNewIsPreVinGate(false);
                 }}
                 className="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-700 rounded-lg"
               >
@@ -365,13 +561,13 @@ export default function GatesConfiguration() {
 
       {/* Info Section */}
       <div className="bg-gray-50 rounded-lg border border-gray-200 p-6 mt-6">
-        <h4 className="text-sm font-semibold text-gray-900 mb-2">How Gates Work</h4>
+        <h4 className="text-sm font-semibold text-gray-900 mb-2">How Worker Assignment Works</h4>
         <ul className="list-disc list-inside space-y-1 text-sm text-gray-700">
-          <li>Each gate represents a quality checkpoint (e.g., CP8, CP7, Z001)</li>
-          <li>Workers select a gate before starting an inspection</li>
-          <li>All gates share the same checklist (positions and items)</li>
-          <li>Gate Index is used internally for ordering and future access control</li>
-          <li>Disabled gates won't appear in the worker's selection list</li>
+          <li>Assign workers to specific gates to restrict their access</li>
+          <li>Workers assigned to 1 gate: Auto-selected, no dropdown shown</li>
+          <li>Workers assigned to multiple gates: Can choose from their assigned gates only</li>
+          <li>Managers and unassigned workers: Can select any active gate</li>
+          <li>Disabled gates won't appear in any selection list</li>
         </ul>
       </div>
     </div>

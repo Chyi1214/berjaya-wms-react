@@ -81,7 +81,7 @@ export function ManagerNavigation({
             ⚙️ {t('manager.tabs.operations')}
           </button>
 
-          {/* Feedback Category - NEW: Ela conversations */}
+          {/* Info Category - Ela conversations and Excel translation */}
           <button
             onClick={() => onCategoryChange('feedback')}
             className={`text-sm font-medium px-3 py-2 rounded-lg transition-colors ${
@@ -90,7 +90,7 @@ export function ManagerNavigation({
                 : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
             }`}
           >
-            💬 Ela Feedback
+            💬 Info
           </button>
 
           {/* HR Category - DevAdmin or HR permission required */}
@@ -228,19 +228,32 @@ export function ManagerNavigation({
             </>
           )}
 
-          {/* Feedback Sub-tabs */}
+          {/* Info Sub-tabs */}
           {activeCategory === 'feedback' && (
-            <button
-              onClick={() => onTabChange('feedback')}
-              className={`flex-shrink-0 whitespace-nowrap border-b-2 py-4 px-1 text-sm font-medium transition-colors ${
-                activeTab === 'feedback'
-                  ? 'border-pink-500 text-pink-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              <span className="hidden sm:inline">💬 Ela Conversations</span>
-              <span className="sm:hidden">💬</span>
-            </button>
+            <>
+              <button
+                onClick={() => onTabChange('feedback')}
+                className={`flex-shrink-0 whitespace-nowrap border-b-2 py-4 px-1 text-sm font-medium transition-colors ${
+                  activeTab === 'feedback'
+                    ? 'border-pink-500 text-pink-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <span className="hidden sm:inline">💬 Ela Conversations</span>
+                <span className="sm:hidden">💬</span>
+              </button>
+              <button
+                onClick={() => onTabChange('excel_translation')}
+                className={`flex-shrink-0 whitespace-nowrap border-b-2 py-4 px-1 text-sm font-medium transition-colors ${
+                  activeTab === 'excel_translation'
+                    ? 'border-green-500 text-green-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <span className="hidden sm:inline">📊 Excel Translation</span>
+                <span className="sm:hidden">📊</span>
+              </button>
+            </>
           )}
 
           {/* HR Sub-tabs */}

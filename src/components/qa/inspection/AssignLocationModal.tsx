@@ -6,6 +6,8 @@ import type { QALocation } from '../../../types/production';
 import { CarStatus } from '../../../types/production';
 import { createModuleLogger } from '../../../services/logger';
 import { BarcodeScanner } from '../../common/BarcodeScanner';
+import { useAuth } from '../../../contexts/AuthContext';
+import { UserRole } from '../../../types/user';
 
 const logger = createModuleLogger('AssignLocationModal');
 
@@ -17,6 +19,7 @@ interface AssignLocationModalProps {
 }
 
 export function AssignLocationModal({ userEmail, userName, onClose, onSuccess }: AssignLocationModalProps) {
+  const { userRecord } = useAuth();
   const [locations, setLocations] = useState<QALocation[]>([]);
   const [selectedLocation, setSelectedLocation] = useState<QALocation | null>(null);
   const [vinInput, setVinInput] = useState('');
@@ -27,12 +30,41 @@ export function AssignLocationModal({ userEmail, userName, onClose, onSuccess }:
 
   useEffect(() => {
     loadLocations();
-  }, []);
+  }, [userEmail]);
 
   const loadLocations = async () => {
     try {
       const activeLocations = await qaLocationService.getActiveLocations();
-      setLocations(activeLocations);
+
+      // Filter locations based on user assignments
+      const isManager = userRecord?.role === UserRole.MANAGER || userRecord?.role === UserRole.DEV_ADMIN;
+      let availableLocations = activeLocations;
+
+      if (!isManager) {
+        // Filter to only locations assigned to this user
+        const assignedLocations = activeLocations.filter(location =>
+          location.assignedUsers && location.assignedUsers.includes(userEmail.toLowerCase())
+        );
+
+        // If user has assigned locations, use them; otherwise show all (unassigned workers)
+        if (assignedLocations.length > 0) {
+          availableLocations = assignedLocations;
+        }
+      }
+
+      setLocations(availableLocations);
+
+      // Auto-select if only one location available
+      if (availableLocations.length === 1) {
+        setSelectedLocation(availableLocations[0]);
+      }
+
+      logger.info('Locations loaded', {
+        totalLocations: activeLocations.length,
+        availableLocations: availableLocations.length,
+        isManager,
+        userEmail
+      });
     } catch (err) {
       logger.error('Failed to load locations:', err);
       setError('Failed to load QA locations');

@@ -312,6 +312,19 @@ export function InspectionResultsModal({ vin, onClose }: InspectionResultsModalP
                             {selectedInspection.status}
                           </span>
                         </div>
+                        {selectedInspection.linkedFromBodyCode && (
+                          <div className="sm:col-span-2">
+                            <div className="bg-purple-100 border border-purple-300 rounded-lg p-3">
+                              <div className="flex items-center gap-2">
+                                <span className="text-purple-700 font-semibold">🔗 Originally inspected as:</span>
+                                <span className="text-purple-900 font-mono font-bold">{selectedInspection.linkedFromBodyCode}</span>
+                              </div>
+                              <div className="text-xs text-purple-700 mt-1">
+                                Linked to VIN on {formatTimestamp(selectedInspection.linkedAt || null)} by {selectedInspection.linkedBy}
+                              </div>
+                            </div>
+                          </div>
+                        )}
                         <div>
                           <div className="text-sm text-blue-700 font-medium">Started At</div>
                           <div className="text-sm text-blue-900">{formatTimestamp(selectedInspection.startedAt)}</div>

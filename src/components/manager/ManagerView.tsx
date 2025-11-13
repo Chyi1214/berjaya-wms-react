@@ -20,6 +20,7 @@ import { HRSection } from './HRSection';
 import { QASection } from './QASection';
 import { ProductionSection } from './ProductionSection';
 import { ElaSection } from './ElaSection';
+import { ExcelTranslation } from './ExcelTranslation';
 import { OperationsTab } from '../OperationsTab';
 import { TaskManagementView } from '../operations/TaskManagementView';
 
@@ -182,7 +183,10 @@ export function ManagerView({ user: _user, onBack, inventoryCounts, onClearCount
           )}
 
           {managerState.activeCategory === 'feedback' && isFeedbackTab(managerState.activeTab) && (
-            <ElaSection />
+            <>
+              {managerState.activeTab === 'feedback' && <ElaSection />}
+              {managerState.activeTab === 'excel_translation' && <ExcelTranslation />}
+            </>
           )}
         </div>
 

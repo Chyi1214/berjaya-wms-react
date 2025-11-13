@@ -132,6 +132,11 @@ export interface CarInspection {
   gateId?: string;        // Quality gate ID
   gateIndex?: number;     // Gate index for sorting/filtering
   gateName?: string;      // Gate name for display
+  bodyCode?: string;      // Body code for pre-VIN inspections (before VIN assignment)
+  isBodyCodeInspection?: boolean; // True if this inspection was done with body code before VIN
+  linkedFromBodyCode?: string; // Original body code if this VIN was linked from body code inspection
+  linkedAt?: Date;        // When the body code was linked to VIN
+  linkedBy?: string;      // Who linked the body code to VIN
   templateId: string;
   status: InspectionStatus;
   startedAt: Date | null;

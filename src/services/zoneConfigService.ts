@@ -137,9 +137,24 @@ class ZoneConfigService {
       const maxZoneId = allConfigs.reduce((max, config) => Math.max(max, config.zoneId), 0);
       const newZoneId = maxZoneId + 1;
 
+      // Auto-assign sequence if not provided
+      let sequence = input.sequence;
+      if (sequence === undefined) {
+        // For production zones, find max sequence + 1
+        // For maintenance zones, use a high number (9000+)
+        if (input.type === ZoneType.PRODUCTION) {
+          const productionConfigs = allConfigs.filter(c => c.type === ZoneType.PRODUCTION);
+          const maxSequence = productionConfigs.reduce((max, config) => Math.max(max, config.sequence), 0);
+          sequence = maxSequence + 1;
+        } else {
+          sequence = 9000 + newZoneId; // Maintenance zones use high sequence numbers
+        }
+      }
+
       const newConfig: ZoneConfig = {
         zoneId: newZoneId,
         displayName: input.displayName,
+        sequence,
         type: input.type,
         logisticsLocation: input.logisticsLocation,
         active: true,
@@ -152,7 +167,7 @@ class ZoneConfigService {
       const cleanedData = prepareForFirestore(newConfig);
       await setDoc(docRef, cleanedData);
 
-      logger.info(`Created zone config ${newZoneId} (${input.displayName})`);
+      logger.info(`Created zone config ${newZoneId} (${input.displayName}) seq=${sequence}`);
       return newZoneId;
     } catch (error) {
       logger.error('Failed to create zone config:', error);
@@ -207,10 +222,11 @@ class ZoneConfigService {
       logger.info('Initializing default zone configurations...');
 
       const defaultZones: Omit<ZoneConfig, 'createdAt' | 'updatedAt'>[] = [
-        // Production zones 1-23
+        // Production zones 1-23 (sequence = zoneId for initial setup)
         ...Array.from({ length: 23 }, (_, i) => ({
           zoneId: i + 1,
           displayName: String(i + 1),
+          sequence: i + 1, // sequence matches zoneId initially
           type: ZoneType.PRODUCTION,
           logisticsLocation: `Zone ${i + 1} Storage`,
           active: true,
@@ -220,6 +236,7 @@ class ZoneConfigService {
         {
           zoneId: 99,
           displayName: 'CP7/CP8',
+          sequence: 9099, // High sequence number for maintenance
           type: ZoneType.MAINTENANCE,
           logisticsLocation: 'Maintenance Bay',
           active: true,

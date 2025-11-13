@@ -11,12 +11,14 @@ import type {
   DefectType,
   InspectionItem,
   DefectLocation,
+  InspectionItemResult,
 } from '../../../types/inspection';
 import { createModuleLogger } from '../../../services/logger';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { getLocalizedText, getLocalizedTextSafe } from '../../../utils/multilingualHelper';
 import { DefectLocationMarker } from './DefectLocationMarker';
 import { AddExtraDefectModal } from './AddExtraDefectModal';
+import { PreviousGateDefectsPanel } from './PreviousGateDefectsPanel';
 
 const logger = createModuleLogger('InspectionChecklistView');
 
@@ -66,9 +68,66 @@ const InspectionChecklistView: React.FC<InspectionChecklistViewProps> = ({
   } | null>(null);
   const [nextDotNumber, setNextDotNumber] = useState(1);
   const [showExtraDefectModal, setShowExtraDefectModal] = useState(false);
+  const [previousInspections, setPreviousInspections] = useState<CarInspection[]>([]);
+  const [emailToNameMap, setEmailToNameMap] = useState<Map<string, string>>(new Map());
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [selectedLocationImage, setSelectedLocationImage] = useState<{
+    imageUrl: string;
+    imageName: string;
+    locations: DefectLocation[];
+  } | null>(null);
 
   // Map language context to multilingual helper language code
   const langCode = currentLanguage as 'en' | 'ms' | 'zh' | 'my' | 'bn';
+
+  // Load previous gate inspections
+  useEffect(() => {
+    const loadPreviousInspections = async () => {
+      if (!inspection || inspection.gateIndex === undefined) return;
+
+      try {
+        // Get all inspections for this VIN
+        const allInspections = await inspectionService.getInspectionsByVIN(inspection.vin);
+
+        // Filter for inspections from earlier gates (lower gateIndex)
+        const currentGateIndex = inspection.gateIndex;
+        const previous = allInspections.filter(
+          insp =>
+            insp.inspectionId !== inspection.inspectionId &&
+            insp.gateIndex !== undefined &&
+            insp.gateIndex < currentGateIndex
+        );
+
+        setPreviousInspections(previous);
+
+        // Build email-to-name mapping from all previous inspections
+        const nameMap = new Map<string, string>();
+        for (const prevInsp of previous) {
+          // Add mappings from each section
+          Object.values(prevInsp.sections).forEach(section => {
+            if (section.inspector && section.inspectorName) {
+              nameMap.set(section.inspector, section.inspectorName);
+            }
+          });
+        }
+        setEmailToNameMap(nameMap);
+
+        if (previous.length > 0) {
+          logger.info('Loaded previous gate inspections:', {
+            vin: inspection.vin,
+            currentGate: inspection.gateIndex,
+            previousGates: previous.map(i => ({ gateIndex: i.gateIndex, gateName: i.gateName })),
+            inspectorMappings: nameMap.size
+          });
+        }
+      } catch (err) {
+        logger.error('Failed to load previous inspections:', err);
+        // Don't show error to user - previous inspections are optional
+      }
+    };
+
+    loadPreviousInspections();
+  }, [inspection]);
 
   // Calculate next dot number based on existing defects in this section (including additional defects)
   useEffect(() => {
@@ -424,6 +483,25 @@ const InspectionChecklistView: React.FC<InspectionChecklistViewProps> = ({
     }
   };
 
+  // Handle viewing defect location from previous gate
+  const handleViewPreviousLocation = (defectLocation: DefectLocation) => {
+    if (!template) return;
+
+    const sectionTemplate = template.sections[section];
+    if (!sectionTemplate?.images || sectionTemplate.images.length === 0) return;
+
+    // Find the image that matches the defect location
+    const image = sectionTemplate.images.find(img => img.imageId === defectLocation.imageId);
+    if (!image) return;
+
+    setSelectedLocationImage({
+      imageUrl: image.imageUrl,
+      imageName: image.imageName,
+      locations: [defectLocation],
+    });
+    setShowLocationModal(true);
+  };
+
   const handleCancelExtraDefect = () => {
     setShowExtraDefectModal(false);
   };
@@ -610,6 +688,15 @@ const InspectionChecklistView: React.FC<InspectionChecklistViewProps> = ({
           )}
         </div>
 
+        {/* Previous Gate Defects Panel */}
+        {previousInspections.length > 0 && (
+          <PreviousGateDefectsPanel
+            previousInspections={previousInspections}
+            currentSectionId={section}
+            template={template}
+          />
+        )}
+
         {/* Checklist Items */}
         <div className="space-y-3">
           {items.map((item: InspectionItem) => {
@@ -625,18 +712,60 @@ const InspectionChecklistView: React.FC<InspectionChecklistViewProps> = ({
               ? item.defectTypes
               : template.defectTypes || [];
 
+            // Check if this item was already reported by previous gates
+            const previousReports: Array<{
+              gateName: string;
+              defectType: string;
+              result: InspectionItemResult;
+              inspectedAt: Date | null;
+              inspector: string;
+              gateIndex: number;
+            }> = [];
+
+            if (!isChecked) {
+              // Collect ALL reports from previous gates for this item
+              for (const prevInspection of previousInspections) {
+                const prevSection = prevInspection.sections[section];
+                if (prevSection && prevSection.results[sanitizedItemName]) {
+                  const prevResult = prevSection.results[sanitizedItemName];
+                  if (prevResult.defectType !== 'Ok') {
+                    // Get inspector name from mapping, fallback to email or section name
+                    const inspectorEmail = prevResult.checkedBy || prevSection.inspector;
+                    const inspectorName = inspectorEmail
+                      ? (emailToNameMap.get(inspectorEmail) || prevSection.inspectorName || inspectorEmail)
+                      : (prevSection.inspectorName || 'Unknown');
+
+                    previousReports.push({
+                      gateName: prevInspection.gateName || `Gate ${prevInspection.gateIndex}`,
+                      defectType: prevResult.defectType,
+                      result: prevResult,
+                      inspectedAt: prevResult.checkedAt || prevSection.completedAt || null,
+                      inspector: inspectorName,
+                      gateIndex: prevInspection.gateIndex ?? 0,
+                    });
+                  }
+                }
+              }
+            }
+
             return (
               <div
                 key={itemKey}
                 className={`bg-white rounded-lg shadow transition-all ${
-                  isChecked ? 'border-2 border-green-300' : 'border-2 border-gray-200'
+                  previousReports.length > 0
+                    ? 'border-2 border-orange-300 bg-orange-50'
+                    : isChecked
+                    ? 'border-2 border-green-300'
+                    : 'border-2 border-gray-200'
                 }`}
               >
                 <div
-                  onClick={() =>
-                    setSelectedItem(isExpanded ? null : itemKey)
-                  }
-                  className="p-4 cursor-pointer hover:bg-gray-50"
+                  onClick={() => {
+                    if (previousReports.length === 0) {
+                      setSelectedItem(isExpanded ? null : itemKey);
+                    }
+                  }}
+                  className={`p-4 ${previousReports.length > 0 ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-gray-50'}`}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -647,6 +776,111 @@ const InspectionChecklistView: React.FC<InspectionChecklistViewProps> = ({
                         <div className="font-medium text-gray-900">
                           {itemName}
                         </div>
+                        {previousReports.length > 0 && (
+                          <div className="mt-2 p-3 bg-orange-100 border border-orange-300 rounded-lg space-y-3">
+                            {/* Show all previous reports */}
+                            {previousReports.map((report, idx) => (
+                              <div key={idx} className={`${idx > 0 ? 'pt-3 border-t border-orange-200' : ''}`}>
+                                <div className="flex items-center gap-2 flex-wrap mb-2">
+                                  <span className="text-xs px-2 py-1 bg-orange-600 text-white rounded-full font-medium flex items-center gap-1">
+                                    🔒 {report.gateName}
+                                  </span>
+                                  <span className="text-xs px-2 py-1 bg-red-100 text-red-800 rounded font-medium">
+                                    {report.defectType}
+                                  </span>
+                                  {report.result.defectLocation && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleViewPreviousLocation(report.result.defectLocation!);
+                                      }}
+                                      className="text-xs px-2 py-1 bg-blue-600 text-white rounded font-bold hover:bg-blue-700 transition-colors cursor-pointer"
+                                      title="Click to view location on image"
+                                    >
+                                      📍 Position #{report.result.defectLocation.dotNumber}
+                                    </button>
+                                  )}
+                                  {report.result.status === 'Resolved' && (
+                                    <span className="text-xs px-2 py-1 bg-green-600 text-white rounded font-bold">
+                                      ✓ Fixed
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* Inspector and Date */}
+                                <div className="text-xs text-gray-700">
+                                  <strong>Inspector:</strong> {report.inspector}
+                                  {report.inspectedAt && (
+                                    <span className="ml-2">
+                                      <strong>Date:</strong> {new Date(report.inspectedAt).toLocaleString('en-MY', {
+                                        day: '2-digit',
+                                        month: '2-digit',
+                                        hour: '2-digit',
+                                        minute: '2-digit',
+                                      })}
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* Notes */}
+                                {report.result.notes && (
+                                  <div className="text-xs bg-white p-2 rounded border border-orange-200 mt-1">
+                                    <strong className="text-gray-700">Notes:</strong> {report.result.notes}
+                                  </div>
+                                )}
+
+                                {/* Photos */}
+                                {report.result.photoUrls && report.result.photoUrls.length > 0 && (
+                                  <div className="mt-1">
+                                    <div className="text-xs font-semibold text-gray-700 mb-1">Photos:</div>
+                                    <div className="flex gap-1 flex-wrap">
+                                      {report.result.photoUrls.map((url: string, photoIdx: number) => (
+                                        <a
+                                          key={photoIdx}
+                                          href={url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="inline-block"
+                                          onClick={(e) => e.stopPropagation()}
+                                        >
+                                          <img
+                                            src={url}
+                                            alt={`Defect ${photoIdx + 1}`}
+                                            className="h-16 w-16 object-cover rounded border-2 border-orange-400 hover:opacity-75 transition-opacity"
+                                          />
+                                        </a>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Resolution Info */}
+                                {report.result.status === 'Resolved' && report.result.resolvedBy && (
+                                  <div className="text-xs bg-green-50 p-2 rounded border border-green-200 mt-1">
+                                    <strong className="text-green-700">Fixed by:</strong> {report.result.resolvedBy}
+                                    {report.result.resolvedAt && (
+                                      <span className="ml-2">
+                                        on {new Date(report.result.resolvedAt).toLocaleString('en-MY', {
+                                          day: '2-digit',
+                                          month: '2-digit',
+                                          hour: '2-digit',
+                                          minute: '2-digit',
+                                        })}
+                                      </span>
+                                    )}
+                                    {report.result.resolutionNote && (
+                                      <div className="mt-1 italic text-green-800">"{report.result.resolutionNote}"</div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+
+                            <div className="text-xs text-orange-800 font-medium pt-2 border-t border-orange-200">
+                              💡 To report additional defects on this item, use the "Mark Extra Issues" button
+                            </div>
+                          </div>
+                        )}
                         {isChecked && (
                           <div className="text-sm text-gray-600 mt-1 space-y-1">
                             <div className="flex items-center gap-2 flex-wrap">
@@ -706,12 +940,20 @@ const InspectionChecklistView: React.FC<InspectionChecklistViewProps> = ({
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      {isChecked && (
-                        <div className="text-green-600 text-xl">✓</div>
+                      {previousReports.length > 0 ? (
+                        <div className="text-xs text-orange-700 italic">
+                          Use "Mark Extra Issues" to add more
+                        </div>
+                      ) : (
+                        <>
+                          {isChecked && (
+                            <div className="text-green-600 text-xl">✓</div>
+                          )}
+                          <div className="text-gray-400">
+                            {isExpanded ? '▼' : '▶'}
+                          </div>
+                        </>
                       )}
-                      <div className="text-gray-400">
-                        {isExpanded ? '▼' : '▶'}
-                      </div>
                     </div>
                   </div>
                 </div>
@@ -888,6 +1130,79 @@ const InspectionChecklistView: React.FC<InspectionChecklistViewProps> = ({
           onSave={handleSaveExtraDefect}
           onCancel={handleCancelExtraDefect}
         />
+      )}
+
+      {/* View Previous Location Modal */}
+      {showLocationModal && selectedLocationImage && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-auto">
+            <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold text-gray-900">Defect Location</h3>
+                <p className="text-sm text-gray-600">{selectedLocationImage.imageName}</p>
+              </div>
+              <button
+                onClick={() => setShowLocationModal(false)}
+                className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+            <div className="p-4">
+              <div className="relative inline-block">
+                <img
+                  src={selectedLocationImage.imageUrl}
+                  alt={selectedLocationImage.imageName}
+                  className="max-w-full h-auto"
+                />
+                {/* Draw defect location dots */}
+                <svg
+                  className="absolute top-0 left-0 w-full h-full pointer-events-none"
+                  style={{ position: 'absolute', top: 0, left: 0 }}
+                >
+                  {selectedLocationImage.locations.map((loc, idx) => (
+                    <g key={idx}>
+                      {/* White fill circle */}
+                      <circle
+                        cx={`${loc.x}%`}
+                        cy={`${loc.y}%`}
+                        r="16"
+                        fill="white"
+                        stroke="red"
+                        strokeWidth="3"
+                      />
+                      {/* Dot number */}
+                      <text
+                        x={`${loc.x}%`}
+                        y={`${loc.y}%`}
+                        textAnchor="middle"
+                        dominantBaseline="central"
+                        fontSize="16"
+                        fontWeight="bold"
+                        fill="red"
+                      >
+                        {loc.dotNumber}
+                      </text>
+                    </g>
+                  ))}
+                </svg>
+              </div>
+              <div className="mt-4 p-3 bg-gray-50 rounded">
+                <div className="text-sm text-gray-700">
+                  <strong>Legend:</strong> Red dot shows where the defect was marked by the previous gate inspector.
+                </div>
+              </div>
+            </div>
+            <div className="p-4 border-t border-gray-200 flex justify-end">
+              <button
+                onClick={() => setShowLocationModal(false)}
+                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

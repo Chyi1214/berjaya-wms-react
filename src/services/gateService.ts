@@ -92,6 +92,7 @@ class GateService {
         gateName: input.gateName.trim(),
         description: input.description?.trim() || '',
         isActive: input.isActive ?? true,
+        isPreVinGate: input.isPreVinGate ?? false,
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
         createdBy: userId || 'system',
@@ -124,6 +125,12 @@ class GateService {
       }
       if (input.isActive !== undefined) {
         updateData.isActive = input.isActive;
+      }
+      if (input.assignedUsers !== undefined) {
+        updateData.assignedUsers = input.assignedUsers;
+      }
+      if (input.isPreVinGate !== undefined) {
+        updateData.isPreVinGate = input.isPreVinGate;
       }
 
       await updateDoc(doc(db, GATES_COLLECTION, gateId), updateData);

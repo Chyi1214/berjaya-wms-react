@@ -387,6 +387,179 @@ export const inspectionService = {
     }
   },
 
+  // Get inspection by body code and Gate (for pre-VIN gates)
+  async getInspectionByBodyCodeAndGate(bodyCode: string, gateId: string): Promise<CarInspection | null> {
+    try {
+      const q = query(
+        collection(db, INSPECTIONS_COL),
+        where('bodyCode', '==', bodyCode),
+        where('gateId', '==', gateId),
+        where('isBodyCodeInspection', '==', true)
+      );
+      const snapshot = await getDocs(q);
+
+      if (snapshot.empty) {
+        return null;
+      }
+
+      return convertTimestamps<CarInspection>(snapshot.docs[0].data());
+    } catch (error) {
+      logger.error('Failed to get inspection by body code and Gate:', error);
+      throw error;
+    }
+  },
+
+  // Create body code inspection (for pre-VIN gates)
+  async createBodyCodeInspection(
+    bodyCode: string,
+    templateId: string,
+    gateInfo: { gateId: string; gateIndex: number; gateName: string }
+  ): Promise<string> {
+    try {
+      logger.info('Creating body code inspection:', { bodyCode, gate: gateInfo.gateName });
+
+      // Check if inspection already exists for this body code + gate
+      const existing = await this.getInspectionByBodyCodeAndGate(bodyCode, gateInfo.gateId);
+      if (existing) {
+        logger.warn('Body code inspection already exists:', { bodyCode, gate: gateInfo.gateName });
+        return existing.inspectionId;
+      }
+
+      // Get template
+      const template = await this.getTemplate(templateId);
+      if (!template) {
+        throw new Error(`Template not found: ${templateId}`);
+      }
+
+      // Initialize sections (same as normal inspection)
+      const sections: Record<InspectionSection, InspectionSectionResult> = {
+        right_outside: {
+          status: 'not_started',
+          inspector: null,
+          inspectorName: null,
+          startedAt: null,
+          completedAt: null,
+          results: {},
+        },
+        left_outside: {
+          status: 'not_started',
+          inspector: null,
+          inspectorName: null,
+          startedAt: null,
+          completedAt: null,
+          results: {},
+        },
+        front_back: {
+          status: 'not_started',
+          inspector: null,
+          inspectorName: null,
+          startedAt: null,
+          completedAt: null,
+          results: {},
+        },
+        interior_right: {
+          status: 'not_started',
+          inspector: null,
+          inspectorName: null,
+          startedAt: null,
+          completedAt: null,
+          results: {},
+        },
+        interior_left: {
+          status: 'not_started',
+          inspector: null,
+          inspectorName: null,
+          startedAt: null,
+          completedAt: null,
+          results: {},
+        },
+      };
+
+      // Create inspection ID
+      const inspectionId = `${bodyCode}_${gateInfo.gateId}_${Date.now()}`;
+
+      const newInspection: CarInspection = {
+        inspectionId,
+        vin: bodyCode, // Use bodyCode as VIN temporarily for compatibility
+        bodyCode,
+        isBodyCodeInspection: true,
+        gateId: gateInfo.gateId,
+        gateIndex: gateInfo.gateIndex,
+        gateName: gateInfo.gateName,
+        templateId,
+        status: 'not_started',
+        startedAt: null,
+        completedAt: null,
+        sections,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      // Save to Firestore
+      const docRef = doc(db, INSPECTIONS_COL, inspectionId);
+      await setDoc(docRef, {
+        ...newInspection,
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      });
+
+      logger.info('Body code inspection created:', inspectionId);
+      return inspectionId;
+    } catch (error) {
+      logger.error('Failed to create body code inspection:', error);
+      throw error;
+    }
+  },
+
+  // Link body code to VIN (transfer all inspections from body code to VIN)
+  async linkBodyCodeToVIN(
+    bodyCode: string,
+    vin: string,
+    gateId: string,
+    userEmail: string
+  ): Promise<void> {
+    try {
+      logger.info('Linking body code to VIN:', { bodyCode, vin, gateId, userEmail });
+
+      // Find all inspections with this body code at this gate
+      const q = query(
+        collection(db, INSPECTIONS_COL),
+        where('bodyCode', '==', bodyCode),
+        where('gateId', '==', gateId),
+        where('isBodyCodeInspection', '==', true)
+      );
+      const snapshot = await getDocs(q);
+
+      if (snapshot.empty) {
+        throw new Error(`No inspections found for body code "${bodyCode}" at this gate`);
+      }
+
+      // Update all matching inspections
+      const updatePromises = snapshot.docs.map(async (docSnap) => {
+        const docRef = doc(db, INSPECTIONS_COL, docSnap.id);
+        await updateDoc(docRef, {
+          vin,
+          linkedFromBodyCode: bodyCode,
+          linkedAt: Timestamp.now(),
+          linkedBy: userEmail,
+          isBodyCodeInspection: false,
+          updatedAt: Timestamp.now(),
+        });
+      });
+
+      await Promise.all(updatePromises);
+
+      logger.info('Successfully linked body code to VIN:', {
+        bodyCode,
+        vin,
+        count: snapshot.docs.length,
+      });
+    } catch (error) {
+      logger.error('Failed to link body code to VIN:', error);
+      throw error;
+    }
+  },
+
   // Get all inspections for a specific VIN across all gates
   async getInspectionsByVIN(vin: string): Promise<CarInspection[]> {
     try {

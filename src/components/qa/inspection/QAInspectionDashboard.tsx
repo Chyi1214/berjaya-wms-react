@@ -7,6 +7,8 @@ import type { QAGate } from '../../../types/gate';
 import { createModuleLogger } from '../../../services/logger';
 import { BarcodeScanner } from '../../common/BarcodeScanner';
 import { useLanguage } from '../../../contexts/LanguageContext';
+import { useAuth } from '../../../contexts/AuthContext';
+import { UserRole } from '../../../types/user';
 
 const logger = createModuleLogger('QAInspectionDashboard');
 
@@ -20,6 +22,7 @@ const QAInspectionDashboard: React.FC<QAInspectionDashboardProps> = ({
   onStartInspection,
 }) => {
   const { t } = useLanguage();
+  const { userRecord } = useAuth();
   const [selectedSection, setSelectedSection] = useState<InspectionSection | null>(null);
   const [selectedGate, setSelectedGate] = useState<QAGate | null>(null);
   const [gates, setGates] = useState<QAGate[]>([]);
@@ -30,9 +33,17 @@ const QAInspectionDashboard: React.FC<QAInspectionDashboardProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Pre-VIN gate mode: 'inspection' or 'link'
+  const [preVinMode, setPreVinMode] = useState<'inspection' | 'link' | null>(null);
+  const [bodyCodeInput, setBodyCodeInput] = useState('');
+  const [vinForLinking, setVinForLinking] = useState('');
+  const [linkingStep, setLinkingStep] = useState<'vin' | 'bodycode'>('vin');
+  const [unlinkedCount, setUnlinkedCount] = useState<number>(0);
+  const [loadingUnlinkedCount, setLoadingUnlinkedCount] = useState(false);
+
   useEffect(() => {
     loadData();
-  }, []);
+  }, [userEmail]);
 
   const loadData = async () => {
     try {
@@ -41,18 +52,40 @@ const QAInspectionDashboard: React.FC<QAInspectionDashboardProps> = ({
 
       // Load active gates
       const activeGates = await gateService.getActiveGates();
-      setGates(activeGates);
+
+      // Filter gates based on user assignments
+      const isManager = userRecord?.role === UserRole.MANAGER || userRecord?.role === UserRole.DEV_ADMIN;
+      let availableGates = activeGates;
+
+      if (!isManager) {
+        // Filter to only gates assigned to this user
+        const assignedGates = activeGates.filter(gate =>
+          gate.assignedUsers && gate.assignedUsers.includes(userEmail.toLowerCase())
+        );
+
+        // If user has assigned gates, use them; otherwise show all (unassigned workers)
+        if (assignedGates.length > 0) {
+          availableGates = assignedGates;
+        }
+      }
+
+      setGates(availableGates);
 
       // Load template to get section order
       const tmpl = await inspectionService.getTemplate('vehicle_inspection_v1');
       setTemplate(tmpl);
 
-      // Auto-select if only one gate exists
-      if (activeGates.length === 1) {
-        setSelectedGate(activeGates[0]);
+      // Auto-select if only one gate available
+      if (availableGates.length === 1) {
+        setSelectedGate(availableGates[0]);
       }
 
-      logger.info('Dashboard ready', { gatesCount: activeGates.length });
+      logger.info('Dashboard ready', {
+        totalGates: activeGates.length,
+        availableGates: availableGates.length,
+        isManager,
+        userEmail
+      });
     } catch (err) {
       logger.error('Failed to initialize:', err);
       setError('Failed to initialize. Please try again.');
@@ -66,9 +99,45 @@ const QAInspectionDashboard: React.FC<QAInspectionDashboardProps> = ({
     setError(null);
   };
 
+  const loadUnlinkedCount = async (gateId: string) => {
+    try {
+      setLoadingUnlinkedCount(true);
+      const allInspections = await inspectionService.getAllInspections();
+      const unlinked = allInspections.filter(
+        (inspection) =>
+          inspection.gateId === gateId &&
+          inspection.isBodyCodeInspection === true
+      );
+      setUnlinkedCount(unlinked.length);
+    } catch (err) {
+      logger.error('Failed to load unlinked count:', err);
+      setUnlinkedCount(0);
+    } finally {
+      setLoadingUnlinkedCount(false);
+    }
+  };
+
   const handleGateSelect = (gate: QAGate) => {
     setSelectedGate(gate);
+    setPreVinMode(null);
     setError(null);
+
+    // Load unlinked count for pre-VIN gates
+    if (gate.isPreVinGate) {
+      loadUnlinkedCount(gate.gateId);
+    }
+  };
+
+  const handlePreVinModeSelect = (mode: 'inspection' | 'link') => {
+    setPreVinMode(mode);
+    setError(null);
+    if (mode === 'link') {
+      setLinkingStep('vin');
+      setVinForLinking('');
+      setBodyCodeInput('');
+    } else {
+      setBodyCodeInput('');
+    }
   };
 
   // Validate VIN format
@@ -95,7 +164,37 @@ const QAInspectionDashboard: React.FC<QAInspectionDashboardProps> = ({
   const handleBarcodeScan = async (code: string) => {
     setShowScanner(false);
 
-    // Clean and validate the scanned code
+    // For pre-VIN gates in inspection mode, accept any code
+    if (selectedGate?.isPreVinGate && preVinMode === 'inspection') {
+      const cleanCode = code.trim();
+      setBodyCodeInput(cleanCode);
+      await handleScanBodyCode();
+      return;
+    }
+
+    // For pre-VIN gates in link mode
+    if (selectedGate?.isPreVinGate && preVinMode === 'link') {
+      if (linkingStep === 'vin') {
+        // Scanning VIN in link mode
+        const cleanVin = code.trim().toUpperCase();
+        const validation = validateVIN(cleanVin);
+        if (!validation.valid) {
+          setError(validation.error || 'Invalid VIN format');
+          return;
+        }
+        setVinForLinking(cleanVin);
+        setLinkingStep('bodycode');
+        setError(null);
+        return;
+      } else {
+        // Scanning body code in link mode
+        const cleanCode = code.trim();
+        setBodyCodeInput(cleanCode);
+        return;
+      }
+    }
+
+    // Regular VIN scanning for normal gates
     const cleanVin = code.trim().toUpperCase();
 
     // Validate VIN format
@@ -175,6 +274,140 @@ const QAInspectionDashboard: React.FC<QAInspectionDashboardProps> = ({
     } catch (err: any) {
       logger.error('Failed to scan VIN:', err);
       setError('Failed to start inspection. Please try again.');
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  // Handle body code inspection (pre-VIN gate, inspection mode)
+  const handleScanBodyCode = async () => {
+    const bodyCode = bodyCodeInput.trim();
+
+    if (!bodyCode) {
+      setError('Please enter a body code');
+      return;
+    }
+
+    if (!selectedSection) {
+      setError('Please select your inspection position first');
+      return;
+    }
+
+    if (!selectedGate) {
+      setError('Please select a gate first');
+      return;
+    }
+
+    try {
+      setScanning(true);
+      setError(null);
+
+      logger.info('Scanning body code:', {
+        bodyCode,
+        section: selectedSection,
+        gate: selectedGate.gateName,
+        user: userEmail,
+      });
+
+      // Ensure template exists
+      const { loadDefaultTemplate } = await import('../../../services/inspectionTemplateLoader');
+      await loadDefaultTemplate();
+
+      // Check if inspection exists for this body code + gate
+      let inspection = await inspectionService.getInspectionByBodyCodeAndGate(bodyCode, selectedGate.gateId);
+
+      if (!inspection) {
+        // Create new body code inspection
+        const inspectionId = await inspectionService.createBodyCodeInspection(
+          bodyCode,
+          'vehicle_inspection_v1',
+          {
+            gateId: selectedGate.gateId,
+            gateIndex: selectedGate.gateIndex,
+            gateName: selectedGate.gateName,
+          }
+        );
+        inspection = await inspectionService.getInspectionById(inspectionId);
+      }
+
+      if (inspection) {
+        onStartInspection(inspection.inspectionId, bodyCode, selectedSection);
+      }
+    } catch (err: any) {
+      logger.error('Failed to scan body code:', err);
+      setError('Failed to start inspection. Please try again.');
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  // Handle linking VIN to body code (pre-VIN gate, link mode)
+  const handleLinkBodyCodeToVIN = async () => {
+    if (linkingStep === 'vin') {
+      // First step: validate and store VIN
+      const vin = vinForLinking.trim().toUpperCase();
+      const validation = validateVIN(vin);
+
+      if (!validation.valid) {
+        setError(validation.error || 'Invalid VIN format');
+        return;
+      }
+
+      setVinForLinking(vin);
+      setLinkingStep('bodycode');
+      setError(null);
+      return;
+    }
+
+    // Second step: link body code to VIN
+    const bodyCode = bodyCodeInput.trim();
+    if (!bodyCode) {
+      setError('Please enter a body code');
+      return;
+    }
+
+    if (!selectedGate) {
+      setError('Please select a gate first');
+      return;
+    }
+
+    try {
+      setScanning(true);
+      setError(null);
+
+      logger.info('Linking body code to VIN:', {
+        vin: vinForLinking,
+        bodyCode,
+        gate: selectedGate.gateName,
+        user: userEmail,
+      });
+
+      await inspectionService.linkBodyCodeToVIN(
+        bodyCode,
+        vinForLinking,
+        selectedGate.gateId,
+        userEmail
+      );
+
+      // Reset linking state
+      setVinForLinking('');
+      setBodyCodeInput('');
+      setLinkingStep('vin');
+      setError(null);
+
+      // Show success message
+      alert(`✅ Successfully linked body code "${bodyCode}" to VIN "${vinForLinking}"`);
+
+      // Reload unlinked count
+      if (selectedGate) {
+        await loadUnlinkedCount(selectedGate.gateId);
+      }
+
+      // Reset to mode selection
+      setPreVinMode(null);
+    } catch (err: any) {
+      logger.error('Failed to link body code:', err);
+      setError(err.message || 'Failed to link body code. Please try again.');
     } finally {
       setScanning(false);
     }
@@ -308,6 +541,9 @@ const QAInspectionDashboard: React.FC<QAInspectionDashboardProps> = ({
                   <div className="text-left flex-1">
                     <div className="font-semibold">{gate.gateName}</div>
                     <div className="text-xs text-gray-500">Gate {gate.gateIndex}</div>
+                    {gate.isPreVinGate && (
+                      <div className="text-xs text-purple-700 font-semibold mt-1">Pre-VIN Gate</div>
+                    )}
                     {gate.description && (
                       <div className="text-xs text-gray-600 mt-1">{gate.description}</div>
                     )}
@@ -322,8 +558,54 @@ const QAInspectionDashboard: React.FC<QAInspectionDashboardProps> = ({
         )}
       </div>
 
-      {/* Step 2: Select Position */}
-      {selectedGate && (
+      {/* Step 1.5: Select Mode (Pre-VIN Gates Only) */}
+      {selectedGate && selectedGate.isPreVinGate && !preVinMode && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">
+            {t('qa.step')} 2: Select Operation Mode
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <button
+              onClick={() => handlePreVinModeSelect('inspection')}
+              className="p-6 rounded-lg border-2 border-blue-300 bg-blue-50 hover:bg-blue-100 transition-all"
+            >
+              <div className="text-center">
+                <div className="text-4xl mb-3">📋</div>
+                <div className="font-semibold text-blue-900 mb-2">Inspection</div>
+                <div className="text-sm text-blue-700">
+                  Scan body code and perform inspection
+                </div>
+              </div>
+            </button>
+            <button
+              onClick={() => handlePreVinModeSelect('link')}
+              className="p-6 rounded-lg border-2 border-green-300 bg-green-50 hover:bg-green-100 transition-all relative"
+            >
+              <div className="text-center">
+                <div className="text-4xl mb-3">🔗</div>
+                <div className="font-semibold text-green-900 mb-2">Link Body Code to VIN</div>
+                <div className="text-sm text-green-700">
+                  Transfer inspections from body code to VIN
+                </div>
+                {loadingUnlinkedCount ? (
+                  <div className="mt-3 text-xs text-green-600">Loading...</div>
+                ) : unlinkedCount > 0 ? (
+                  <div className="mt-3">
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-orange-100 text-orange-800">
+                      {unlinkedCount} unlinked inspection{unlinkedCount !== 1 ? 's' : ''} waiting
+                    </span>
+                  </div>
+                ) : (
+                  <div className="mt-3 text-xs text-green-600">No unlinked inspections</div>
+                )}
+              </div>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Step 2: Select Position (Regular gates or Pre-VIN inspection mode) */}
+      {selectedGate && (!selectedGate.isPreVinGate || preVinMode === 'inspection') && (
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
             {t('qa.step')} 2: {t('qa.selectYourPosition')}
@@ -357,8 +639,162 @@ const QAInspectionDashboard: React.FC<QAInspectionDashboardProps> = ({
         </div>
       )}
 
-      {/* Step 3: Scan VIN */}
-      {selectedSection && selectedGate && (
+      {/* Step 3a: Scan Body Code (Pre-VIN Inspection Mode) */}
+      {selectedSection && selectedGate && selectedGate.isPreVinGate && preVinMode === 'inspection' && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">
+            {t('qa.step')} 3: Scan Body Code
+          </h2>
+          <div className="mb-4 p-3 bg-purple-50 border border-purple-200 rounded-lg space-y-1">
+            <div className="text-sm text-purple-800">
+              <strong>Gate:</strong> 🚪 {selectedGate.gateName} (Gate {selectedGate.gateIndex}) - Pre-VIN
+            </div>
+            <div className="text-sm text-purple-800">
+              <strong>{t('qa.position')}:</strong> {getSectionName(selectedSection)} {getSectionIcon(selectedSection)}
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex gap-3">
+              <input
+                type="text"
+                value={bodyCodeInput}
+                onChange={(e) => setBodyCodeInput(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleScanBodyCode()}
+                placeholder="Enter body code or use scanner"
+                className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-lg font-mono"
+                autoFocus
+              />
+              <button
+                onClick={handleScanBodyCode}
+                disabled={scanning}
+                className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium"
+              >
+                {scanning ? t('qa.loading') : t('qa.start')}
+              </button>
+            </div>
+
+            <button
+              onClick={() => setShowScanner(true)}
+              className="w-full py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium flex items-center justify-center gap-2"
+            >
+              <span className="text-xl">📷</span>
+              Open Camera Scanner
+            </button>
+          </div>
+
+          {error && (
+            <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">
+              {error}
+            </div>
+          )}
+
+          <div className="mt-3 p-3 bg-purple-50 border border-purple-200 rounded-lg text-sm text-purple-800">
+            💡 <strong>Note:</strong> This inspection will be tied to the body code until it's linked to a VIN.
+          </div>
+        </div>
+      )}
+
+      {/* Step 3b: Link Body Code to VIN (Pre-VIN Link Mode) */}
+      {selectedGate && selectedGate.isPreVinGate && preVinMode === 'link' && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">
+            {t('qa.step')} 2: Link Body Code to VIN
+          </h2>
+          <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg space-y-1">
+            <div className="text-sm text-green-800">
+              <strong>Gate:</strong> 🚪 {selectedGate.gateName} (Gate {selectedGate.gateIndex}) - Pre-VIN
+            </div>
+            <div className="text-sm text-green-800">
+              <strong>Mode:</strong> 🔗 Link Body Code to VIN
+            </div>
+          </div>
+
+          {linkingStep === 'vin' ? (
+            <div className="space-y-3">
+              <h3 className="font-semibold text-gray-700">Step 1: Enter VIN</h3>
+              <div className="flex gap-3">
+                <input
+                  type="text"
+                  value={vinForLinking}
+                  onChange={(e) => setVinForLinking(e.target.value.toUpperCase())}
+                  onKeyPress={(e) => e.key === 'Enter' && handleLinkBodyCodeToVIN()}
+                  placeholder="Enter VIN or use scanner"
+                  className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-lg font-mono"
+                  autoFocus
+                />
+                <button
+                  onClick={handleLinkBodyCodeToVIN}
+                  disabled={scanning}
+                  className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium"
+                >
+                  Next
+                </button>
+              </div>
+              <button
+                onClick={() => setShowScanner(true)}
+                className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center justify-center gap-2"
+              >
+                <span className="text-xl">📷</span>
+                Scan VIN with Camera
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="p-3 bg-green-100 rounded-lg">
+                <div className="text-sm text-green-800">
+                  <strong>VIN:</strong> {vinForLinking}
+                </div>
+              </div>
+              <h3 className="font-semibold text-gray-700">Step 2: Enter Body Code</h3>
+              <div className="flex gap-3">
+                <input
+                  type="text"
+                  value={bodyCodeInput}
+                  onChange={(e) => setBodyCodeInput(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleLinkBodyCodeToVIN()}
+                  placeholder="Enter body code or use scanner"
+                  className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-lg font-mono"
+                  autoFocus
+                />
+                <button
+                  onClick={handleLinkBodyCodeToVIN}
+                  disabled={scanning}
+                  className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium"
+                >
+                  {scanning ? 'Linking...' : 'Link'}
+                </button>
+              </div>
+              <button
+                onClick={() => setShowScanner(true)}
+                className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center justify-center gap-2"
+              >
+                <span className="text-xl">📷</span>
+                Scan Body Code with Camera
+              </button>
+              <button
+                onClick={() => setLinkingStep('vin')}
+                className="text-sm text-blue-600 hover:text-blue-700 underline"
+              >
+                ← Change VIN
+              </button>
+            </div>
+          )}
+
+          {error && (
+            <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">
+              {error}
+            </div>
+          )}
+
+          <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
+            💡 <strong>Note:</strong> All inspections associated with this body code at this gate will be transferred to the VIN.
+          </div>
+        </div>
+      )}
+
+      {/* Step 3c: Scan VIN (Regular Gates) */}
+      {selectedSection && selectedGate && !selectedGate.isPreVinGate && (
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
             {t('qa.step')} 3: {t('qa.scanVINNumber')}
@@ -429,7 +865,15 @@ const QAInspectionDashboard: React.FC<QAInspectionDashboardProps> = ({
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
             <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-              <h3 className="text-lg font-semibold">{t('qa.scanVINBarcode')}</h3>
+              <h3 className="text-lg font-semibold">
+                {selectedGate?.isPreVinGate && preVinMode === 'inspection'
+                  ? 'Scan Body Code'
+                  : selectedGate?.isPreVinGate && preVinMode === 'link' && linkingStep === 'vin'
+                  ? 'Scan VIN'
+                  : selectedGate?.isPreVinGate && preVinMode === 'link' && linkingStep === 'bodycode'
+                  ? 'Scan Body Code'
+                  : t('qa.scanVINBarcode')}
+              </h3>
               <button
                 onClick={() => setShowScanner(false)}
                 className="text-gray-400 hover:text-gray-600"

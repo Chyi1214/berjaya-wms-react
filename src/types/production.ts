@@ -380,6 +380,7 @@ export interface QALocation {
   description?: string;          // Optional description
   isActive: boolean;             // Whether location is currently in use
   order: number;                 // Display order for sorting
+  assignedUsers?: string[];      // User emails assigned to this location
   createdAt: Date;
   createdBy: string;             // User who created location
   updatedAt?: Date;
