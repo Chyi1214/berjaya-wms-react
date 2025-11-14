@@ -30,6 +30,7 @@ export default function QAStockManager() {
   const [deletingVIN, setDeletingVIN] = useState<string | null>(null);
   const [defectStatsMap, setDefectStatsMap] = useState<Map<string, DefectStats>>(new Map());
   const [defectFilter, setDefectFilter] = useState<'all' | 'has_defects' | 'all_fixed'>('all');
+  const [sortByTime, setSortByTime] = useState<'asc' | 'desc' | null>('asc'); // Default: newest first
 
   useEffect(() => {
     loadData();
@@ -177,8 +178,19 @@ export default function QAStockManager() {
     }
   };
 
+  // Toggle time sort
+  const toggleTimeSort = () => {
+    if (sortByTime === null) {
+      setSortByTime('asc'); // First click: newest first (ascending time)
+    } else if (sortByTime === 'asc') {
+      setSortByTime('desc'); // Second click: oldest first (descending time)
+    } else {
+      setSortByTime(null); // Third click: no sort
+    }
+  };
+
   // Filter cars based on search, location, and defect status
-  const filteredCars = cars.filter(car => {
+  let filteredCars = cars.filter(car => {
     const matchesSearch = searchVIN === '' ||
       car.vin.toLowerCase().includes(searchVIN.toLowerCase());
 
@@ -196,6 +208,20 @@ export default function QAStockManager() {
 
     return matchesSearch && matchesLocation && matchesDefectFilter;
   });
+
+  // Sort by time if enabled
+  if (sortByTime !== null) {
+    filteredCars = [...filteredCars].sort((a, b) => {
+      const timeA = a.qaLocationAssignedAt?.getTime() || 0;
+      const timeB = b.qaLocationAssignedAt?.getTime() || 0;
+
+      if (sortByTime === 'asc') {
+        return timeB - timeA; // Newest first
+      } else {
+        return timeA - timeB; // Oldest first
+      }
+    });
+  }
 
   // Get unique location names from cars
   const uniqueLocations = Array.from(new Set(cars.map(car => car.qaLocation).filter(Boolean))) as string[];
@@ -366,8 +392,17 @@ export default function QAStockManager() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     QA Location
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Time
+                  <th
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+                    onClick={toggleTimeSort}
+                    title="Click to sort by time"
+                  >
+                    <div className="flex items-center gap-2">
+                      Time
+                      {sortByTime === 'asc' && <span className="text-blue-600">↑</span>}
+                      {sortByTime === 'desc' && <span className="text-blue-600">↓</span>}
+                      {sortByTime === null && <span className="text-gray-300">⇅</span>}
+                    </div>
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Defects

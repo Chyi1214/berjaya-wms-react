@@ -37,6 +37,7 @@ export const UserFilters = memo(function UserFilters({
           <option value={UserRole.SUPERVISOR}>Supervisor</option>
           <option value={UserRole.LOGISTICS}>Logistics</option>
           <option value={UserRole.PRODUCTION}>Production</option>
+          <option value={UserRole.QA}>QA</option>
           <option value={UserRole.VIEWER}>Viewer</option>
         </select>
       </div>

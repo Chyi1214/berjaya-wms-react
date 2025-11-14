@@ -23,6 +23,7 @@ const QAInspectionManager: React.FC = () => {
   const [detailsVIN, setDetailsVIN] = useState<string | null>(null);
   const [groupByVIN, setGroupByVIN] = useState(true); // Toggle between VIN-grouped and flat list view
   const [showUnlinkedOnly, setShowUnlinkedOnly] = useState(false); // Filter for unlinked pre-VIN inspections
+  const [expandedCars, setExpandedCars] = useState<Set<string>>(new Set()); // Track which cars are expanded
 
   useEffect(() => {
     loadInspections();
@@ -81,6 +82,16 @@ const QAInspectionManager: React.FC = () => {
     }
 
     setFilteredInspections(filtered);
+  };
+
+  const toggleCarExpansion = (vin: string) => {
+    const newExpanded = new Set(expandedCars);
+    if (newExpanded.has(vin)) {
+      newExpanded.delete(vin);
+    } else {
+      newExpanded.add(vin);
+    }
+    setExpandedCars(newExpanded);
   };
 
 
@@ -418,13 +429,34 @@ const QAInspectionManager: React.FC = () => {
       {/* Inspections List */}
       <div className="bg-white rounded-lg shadow">
         <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">
-            {groupByVIN ? (
-              <>Cars ({groupInspectionsByVIN().size})</>
-            ) : (
-              <>Inspections ({filteredInspections.length})</>
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-900">
+              {groupByVIN ? (
+                <>Cars ({groupInspectionsByVIN().size})</>
+              ) : (
+                <>Inspections ({filteredInspections.length})</>
+              )}
+            </h2>
+            {groupByVIN && groupInspectionsByVIN().size > 0 && (
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    const allVINs = Array.from(groupInspectionsByVIN().keys());
+                    setExpandedCars(new Set(allVINs));
+                  }}
+                  className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                >
+                  Expand All
+                </button>
+                <button
+                  onClick={() => setExpandedCars(new Set())}
+                  className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                >
+                  Collapse All
+                </button>
+              </div>
             )}
-          </h2>
+          </div>
         </div>
 
         {filteredInspections.length === 0 ? (
@@ -445,22 +477,30 @@ const QAInspectionManager: React.FC = () => {
                 return sum + getResolvedDefectsCount(insp);
               }, 0);
 
+              const isCarExpanded = expandedCars.has(vin);
+
               return (
                 <div key={vin} className="p-6">
                   {/* VIN Header */}
                   <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
+                    <div
+                      className="flex-1 cursor-pointer hover:bg-gray-50 -m-2 p-2 rounded"
+                      onClick={() => toggleCarExpansion(vin)}
+                    >
                       <div className="flex items-center gap-3 mb-2">
+                        <div className="text-gray-400 font-bold text-lg">
+                          {isCarExpanded ? '▼' : '▶'}
+                        </div>
                         <h3 className="text-xl font-bold text-gray-900">{vin}</h3>
                         <span className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm font-medium">
                           {vinInspections.length} gate{vinInspections.length !== 1 ? 's' : ''}
                         </span>
                       </div>
-                      <div className="text-sm text-gray-600">
+                      <div className="text-sm text-gray-600 ml-8">
                         <span className="font-medium">Gates passed:</span>{' '}
                         {vinInspections.map(insp => insp.gateName || `Gate ${insp.gateIndex}`).join(' → ')}
                       </div>
-                      <div className="text-sm text-gray-600 mt-1">
+                      <div className="text-sm text-gray-600 mt-1 ml-8">
                         <span className={`font-semibold ${totalDefectsForVIN > 0 ? 'text-red-600' : 'text-green-600'}`}>
                           {totalDefectsForVIN} defect{totalDefectsForVIN !== 1 ? 's' : ''} found
                         </span>
@@ -488,6 +528,7 @@ const QAInspectionManager: React.FC = () => {
                   </div>
 
                   {/* Gate Inspections */}
+                  {isCarExpanded && (
                   <div className="grid grid-cols-1 gap-3">
                     {vinInspections.map((inspection) => {
                       const summary = inspectionService.getInspectionSummary(inspection);
@@ -632,6 +673,7 @@ const QAInspectionManager: React.FC = () => {
                       );
                     })}
                   </div>
+                  )}
                 </div>
               );
             })}

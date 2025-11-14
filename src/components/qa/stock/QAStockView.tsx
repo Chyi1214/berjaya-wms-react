@@ -1,13 +1,22 @@
 // QA Stock View - Display all cars currently in QA with locations and timing
 import { useState, useEffect } from 'react';
 import { qaLocationService } from '../../../services/qaLocationService';
+import { inspectionService } from '../../../services/inspectionService';
 import type { Car } from '../../../types/production';
+import type { CarInspection, InspectionItemResult, AdditionalDefect } from '../../../types/inspection';
 import { createModuleLogger } from '../../../services/logger';
 import { InspectionResultsModal } from './InspectionResultsModal';
 import { AssignLocationModal } from '../inspection/AssignLocationModal';
 import { useAuth } from '../../../contexts/AuthContext';
 
 const logger = createModuleLogger('QAStockView');
+
+// Defect stats for a car
+interface DefectStats {
+  totalDefects: number;
+  resolvedDefects: number;
+  unresolvedDefects: number;
+}
 
 export default function QAStockView() {
   const { user } = useAuth();
@@ -17,6 +26,8 @@ export default function QAStockView() {
   const [selectedLocation, setSelectedLocation] = useState<string>('all');
   const [selectedVINForResults, setSelectedVINForResults] = useState<string | null>(null);
   const [showAssignLocationModal, setShowAssignLocationModal] = useState(false);
+  const [sortByTime, setSortByTime] = useState<'asc' | 'desc' | null>('asc'); // Default: newest first
+  const [defectStatsMap, setDefectStatsMap] = useState<Map<string, DefectStats>>(new Map());
 
   useEffect(() => {
     loadData();
@@ -29,11 +40,64 @@ export default function QAStockView() {
     return () => unsubscribe();
   }, []);
 
+  // Calculate defect stats from inspections
+  const calculateDefectStats = (inspections: CarInspection[]): DefectStats => {
+    let totalDefects = 0;
+    let resolvedDefects = 0;
+
+    inspections.forEach(inspection => {
+      Object.values(inspection.sections).forEach(section => {
+        Object.values(section.results).forEach((result: InspectionItemResult) => {
+          // Count main defect if not Ok
+          if (result.defectType !== 'Ok') {
+            totalDefects++;
+            if (result.status === 'Resolved') {
+              resolvedDefects++;
+            }
+          }
+
+          // Count additional defects
+          if (result.additionalDefects) {
+            result.additionalDefects.forEach((additional: AdditionalDefect) => {
+              totalDefects++;
+              if (additional.status === 'Resolved') {
+                resolvedDefects++;
+              }
+            });
+          }
+        });
+      });
+    });
+
+    return {
+      totalDefects,
+      resolvedDefects,
+      unresolvedDefects: totalDefects - resolvedDefects
+    };
+  };
+
   const loadData = async () => {
     setIsLoading(true);
     try {
       const carsData = await qaLocationService.getAllCarsInQA();
       setCars(carsData);
+
+      // Load defect stats for each car
+      const statsMap = new Map<string, DefectStats>();
+      await Promise.all(
+        carsData.map(async (car) => {
+          try {
+            const inspections = await inspectionService.getInspectionsByVIN(car.vin);
+            const stats = calculateDefectStats(inspections);
+            statsMap.set(car.vin, stats);
+          } catch (error) {
+            logger.error('Failed to load defect stats for car:', { vin: car.vin, error });
+            statsMap.set(car.vin, { totalDefects: 0, resolvedDefects: 0, unresolvedDefects: 0 });
+          }
+        })
+      );
+      setDefectStatsMap(statsMap);
+
       logger.info('QA Stock loaded', { carsCount: carsData.length });
     } catch (error) {
       logger.error('Failed to load QA stock:', error);
@@ -61,8 +125,19 @@ export default function QAStockView() {
     }
   };
 
+  // Toggle time sort
+  const toggleTimeSort = () => {
+    if (sortByTime === null) {
+      setSortByTime('asc'); // First click: newest first (ascending time)
+    } else if (sortByTime === 'asc') {
+      setSortByTime('desc'); // Second click: oldest first (descending time)
+    } else {
+      setSortByTime(null); // Third click: no sort
+    }
+  };
+
   // Filter cars based on search and location
-  const filteredCars = cars.filter(car => {
+  let filteredCars = cars.filter(car => {
     const matchesSearch = searchVIN === '' ||
       car.vin.toLowerCase().includes(searchVIN.toLowerCase());
 
@@ -71,6 +146,20 @@ export default function QAStockView() {
 
     return matchesSearch && matchesLocation;
   });
+
+  // Sort by time if enabled
+  if (sortByTime !== null) {
+    filteredCars = [...filteredCars].sort((a, b) => {
+      const timeA = a.qaLocationAssignedAt?.getTime() || 0;
+      const timeB = b.qaLocationAssignedAt?.getTime() || 0;
+
+      if (sortByTime === 'asc') {
+        return timeB - timeA; // Newest first
+      } else {
+        return timeA - timeB; // Oldest first
+      }
+    });
+  }
 
   // Get unique location names from cars
   const uniqueLocations = Array.from(new Set(cars.map(car => car.qaLocation).filter(Boolean))) as string[];
@@ -229,11 +318,23 @@ export default function QAStockView() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     QA Location
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Time in Location
+                  <th
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+                    onClick={toggleTimeSort}
+                    title="Click to sort by time"
+                  >
+                    <div className="flex items-center gap-2">
+                      Time in Location
+                      {sortByTime === 'asc' && <span className="text-blue-600">↑</span>}
+                      {sortByTime === 'desc' && <span className="text-blue-600">↓</span>}
+                      {sortByTime === null && <span className="text-gray-300">⇅</span>}
+                    </div>
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Assigned By
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Defects
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
@@ -241,47 +342,77 @@ export default function QAStockView() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {filteredCars.map((car) => (
-                  <tr key={car.vin} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-mono font-medium text-gray-900">
-                        {car.vin}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{car.type}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{car.color}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{car.series}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="inline-flex px-3 py-1 text-sm font-semibold rounded-full bg-purple-100 text-purple-800">
-                        📍 {car.qaLocation}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        {getTimeInLocation(car.qaLocationAssignedAt)}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-600">
-                        {car.qaLocationAssignedByName || car.qaLocationAssignedBy?.split('@')[0] || '-'}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right">
-                      <button
-                        onClick={() => setSelectedVINForResults(car.vin)}
-                        className="text-blue-600 hover:text-blue-900 font-medium text-sm hover:underline"
-                      >
-                        View Results
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {filteredCars.map((car) => {
+                  const stats = defectStatsMap.get(car.vin);
+                  const isAllFixed = stats && stats.totalDefects > 0 && stats.unresolvedDefects === 0;
+
+                  return (
+                    <tr
+                      key={car.vin}
+                      className={`transition-colors ${
+                        isAllFixed
+                          ? 'bg-green-50 hover:bg-green-100'
+                          : 'hover:bg-gray-50'
+                      }`}
+                    >
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-mono font-medium text-gray-900">
+                          {car.vin}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">{car.type}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">{car.color}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">{car.series}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="inline-flex px-3 py-1 text-sm font-semibold rounded-full bg-purple-100 text-purple-800">
+                          📍 {car.qaLocation}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">
+                          {getTimeInLocation(car.qaLocationAssignedAt)}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-600">
+                          {car.qaLocationAssignedByName || car.qaLocationAssignedBy?.split('@')[0] || '-'}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {stats ? (
+                          <div className="flex items-center gap-2">
+                            <span className={`inline-flex items-center px-3 py-1 text-sm font-bold rounded-full ${
+                              stats.totalDefects === 0
+                                ? 'bg-gray-100 text-gray-600'
+                                : stats.unresolvedDefects === 0
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-red-100 text-red-800'
+                            }`}>
+                              {stats.unresolvedDefects === 0 && stats.totalDefects > 0 && '✓ '}
+                              {stats.resolvedDefects}/{stats.totalDefects}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-sm text-gray-400">-</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right">
+                        <button
+                          onClick={() => setSelectedVINForResults(car.vin)}
+                          className="text-blue-600 hover:text-blue-900 font-medium text-sm hover:underline"
+                        >
+                          View Results
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

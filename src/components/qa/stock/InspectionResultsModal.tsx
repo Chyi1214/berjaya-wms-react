@@ -189,6 +189,75 @@ export function InspectionResultsModal({ vin, onClose }: InspectionResultsModalP
     }
   };
 
+  // Mark all defects as fixed
+  const handleMarkAllAsFixed = async () => {
+    if (!selectedInspection || !authenticatedUser) return;
+
+    const confirmMessage =
+      `Are you sure you want to mark ALL defects as fixed for this gate?\n\n` +
+      `This will mark all unresolved defects as "Resolved"`;
+
+    if (!window.confirm(confirmMessage)) return;
+
+    setResolvingDefect('all');
+
+    try {
+      const promises: Promise<void>[] = [];
+
+      // Iterate through all sections and defects
+      Object.entries(selectedInspection.sections).forEach(([sectionId, section]) => {
+        Object.entries(section.results).forEach(([itemName, result]) => {
+          // Mark main defect if not Ok and not already resolved
+          if (result.defectType !== 'Ok' && result.status !== 'Resolved') {
+            promises.push(
+              inspectionService.markDefectAsResolved(
+                selectedInspection.inspectionId,
+                sectionId as any,
+                itemName,
+                authenticatedUser.email,
+                getUserDisplayName(),
+                undefined, // No note - keep it clean
+                undefined
+              )
+            );
+          }
+
+          // Mark additional defects if not resolved
+          if (result.additionalDefects) {
+            result.additionalDefects.forEach((additional, index) => {
+              if (additional.status !== 'Resolved') {
+                promises.push(
+                  inspectionService.markDefectAsResolved(
+                    selectedInspection.inspectionId,
+                    sectionId as any,
+                    itemName,
+                    authenticatedUser.email,
+                    getUserDisplayName(),
+                    undefined, // No note - keep it clean
+                    index
+                  )
+                );
+              }
+            });
+          }
+        });
+      });
+
+      // Execute all promises
+      await Promise.all(promises);
+
+      // Reload inspections
+      await loadInspections();
+      logger.info('All defects marked as resolved successfully');
+      alert('✅ All defects marked as fixed!');
+    } catch (err) {
+      logger.error('Failed to mark all defects as resolved:', err);
+      alert('❌ Failed to mark all defects as fixed. Please try again.');
+    } finally {
+      setResolvingDefect(null);
+    }
+  };
+
   const selectedInspection = inspections[selectedGateIndex];
   const defectLocations = selectedInspection ? collectDefectLocations(selectedInspection) : [];
 
@@ -297,6 +366,33 @@ export function InspectionResultsModal({ vin, onClose }: InspectionResultsModalP
               <div className="flex-1 overflow-y-auto p-4 md:p-6">
                 {selectedInspection ? (
                   <div className="space-y-6">
+                    {/* Mark All as Fixed Button */}
+                    <div className="bg-green-50 border-2 border-green-300 rounded-lg p-4">
+                      <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                        <div className="text-center sm:text-left">
+                          <div className="text-lg font-bold text-green-900">Quick Fix All Defects</div>
+                          <div className="text-sm text-green-700 mt-1">Mark all defects in this gate as resolved in one click</div>
+                        </div>
+                        <button
+                          onClick={handleMarkAllAsFixed}
+                          disabled={resolvingDefect === 'all'}
+                          className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-bold text-base flex items-center gap-2 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                        >
+                          {resolvingDefect === 'all' ? (
+                            <>
+                              <span>⏳</span>
+                              <span>Marking All...</span>
+                            </>
+                          ) : (
+                            <>
+                              <span>✓</span>
+                              <span>Mark All as Fixed</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
                     {/* Inspection Overview */}
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 md:p-4">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
